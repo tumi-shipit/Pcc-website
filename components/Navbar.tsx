@@ -36,13 +36,17 @@ export default function Navbar() {
             Tournaments
           </Link>
 
+          <Link href="/register" className="transition hover:text-red-500">
+            Register
+          </Link>
+
           <Link href="/#contact" className="transition hover:text-red-500">
             Contact
           </Link>
         </nav>
 
         <a
-          href="#contact"
+          href="/#contact"
           className="hidden rounded bg-red-600 px-4 py-2 text-white transition hover:bg-red-700 md:block"
         >
           Join PCC
@@ -85,6 +89,14 @@ export default function Navbar() {
           </Link>
 
           <Link
+            href="/register"
+            onClick={() => setOpen(false)}
+            className="block"
+          >
+            Register
+          </Link>
+
+          <Link
             href="/#contact"
             onClick={() => setOpen(false)}
             className="block"
@@ -93,7 +105,7 @@ export default function Navbar() {
           </Link>
 
           <a
-            href="#contact"
+            href="/#contact"
             onClick={() => setOpen(false)}
             className="mt-4 block w-full rounded bg-red-600 py-2 text-center"
           >
