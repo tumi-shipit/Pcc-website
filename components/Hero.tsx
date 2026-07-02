@@ -1,65 +1,70 @@
+import Link from "next/link";
+
 export default function Hero() {
   return (
-    <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-black text-white">
+    <section className="relative flex min-h-screen items-center overflow-hidden bg-black px-6 pt-24 text-white">
+      {/* Background glow */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.35),_transparent_35%)]" />
 
-      {/* Background */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          backgroundImage:
-            "url('https://images.unsplash.com/photo-1580541832626-2a7131ee809f?q=80&w=2070&auto=format&fit=crop')",
-        }}
-      />
+      {/* Chessboard-style background pattern */}
+      <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(45deg,#ffffff_25%,transparent_25%),linear-gradient(-45deg,#ffffff_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#ffffff_75%),linear-gradient(-45deg,transparent_75%,#ffffff_75%)] [background-position:0_0,0_20px,20px_-20px,-20px_0px] [background-size:40px_40px]" />
 
-      {/* Dark Overlay */}
-      <div className="absolute inset-0 bg-black/70" />
+      <div className="relative mx-auto w-full max-w-7xl">
+        <div className="max-w-4xl">
+          <p className="mb-6 font-semibold uppercase tracking-[0.3em] text-red-400">
+            Polokwane Chess Club
+          </p>
 
-      {/* Content */}
-      <div className="relative z-10 max-w-5xl px-6 text-center">
+          <h1 className="text-5xl font-bold leading-tight md:text-7xl">
+            Building Champions
+            <span className="block text-red-500">Since 1958</span>
+          </h1>
 
-        <div className="mb-6 inline-block rounded-full border border-red-600/40 bg-red-600/10 px-5 py-2 text-sm uppercase tracking-[0.3em] text-red-400">
-          Established in 1958 • One of Limpopo's Oldest Chess Clubs
+          <p className="mt-8 max-w-2xl text-lg leading-8 text-gray-300 md:text-xl">
+            A home for chess players in Polokwane and Limpopo. We develop
+            talent, host competitive events and build a stronger chess
+            community for every generation.
+          </p>
+
+          <div className="mt-10 flex flex-col gap-4 sm:flex-row">
+            <a
+              href="#about"
+              className="rounded-xl bg-red-600 px-8 py-4 text-center font-semibold text-white transition hover:bg-red-700"
+            >
+              Scroll to Explore
+            </a>
+
+            <a
+              href="#tournaments"
+              className="rounded-xl border border-white px-8 py-4 text-center font-semibold text-white transition hover:bg-white hover:text-black"
+            >
+              Upcoming Tournaments
+            </a>
+          </div>
+
+          <div className="mt-12 flex flex-wrap gap-6 text-sm text-gray-400">
+            <span>Established in 1958</span>
+            <span className="hidden sm:inline">•</span>
+            <span>Polokwane, Limpopo</span>
+            <span className="hidden sm:inline">•</span>
+            <span>Competitive Chess</span>
+          </div>
         </div>
-
-        <h1 className="text-5xl font-extrabold leading-tight md:text-7xl">
-          Building Champions
-          <br />
-          <span className="text-red-600">Since 1958</span>
-        </h1>
-
-        <p className="mx-auto mt-8 max-w-3xl text-lg leading-8 text-gray-300">
-          For more than six decades, Polokwane Chess Club has developed
-          strategic thinkers, empowered young players and promoted competitive
-          chess throughout Limpopo.
-        </p>
-
-        <div className="mt-10 flex flex-wrap justify-center gap-5">
-
-          <button className="rounded-xl bg-red-600 px-8 py-4 font-semibold transition hover:scale-105 hover:bg-red-700">
-            Become a Member
-          </button>
-
-          <a
-          href="#tournaments"
-          className="rounded-xl border border-white px-8 py-4 font-semibold transition hover:bg-white hover:text-black">
-            Upcoming Tournaments
-          </a>
-
-        </div>
-
       </div>
 
       {/* Scroll Indicator */}
-      <div className="absolute bottom-8 text-center">
+      <a
+        href="#about"
+        className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center transition hover:text-white"
+      >
         <p className="text-sm tracking-widest text-gray-400">
           SCROLL TO EXPLORE
         </p>
 
-        <div className="mx-auto mt-2 h-10 w-6 rounded-full border border-white">
-          <div className="mx-auto mt-2 h-2 w-2 animate-bounce rounded-full bg-red-500"></div>
-        </div>
-      </div>
-
+        <span className="mt-2 block animate-bounce text-xl text-red-500">
+          ↓
+        </span>
+      </a>
     </section>
   );
 }
