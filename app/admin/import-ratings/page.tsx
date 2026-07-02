@@ -33,16 +33,21 @@ function formatDate(value?: string) {
 
   const cleanValue = value.trim();
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) return cleanValue;
+  // Chess SA format: YYYY/MM/DD, example 2000/01/01
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(cleanValue)) {
+    const [year, month, day] = cleanValue.split("/");
+    return `${year}-${month}-${day}`;
+  }
 
-  const parts = cleanValue.split("/");
+  // ISO format: YYYY-MM-DD, example 2000-01-01
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
+    return cleanValue;
+  }
 
-  if (parts.length === 3) {
-    const [day, month, year] = parts;
-
-    if (day && month && year && year.length === 4) {
-      return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    }
+  // Fallback format: DD/MM/YYYY, example 01/01/2000
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(cleanValue)) {
+    const [day, month, year] = cleanValue.split("/");
+    return `${year}-${month}-${day}`;
   }
 
   return null;
