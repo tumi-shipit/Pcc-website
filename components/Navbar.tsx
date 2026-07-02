@@ -16,7 +16,7 @@ export default function Navbar() {
             alt="Polokwane Chess Club logo"
             width={200}
             height={200}
-            className="rounded-sm object-contain"
+            className="h-14 w-auto rounded-sm object-contain md:h-16"
           />
         </Link>
 
