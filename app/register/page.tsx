@@ -20,6 +20,18 @@ type Player = {
   verification_status: "Verified" | "Pending" | "Rejected";
 };
 
+type ChessSaPlayer = {
+  chess_sa_id: string;
+  full_name: string;
+  date_of_birth: string;
+  gender: string | null;
+  title: string | null;
+  federation: string | null;
+  standard_rating: number | null;
+  rapid_rating: number | null;
+  blitz_rating: number | null;
+};
+
 type Tournament = {
   id: string;
   tournament_name: string;
@@ -100,6 +112,7 @@ export default function RegisterPage() {
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
   const [player, setPlayer] = useState<Player | null>(null);
+  const [chessaProfile, setChessaProfile] = useState<ChessSaPlayer | null>(null);
   const [showNewPlayerForm, setShowNewPlayerForm] = useState(false);
   const [newPlayer, setNewPlayer] = useState<NewPlayerForm>(emptyNewPlayer);
   const [creatingPlayer, setCreatingPlayer] = useState(false);
@@ -194,17 +207,105 @@ export default function RegisterPage() {
     setSearching(true);
     setSearchMessage("");
     setPlayer(null);
+    setChessaProfile(null);
     setShowNewPlayerForm(false);
     setRegistrationMessage("");
 
-    const { data, error } = await supabase.rpc(
-      "find_player_for_registration",
-      {
-        search_method: searchMethod,
-        search_value: searchValue.trim(),
-        birth_date: searchBirthDate,
+    if (searchMethod === "chesssa") {
+      const { data: chessaData, error: chessaError } = await supabase.rpc(
+        "find_chessa_player_for_registration",
+        {
+          p_chess_sa_id: searchValue.trim(),
+          p_birth_date: searchBirthDate,
+        }
+      );
+
+      if (chessaError) {
+        setSearchMessage("Chess SA lookup failed. Please try again.");
+        setSearching(false);
+        return;
       }
-    );
+
+      const foundChessaPlayer = chessaData?.[0] as ChessSaPlayer | undefined;
+
+      if (foundChessaPlayer) {
+        setChessaProfile(foundChessaPlayer);
+
+        const { data: existingPlayerData } = await supabase.rpc(
+          "find_player_for_registration",
+          {
+            search_method: "chesssa",
+            search_value: foundChessaPlayer.chess_sa_id,
+            birth_date: foundChessaPlayer.date_of_birth,
+          }
+        );
+
+        const existingPlayer = existingPlayerData?.[0] as Player | undefined;
+
+        if (existingPlayer) {
+          setPlayer(existingPlayer);
+          setSearchMessage(
+            "Player found from PCC records and verified against Chess SA."
+          );
+          setSearching(false);
+          return;
+        }
+
+        const bestRating =
+          foundChessaPlayer.standard_rating ??
+          foundChessaPlayer.rapid_rating ??
+          foundChessaPlayer.blitz_rating ??
+          null;
+
+        const { data: createdPlayer, error: createError } = await supabase
+          .from("players")
+          .insert({
+            full_name: foundChessaPlayer.full_name,
+            fide_id: null,
+            chess_sa_id: foundChessaPlayer.chess_sa_id,
+            date_of_birth: foundChessaPlayer.date_of_birth,
+            gender: foundChessaPlayer.gender || "Not supplied",
+            club: null,
+            province: null,
+            rating: bestRating,
+            email: "update-required@example.com",
+            phone: "Update required",
+            verification_status: "Pending",
+          })
+          .select(
+            "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status"
+          )
+          .single();
+
+        if (createError) {
+          if (createError.code === "23505") {
+            setSearchMessage(
+              "Chess SA profile found, but a PCC profile already exists. Search again or contact the organiser."
+            );
+          } else {
+            setSearchMessage(
+              "Chess SA profile found, but PCC profile could not be created. Please contact the organiser."
+            );
+          }
+
+          setSearching(false);
+          return;
+        }
+
+        setPlayer(createdPlayer as Player);
+        setSearchMessage(
+          "Chess SA player found. Your PCC profile has been created and is pending verification."
+        );
+        setSearching(false);
+        return;
+      }
+    }
+
+    const { data, error } = await supabase.rpc("find_player_for_registration", {
+      search_method: searchMethod,
+      search_value: searchValue.trim(),
+      birth_date: searchBirthDate,
+    });
 
     if (error) {
       setSearchMessage("Search failed. Please check your details and try again.");
@@ -390,11 +491,13 @@ export default function RegisterPage() {
           </p>
 
           <div className="mt-7 grid gap-3 sm:grid-cols-3">
-            {[
-              ["fide", "Search by FIDE ID"],
-              ["chesssa", "Search by Chess SA ID"],
-              ["surname", "Search by surname"],
-            ].map(([method, label]) => (
+            {(
+              [
+                ["fide", "Search by FIDE ID"],
+                ["chesssa", "Search by Chess SA ID"],
+                ["surname", "Search by surname"],
+              ] as const
+            ).map(([method, label]) => (
               <button
                 key={method}
                 type="button"
@@ -509,6 +612,22 @@ export default function RegisterPage() {
                 <span className="font-semibold text-white">Rating:</span>{" "}
                 {player.rating ?? "Not supplied"}
               </p>
+              {chessaProfile && (
+                <>
+                  <p>
+                    <span className="font-semibold text-white">Standard:</span>{" "}
+                    {chessaProfile.standard_rating ?? "Not rated"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-white">Rapid:</span>{" "}
+                    {chessaProfile.rapid_rating ?? "Not rated"}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-white">Blitz:</span>{" "}
+                    {chessaProfile.blitz_rating ?? "Not rated"}
+                  </p>
+                </>
+              )}
               <p>
                 <span className="font-semibold text-white">Email:</span>{" "}
                 {player.email}
