@@ -3,7 +3,19 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
-type SearchMethod = "fide" | "chesssa" | "surname";
+type SearchMethod = "surname" | "chesssa";
+
+type ChessSaPlayer = {
+  chess_sa_id: string;
+  full_name: string;
+  date_of_birth: string | null;
+  gender: string | null;
+  title: string | null;
+  federation: string | null;
+  standard_rating: number | null;
+  rapid_rating: number | null;
+  blitz_rating: number | null;
+};
 
 type Player = {
   id: string;
@@ -18,18 +30,6 @@ type Player = {
   email: string;
   phone: string;
   verification_status: "Verified" | "Pending" | "Rejected";
-};
-
-type ChessSaPlayer = {
-  chess_sa_id: string;
-  full_name: string;
-  date_of_birth: string;
-  gender: string | null;
-  title: string | null;
-  federation: string | null;
-  standard_rating: number | null;
-  rapid_rating: number | null;
-  blitz_rating: number | null;
 };
 
 type Tournament = {
@@ -53,33 +53,7 @@ type TournamentSection = {
   maximum_players: number | null;
 };
 
-type NewPlayerForm = {
-  full_name: string;
-  fide_id: string;
-  chess_sa_id: string;
-  date_of_birth: string;
-  gender: string;
-  club: string;
-  province: string;
-  rating: string;
-  email: string;
-  phone: string;
-};
-
-const emptyNewPlayer: NewPlayerForm = {
-  full_name: "",
-  fide_id: "",
-  chess_sa_id: "",
-  date_of_birth: "",
-  gender: "",
-  club: "",
-  province: "",
-  rating: "",
-  email: "",
-  phone: "",
-};
-
-function calculateAge(dateOfBirth: string) {
+function calculateAge(dateOfBirth: string | null) {
   if (!dateOfBirth) return null;
 
   const birthDate = new Date(dateOfBirth);
@@ -106,16 +80,20 @@ function formatMoney(amount: number) {
 }
 
 export default function RegisterPage() {
-  const [searchMethod, setSearchMethod] = useState<SearchMethod>("fide");
+  const [searchMethod, setSearchMethod] = useState<SearchMethod>("surname");
   const [searchValue, setSearchValue] = useState("");
   const [searchBirthDate, setSearchBirthDate] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchMessage, setSearchMessage] = useState("");
-  const [player, setPlayer] = useState<Player | null>(null);
-  const [chessaProfile, setChessaProfile] = useState<ChessSaPlayer | null>(null);
-  const [showNewPlayerForm, setShowNewPlayerForm] = useState(false);
-  const [newPlayer, setNewPlayer] = useState<NewPlayerForm>(emptyNewPlayer);
-  const [creatingPlayer, setCreatingPlayer] = useState(false);
+
+  const [matches, setMatches] = useState<ChessSaPlayer[]>([]);
+  const [selectedChessSaPlayer, setSelectedChessSaPlayer] =
+    useState<ChessSaPlayer | null>(null);
+
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [club, setClub] = useState("");
+  const [province, setProvince] = useState("");
 
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loadingTournaments, setLoadingTournaments] = useState(true);
@@ -123,6 +101,7 @@ export default function RegisterPage() {
   const [sections, setSections] = useState<TournamentSection[]>([]);
   const [loadingSections, setLoadingSections] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState("");
+
   const [paymentChoice, setPaymentChoice] = useState<"later" | "proof">(
     "later"
   );
@@ -140,7 +119,7 @@ export default function RegisterPage() {
     [selectedSectionId, sections]
   );
 
-  const playerAge = calculateAge(player?.date_of_birth ?? "");
+  const selectedPlayerAge = calculateAge(selectedChessSaPlayer?.date_of_birth ?? null);
 
   const entryFee =
     selectedSection?.entry_fee_override ?? selectedTournament?.entry_fee ?? 0;
@@ -206,106 +185,18 @@ export default function RegisterPage() {
 
     setSearching(true);
     setSearchMessage("");
-    setPlayer(null);
-    setChessaProfile(null);
-    setShowNewPlayerForm(false);
     setRegistrationMessage("");
+    setMatches([]);
+    setSelectedChessSaPlayer(null);
 
-    if (searchMethod === "chesssa") {
-      const { data: chessaData, error: chessaError } = await supabase.rpc(
-        "find_chessa_player_for_registration",
-        {
-          p_chess_sa_id: searchValue.trim(),
-          p_birth_date: searchBirthDate,
-        }
-      );
-
-      if (chessaError) {
-        setSearchMessage("Chess SA lookup failed. Please try again.");
-        setSearching(false);
-        return;
+    const { data, error } = await supabase.rpc(
+      "find_chessa_player_for_registration",
+      {
+        p_search_method: searchMethod,
+        p_search_value: searchValue.trim(),
+        p_birth_date: searchMethod === "surname" ? searchBirthDate : null,
       }
-
-      const foundChessaPlayer = chessaData?.[0] as ChessSaPlayer | undefined;
-
-      if (foundChessaPlayer) {
-        setChessaProfile(foundChessaPlayer);
-
-        const { data: existingPlayerData } = await supabase.rpc(
-          "find_player_for_registration",
-          {
-            search_method: "chesssa",
-            search_value: foundChessaPlayer.chess_sa_id,
-            birth_date: foundChessaPlayer.date_of_birth,
-          }
-        );
-
-        const existingPlayer = existingPlayerData?.[0] as Player | undefined;
-
-        if (existingPlayer) {
-          setPlayer(existingPlayer);
-          setSearchMessage(
-            "Player found from PCC records and verified against Chess SA."
-          );
-          setSearching(false);
-          return;
-        }
-
-        const bestRating =
-          foundChessaPlayer.standard_rating ??
-          foundChessaPlayer.rapid_rating ??
-          foundChessaPlayer.blitz_rating ??
-          null;
-
-        const { data: createdPlayer, error: createError } = await supabase
-          .from("players")
-          .insert({
-            full_name: foundChessaPlayer.full_name,
-            fide_id: null,
-            chess_sa_id: foundChessaPlayer.chess_sa_id,
-            date_of_birth: foundChessaPlayer.date_of_birth,
-            gender: foundChessaPlayer.gender || "Not supplied",
-            club: null,
-            province: null,
-            rating: bestRating,
-            email: "update-required@example.com",
-            phone: "Update required",
-            verification_status: "Pending",
-          })
-          .select(
-            "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status"
-          )
-          .single();
-
-        if (createError) {
-          if (createError.code === "23505") {
-            setSearchMessage(
-              "Chess SA profile found, but a PCC profile already exists. Search again or contact the organiser."
-            );
-          } else {
-            setSearchMessage(
-              "Chess SA profile found, but PCC profile could not be created. Please contact the organiser."
-            );
-          }
-
-          setSearching(false);
-          return;
-        }
-
-        setPlayer(createdPlayer as Player);
-        setSearchMessage(
-          "Chess SA player found. Your PCC profile has been created and is pending verification."
-        );
-        setSearching(false);
-        return;
-      }
-    }
-
-    const { data, error } = await supabase.rpc("find_player_for_registration", {
-      search_method: searchMethod,
-      search_value: searchValue.trim(),
-      birth_date: searchBirthDate,
-    });
+    );
 
     if (error) {
       setSearchMessage("Search failed. Please check your details and try again.");
@@ -313,48 +204,90 @@ export default function RegisterPage() {
       return;
     }
 
-    const foundPlayer = data?.[0] as Player | undefined;
+    const results = (data ?? []) as ChessSaPlayer[];
 
-    if (foundPlayer) {
-      setPlayer(foundPlayer);
-      setSearchMessage("Player profile found. Please confirm your details.");
-    } else {
-      setNewPlayer({
-        ...emptyNewPlayer,
-        full_name: searchMethod === "surname" ? searchValue.trim() : "",
-        fide_id: searchMethod === "fide" ? searchValue.trim() : "",
-        chess_sa_id: searchMethod === "chesssa" ? searchValue.trim() : "",
-        date_of_birth: searchBirthDate,
-      });
-
-      setShowNewPlayerForm(true);
+    if (results.length === 0) {
       setSearchMessage(
-        "No matching profile was found. Create a new player profile below."
+        searchMethod === "surname"
+          ? "No matching Chess SA player was found. Check the surname and date of birth."
+          : "No matching Chess SA player was found. Check the Chess SA ID."
+      );
+      setSearching(false);
+      return;
+    }
+
+    setMatches(results);
+
+    if (results.length === 1) {
+      setSelectedChessSaPlayer(results[0]);
+      setSearchMessage("Chess SA player found. Please confirm your details.");
+    } else {
+      setSearchMessage(
+        `${results.length} matching players found. Please select the correct player.`
       );
     }
 
     setSearching(false);
   }
 
-  async function handleCreatePlayer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function choosePlayer(player: ChessSaPlayer) {
+    setSelectedChessSaPlayer(player);
+    setSearchMessage("Chess SA player selected. Continue with registration.");
+  }
 
-    setCreatingPlayer(true);
-    setRegistrationMessage("");
+  async function getOrCreateTournamentPlayer(chessPlayer: ChessSaPlayer) {
+    const { data: existingData } = await supabase.rpc(
+      "find_player_for_registration",
+      {
+        search_method: "chesssa",
+        search_value: chessPlayer.chess_sa_id,
+        birth_date: chessPlayer.date_of_birth ?? "1900-01-01",
+      }
+    );
 
-    const { data, error } = await supabase
+    const existingPlayer = existingData?.[0] as Player | undefined;
+
+    if (existingPlayer) {
+      const { data: updatedPlayer, error: updateError } = await supabase
+        .from("players")
+        .update({
+          email: email.trim(),
+          phone: phone.trim(),
+          club: club.trim() || null,
+          province: province.trim() || null,
+          rating:
+            chessPlayer.standard_rating ??
+            chessPlayer.rapid_rating ??
+            chessPlayer.blitz_rating ??
+            existingPlayer.rating,
+        })
+        .eq("id", existingPlayer.id)
+        .select(
+          "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status"
+        )
+        .single();
+
+      if (updateError) throw updateError;
+      return updatedPlayer as Player;
+    }
+
+    const { data: createdPlayer, error: createError } = await supabase
       .from("players")
       .insert({
-        full_name: newPlayer.full_name.trim(),
-        fide_id: newPlayer.fide_id.trim() || null,
-        chess_sa_id: newPlayer.chess_sa_id.trim() || null,
-        date_of_birth: newPlayer.date_of_birth,
-        gender: newPlayer.gender,
-        club: newPlayer.club.trim() || null,
-        province: newPlayer.province.trim() || null,
-        rating: newPlayer.rating ? Number(newPlayer.rating) : null,
-        email: newPlayer.email.trim(),
-        phone: newPlayer.phone.trim(),
+        full_name: chessPlayer.full_name,
+        fide_id: null,
+        chess_sa_id: chessPlayer.chess_sa_id,
+        date_of_birth: chessPlayer.date_of_birth ?? "1900-01-01",
+        gender: chessPlayer.gender || "Not supplied",
+        club: club.trim() || null,
+        province: province.trim() || null,
+        rating:
+          chessPlayer.standard_rating ??
+          chessPlayer.rapid_rating ??
+          chessPlayer.blitz_rating ??
+          null,
+        email: email.trim(),
+        phone: phone.trim(),
         verification_status: "Pending",
       })
       .select(
@@ -362,36 +295,22 @@ export default function RegisterPage() {
       )
       .single();
 
-    if (error) {
-      if (error.code === "23505") {
-        setRegistrationMessage(
-          "A player profile with that FIDE ID or Chess SA ID already exists. Please search again."
-        );
-      } else {
-        setRegistrationMessage(
-          "Could not create your profile. Please check the details and try again."
-        );
-      }
-
-      setCreatingPlayer(false);
-      return;
-    }
-
-    setPlayer(data as Player);
-    setShowNewPlayerForm(false);
-    setRegistrationMessage(
-      "Player profile created successfully. It is pending verification, but you can continue with registration."
-    );
-    setCreatingPlayer(false);
+    if (createError) throw createError;
+    return createdPlayer as Player;
   }
 
   async function handleRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!player || !selectedTournamentId || !selectedSectionId) {
+    if (!selectedChessSaPlayer || !selectedTournamentId || !selectedSectionId) {
       setRegistrationMessage(
-        "Please confirm your player profile, tournament and section first."
+        "Please confirm the player, tournament and section first."
       );
+      return;
+    }
+
+    if (!email.trim() || !phone.trim()) {
+      setRegistrationMessage("Please enter your email and phone number.");
       return;
     }
 
@@ -403,58 +322,61 @@ export default function RegisterPage() {
     setSubmittingRegistration(true);
     setRegistrationMessage("");
 
-    let proofOfPaymentUrl: string | null = null;
+    try {
+      const player = await getOrCreateTournamentPlayer(selectedChessSaPlayer);
 
-    if (paymentChoice === "proof" && proofFile) {
-      const safeFileName = proofFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-      const filePath = `${player.id}/${selectedTournamentId}/${Date.now()}-${safeFileName}`;
+      let proofOfPaymentUrl: string | null = null;
 
-      const { error: uploadError } = await supabase.storage
-        .from("proof-of-payments")
-        .upload(filePath, proofFile, {
-          upsert: false,
-        });
+      if (paymentChoice === "proof" && proofFile) {
+        const safeFileName = proofFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+        const filePath = `${player.id}/${selectedTournamentId}/${Date.now()}-${safeFileName}`;
 
-      if (uploadError) {
-        setRegistrationMessage(
-          "Your proof of payment could not be uploaded. Please try again."
-        );
+        const { error: uploadError } = await supabase.storage
+          .from("proof-of-payments")
+          .upload(filePath, proofFile, {
+            upsert: false,
+          });
+
+        if (uploadError) throw uploadError;
+
+        proofOfPaymentUrl = filePath;
+      }
+
+      const { error } = await supabase.from("registrations").insert({
+        player_id: player.id,
+        tournament_id: selectedTournamentId,
+        section_id: selectedSectionId,
+        payment_status:
+          paymentChoice === "proof" ? "Proof Submitted" : "Pending",
+        proof_of_payment_url: proofOfPaymentUrl,
+        registration_status: "Pending",
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          setRegistrationMessage(
+            "You are already registered for this tournament. Contact the organiser if you need changes."
+          );
+        } else {
+          setRegistrationMessage(
+            "Your registration could not be saved. Please try again."
+          );
+        }
+
         setSubmittingRegistration(false);
         return;
       }
 
-      proofOfPaymentUrl = filePath;
-    }
-
-    const { error } = await supabase.from("registrations").insert({
-      player_id: player.id,
-      tournament_id: selectedTournamentId,
-      section_id: selectedSectionId,
-      payment_status:
-        paymentChoice === "proof" ? "Proof Submitted" : "Pending",
-      proof_of_payment_url: proofOfPaymentUrl,
-      registration_status: "Pending",
-    });
-
-    if (error) {
-      if (error.code === "23505") {
-        setRegistrationMessage(
-          "You are already registered for this tournament. Contact the organiser if you need changes."
-        );
-      } else {
-        setRegistrationMessage(
-          "Your registration could not be saved. Please try again."
-        );
-      }
-
+      setRegistrationMessage(
+        "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
+      );
+    } catch {
+      setRegistrationMessage(
+        "Your registration could not be completed. Please check your details and try again."
+      );
+    } finally {
       setSubmittingRegistration(false);
-      return;
     }
-
-    setRegistrationMessage(
-      "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
-    );
-    setSubmittingRegistration(false);
   }
 
   return (
@@ -466,42 +388,48 @@ export default function RegisterPage() {
           </p>
 
           <h1 className="mt-4 text-4xl font-bold md:text-6xl">
-            Register for a Tournament
+            Tournament Entry Portal
           </h1>
 
           <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-300">
-            Search for your player profile, choose an open tournament and
-            section, then submit your entry.
+            Find your Chess SA profile, choose an open tournament and section,
+            then submit your tournament entry.
           </p>
 
           <p className="mt-5 text-sm leading-6 text-gray-400">
-            Only tournaments managed through Polokwane Chess Club Tournament
-            Services are listed here.
+            This is for tournament entries only. PCC membership profiles will be
+            handled separately under Join PCC.
           </p>
         </div>
       </section>
 
       <section className="mx-auto max-w-5xl px-6 py-16">
         <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl md:p-10">
-          <h2 className="text-2xl font-bold">1. Find your player profile</h2>
+          <h2 className="text-2xl font-bold">1. Find your Chess SA profile</h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Search using an ID or surname together with your date of birth.
-            Player information is not publicly browsable.
+            Most players do not know their Chess SA ID, so surname and date of
+            birth is the recommended search method.
           </p>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-3">
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">
             {(
               [
-                ["fide", "Search by FIDE ID"],
+                ["surname", "Search by surname + date of birth"],
                 ["chesssa", "Search by Chess SA ID"],
-                ["surname", "Search by surname"],
               ] as const
             ).map(([method, label]) => (
               <button
                 key={method}
                 type="button"
-                onClick={() => setSearchMethod(method as SearchMethod)}
+                onClick={() => {
+                  setSearchMethod(method);
+                  setSearchValue("");
+                  setSearchBirthDate("");
+                  setMatches([]);
+                  setSelectedChessSaPlayer(null);
+                  setSearchMessage("");
+                }}
                 className={`rounded-lg border px-4 py-3 text-sm font-semibold transition ${
                   searchMethod === method
                     ? "border-red-500 bg-red-600 text-white"
@@ -516,11 +444,7 @@ export default function RegisterPage() {
           <form onSubmit={handleSearch} className="mt-8 grid gap-5 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-200">
-                {searchMethod === "fide"
-                  ? "FIDE ID"
-                  : searchMethod === "chesssa"
-                    ? "Chess SA ID"
-                    : "Surname"}
+                {searchMethod === "surname" ? "Surname" : "Chess SA ID"}
               </label>
 
               <input
@@ -529,37 +453,37 @@ export default function RegisterPage() {
                 value={searchValue}
                 onChange={(event) => setSearchValue(event.target.value)}
                 placeholder={
-                  searchMethod === "fide"
-                    ? "Enter your FIDE ID"
-                    : searchMethod === "chesssa"
-                      ? "Enter your Chess SA ID"
-                      : "Enter your surname"
+                  searchMethod === "surname"
+                    ? "Enter your surname"
+                    : "Enter your Chess SA ID"
                 }
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-gray-200">
-                Date of birth
-              </label>
+            {searchMethod === "surname" && (
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-200">
+                  Date of birth
+                </label>
 
-              <input
-                type="date"
-                required
-                value={searchBirthDate}
-                onChange={(event) => setSearchBirthDate(event.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-              />
-            </div>
+                <input
+                  type="date"
+                  required
+                  value={searchBirthDate}
+                  onChange={(event) => setSearchBirthDate(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                />
+              </div>
+            )}
 
-            <div className="md:col-span-2">
+            <div className={searchMethod === "surname" ? "md:col-span-2" : ""}>
               <button
                 type="submit"
                 disabled={searching}
                 className="w-full rounded-lg bg-red-600 px-5 py-4 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {searching ? "Searching..." : "Search Player Profile"}
+                {searching ? "Searching..." : "Find My Chess SA Profile"}
               </button>
             </div>
           </form>
@@ -571,176 +495,147 @@ export default function RegisterPage() {
           )}
         </div>
 
-        {player && (
-          <div className="mt-10 rounded-2xl border border-green-500/30 bg-green-500/10 p-6 md:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
-              Player profile confirmed
-            </p>
+        {matches.length > 1 && !selectedChessSaPlayer && (
+          <div className="mt-10 rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
+            <h2 className="text-2xl font-bold">Select your profile</h2>
 
-            <h2 className="mt-3 text-2xl font-bold">{player.full_name}</h2>
-
-            <div className="mt-6 grid gap-4 text-sm text-gray-200 sm:grid-cols-2">
-              <p>
-                <span className="font-semibold text-white">FIDE ID:</span>{" "}
-                {player.fide_id || "Not supplied"}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Chess SA ID:</span>{" "}
-                {player.chess_sa_id || "Not supplied"}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Date of birth:</span>{" "}
-                {player.date_of_birth}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Age:</span>{" "}
-                {playerAge ?? "Not available"}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Gender:</span>{" "}
-                {player.gender}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Club:</span>{" "}
-                {player.club || "Not supplied"}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Province:</span>{" "}
-                {player.province || "Not supplied"}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Rating:</span>{" "}
-                {player.rating ?? "Not supplied"}
-              </p>
-              {chessaProfile && (
-                <>
-                  <p>
-                    <span className="font-semibold text-white">Standard:</span>{" "}
-                    {chessaProfile.standard_rating ?? "Not rated"}
+            <div className="mt-6 grid gap-4">
+              {matches.map((match) => (
+                <button
+                  key={match.chess_sa_id}
+                  type="button"
+                  onClick={() => choosePlayer(match)}
+                  className="rounded-xl border border-white/10 bg-zinc-950 p-5 text-left transition hover:border-red-500"
+                >
+                  <p className="font-bold">{match.full_name}</p>
+                  <p className="mt-2 text-sm text-gray-400">
+                    Chess SA ID: {match.chess_sa_id}
                   </p>
-                  <p>
-                    <span className="font-semibold text-white">Rapid:</span>{" "}
-                    {chessaProfile.rapid_rating ?? "Not rated"}
+                  <p className="mt-1 text-sm text-gray-400">
+                    Standard: {match.standard_rating ?? "Not rated"} • Rapid:{" "}
+                    {match.rapid_rating ?? "Not rated"} • Blitz:{" "}
+                    {match.blitz_rating ?? "Not rated"}
                   </p>
-                  <p>
-                    <span className="font-semibold text-white">Blitz:</span>{" "}
-                    {chessaProfile.blitz_rating ?? "Not rated"}
-                  </p>
-                </>
-              )}
-              <p>
-                <span className="font-semibold text-white">Email:</span>{" "}
-                {player.email}
-              </p>
-              <p>
-                <span className="font-semibold text-white">Phone:</span>{" "}
-                {player.phone}
-              </p>
+                </button>
+              ))}
             </div>
-
-            {player.verification_status !== "Verified" && (
-              <p className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm leading-6 text-amber-100">
-                This profile is pending verification. You may submit your
-                registration, but an administrator will verify your details.
-              </p>
-            )}
           </div>
         )}
 
-        {showNewPlayerForm && (
-          <form
-            onSubmit={handleCreatePlayer}
-            className="mt-10 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 md:p-8"
-          >
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">
-              New player profile
+        {selectedChessSaPlayer && (
+          <div className="mt-10 rounded-2xl border border-green-500/30 bg-green-500/10 p-6 md:p-8">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
+              Chess SA profile found
             </p>
 
             <h2 className="mt-3 text-2xl font-bold">
-              Create your player profile
+              {selectedChessSaPlayer.full_name}
             </h2>
 
-            <p className="mt-3 text-sm leading-6 text-gray-300">
-              Your profile will be marked as pending verification. Please enter
-              accurate details.
-            </p>
+            <div className="mt-6 grid gap-4 text-sm text-gray-200 sm:grid-cols-2">
+              <p>
+                <span className="font-semibold text-white">Chess SA ID:</span>{" "}
+                {selectedChessSaPlayer.chess_sa_id}
+              </p>
 
-            <div className="mt-7 grid gap-5 md:grid-cols-2">
-              {(
-                [
-                  ["full_name", "Full name", "text", true],
-                  ["fide_id", "FIDE ID (if available)", "text", false],
-                  ["chess_sa_id", "Chess SA ID (if available)", "text", false],
-                  ["date_of_birth", "Date of birth", "date", true],
-                  ["club", "Club", "text", false],
-                  ["province", "Province", "text", false],
-                  ["rating", "Rating", "number", false],
-                  ["email", "Email address", "email", true],
-                  ["phone", "Phone number", "tel", true],
-                ] as const
-              ).map(([field, label, type, required]) => (
-                <div key={field}>
-                  <label className="mb-2 block text-sm font-semibold text-gray-200">
-                    {label}
-                  </label>
+              <p>
+                <span className="font-semibold text-white">Date of birth:</span>{" "}
+                {selectedChessSaPlayer.date_of_birth ?? "Not supplied"}
+              </p>
 
-                  <input
-                    type={type}
-                    required={required === true}
-                    value={newPlayer[field as keyof NewPlayerForm]}
-                    onChange={(event) =>
-                      setNewPlayer((current) => ({
-                        ...current,
-                        [field]: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-                  />
-                </div>
-              ))}
+              <p>
+                <span className="font-semibold text-white">Age:</span>{" "}
+                {selectedPlayerAge ?? "Not available"}
+              </p>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Gender
-                </label>
+              <p>
+                <span className="font-semibold text-white">Gender:</span>{" "}
+                {selectedChessSaPlayer.gender ?? "Not supplied"}
+              </p>
 
-                <select
-                  required
-                  value={newPlayer.gender}
-                  onChange={(event) =>
-                    setNewPlayer((current) => ({
-                      ...current,
-                      gender: event.target.value,
-                    }))
-                  }
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-                >
-                  <option value="">Select gender</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
+              <p>
+                <span className="font-semibold text-white">Standard:</span>{" "}
+                {selectedChessSaPlayer.standard_rating ?? "Not rated"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-white">Rapid:</span>{" "}
+                {selectedChessSaPlayer.rapid_rating ?? "Not rated"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-white">Blitz:</span>{" "}
+                {selectedChessSaPlayer.blitz_rating ?? "Not rated"}
+              </p>
+
+              <p>
+                <span className="font-semibold text-white">Federation:</span>{" "}
+                {selectedChessSaPlayer.federation ?? "Not supplied"}
+              </p>
             </div>
-
-            <button
-              type="submit"
-              disabled={creatingPlayer}
-              className="mt-7 rounded-lg bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {creatingPlayer ? "Creating profile..." : "Save Player Profile"}
-            </button>
-          </form>
+          </div>
         )}
 
-        {player && (
+        {selectedChessSaPlayer && (
           <form
             onSubmit={handleRegistration}
             className="mt-10 rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8"
           >
-            <h2 className="text-2xl font-bold">2. Choose your tournament</h2>
+            <h2 className="text-2xl font-bold">2. Complete your entry</h2>
 
             <div className="mt-7 grid gap-5 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-200">
+                  Email address
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-200">
+                  Phone number
+                </label>
+                <input
+                  type="tel"
+                  required
+                  value={phone}
+                  onChange={(event) => setPhone(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-200">
+                  Club
+                </label>
+                <input
+                  type="text"
+                  value={club}
+                  onChange={(event) => setClub(event.target.value)}
+                  placeholder="Optional"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-gray-200">
+                  Province
+                </label>
+                <input
+                  type="text"
+                  value={province}
+                  onChange={(event) => setProvince(event.target.value)}
+                  placeholder="Optional"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+                />
+              </div>
+
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-200">
                   Open tournament
@@ -842,7 +737,7 @@ export default function RegisterPage() {
                 >
                   <span className="font-semibold">Pay later</span>
                   <span className="mt-1 block text-sm text-gray-400">
-                    Submit your registration first. Payment will remain pending.
+                    Submit your entry first. Payment will remain pending.
                   </span>
                 </button>
 
@@ -886,8 +781,8 @@ export default function RegisterPage() {
               className="mt-8 w-full rounded-lg bg-red-600 px-5 py-4 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {submittingRegistration
-                ? "Submitting registration..."
-                : "Submit Tournament Registration"}
+                ? "Submitting entry..."
+                : "Submit Tournament Entry"}
             </button>
 
             {registrationMessage && (
@@ -903,10 +798,10 @@ export default function RegisterPage() {
 
           <div className="mt-7 grid gap-5 md:grid-cols-4">
             {[
-              ["1", "Search", "Confirm your player profile securely."],
-              ["2", "Choose", "Select an open tournament and section."],
-              ["3", "Pay", "Upload proof of payment or choose pay later."],
-              ["4", "Confirm", "Your entry is submitted for review."],
+              ["1", "Search", "Find your Chess SA profile."],
+              ["2", "Confirm", "Confirm that the player found is you."],
+              ["3", "Choose", "Select the tournament and section."],
+              ["4", "Submit", "Submit your entry for admin review."],
             ].map(([number, title, text]) => (
               <div
                 key={number}
