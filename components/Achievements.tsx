@@ -1,3 +1,4 @@
+import Image from "next/image";
 export default function Achievements() {
   return (
     <section className="bg-black py-24 text-white">
@@ -37,10 +38,14 @@ export default function Achievements() {
 
             </div>
 
-            <div className="flex h-[400px] items-center justify-center rounded-3xl bg-zinc-800">
-              Championship Photo
-            </div>
-
+            <div className="relative h-[400px] overflow-hidden rounded-3xl">
+  <Image
+    src="/images/achievements/ulssa-2023.jpg"
+    alt="Joe Mahomole holding the ULSSA Team Champions trophy in 2023"
+    fill
+    className="object-cover"
+  />
+</div>
           </div>
 
         </div>
