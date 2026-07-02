@@ -40,7 +40,7 @@ export default function Achievements() {
 
             <div className="relative h-[400px] overflow-hidden rounded-3xl">
   <Image
-    src="/images/achievements/ulssa-2023.jpg"
+    src="/images/achievements/ulssa-2023.JPG"
     alt="Joe Mahomole holding the ULSSA Team Champions trophy in 2023"
     fill
     className="object-cover"
