@@ -39,9 +39,11 @@ export default function Hero() {
             Become a Member
           </button>
 
-          <button className="rounded-xl border border-white px-8 py-4 font-semibold transition hover:bg-white hover:text-black">
+          <a
+          href="#tournaments"
+          className="rounded-xl border border-white px-8 py-4 font-semibold transition hover:bg-white hover:text-black">
             Upcoming Tournaments
-          </button>
+          </a>
 
         </div>
 

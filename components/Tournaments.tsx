@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 type Tournament = {
   title: string;
   date: string;
@@ -5,24 +7,39 @@ type Tournament = {
   format: string;
   status: string;
   registration: string;
+  image: string;
 };
 
 const tournaments: Tournament[] = [
   {
-    title: "PCC Monthly Rapid Tournament",
-    date: "Date to be announced",
+    title: "Polokwane Open 2026",
+    date: "1 August 2026",
     venue: "Polokwane, Limpopo",
-    format: "Rapid Chess",
-    status: "Coming Soon",
-    registration: "Registration details will be announced soon.",
+    format: "Tournament details to be announced",
+    status: "Upcoming",
+    registration:
+      "Registration details, venue and playing format will be announced soon.",
+    image: "/images/tournaments/polokwane-open-2026.png",
   },
   {
-    title: "Limpopo Closed Chess Championship",
-    date: "Dates to be announced",
+    title: "Women's Day Chess Championship",
+    date: "8 August 2026",
     venue: "Polokwane, Limpopo",
-    format: "Classical Chess",
+    format: "Tournament details to be announced",
     status: "Upcoming",
-    registration: "More information will be available soon.",
+    registration:
+      "Registration details, venue and playing format will be announced soon.",
+    image: "/images/tournaments/womens-day-2026.png",
+  },
+  {
+    title: "Polokwane Monthly Rapid",
+    date: "Every month",
+    venue: "Lichess platform",
+    format: "Online Rapid Chess",
+    status: "Monthly Event",
+    registration:
+      "Join PCC online each month on Lichess. Dates and joining details will be announced before every event.",
+    image: "/images/tournaments/monthly-rapid.png",
   },
 ];
 
@@ -54,18 +71,24 @@ export default function Tournaments() {
           </a>
         </div>
 
-        <div className="mt-14 grid gap-8 md:grid-cols-2">
+        <div className="mt-14 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {tournaments.map((tournament) => (
             <article
               key={tournament.title}
-              className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg transition duration-300 hover:-translate-y-2 hover:shadow-2xl"
+              className="group overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-lg transition duration-300 hover:-translate-y-2 hover:shadow-2xl"
             >
-              <div className="flex items-center justify-between bg-black px-7 py-5 text-white">
-                <span className="text-sm font-semibold uppercase tracking-widest text-red-400">
-                  {tournament.status}
-                </span>
+              <div className="relative h-56 overflow-hidden bg-zinc-200">
+                <Image
+                  src={tournament.image}
+                  alt={`${tournament.title} tournament`}
+                  fill
+                  sizes="(max-width: 767px) 100vw, (max-width: 1023px) 50vw, 33vw"
+                  className="object-cover transition duration-500 group-hover:scale-105"
+                />
 
-                <span className="text-2xl">♟</span>
+                <div className="absolute left-5 top-5 rounded-full bg-black px-4 py-2 text-xs font-semibold uppercase tracking-wider text-white">
+                  {tournament.status}
+                </div>
               </div>
 
               <div className="p-8">
@@ -83,7 +106,9 @@ export default function Tournaments() {
                   </p>
 
                   <p>
-                    <span className="mr-2 font-semibold text-black">Format:</span>
+                    <span className="mr-2 font-semibold text-black">
+                      Format:
+                    </span>
                     {tournament.format}
                   </p>
                 </div>
