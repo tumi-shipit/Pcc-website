@@ -547,17 +547,19 @@ export default function RegisterPage() {
             </p>
 
             <div className="mt-7 grid gap-5 md:grid-cols-2">
-              {[
-                ["full_name", "Full name", "text", true],
-                ["fide_id", "FIDE ID (if available)", "text", false],
-                ["chess_sa_id", "Chess SA ID (if available)", "text", false],
-                ["date_of_birth", "Date of birth", "date", true],
-                ["club", "Club", "text", false],
-                ["province", "Province", "text", false],
-                ["rating", "Rating", "number", false],
-                ["email", "Email address", "email", true],
-                ["phone", "Phone number", "tel", true],
-              ].map(([field, label, type, required]) => (
+              {(
+                [
+                  ["full_name", "Full name", "text", true],
+                  ["fide_id", "FIDE ID (if available)", "text", false],
+                  ["chess_sa_id", "Chess SA ID (if available)", "text", false],
+                  ["date_of_birth", "Date of birth", "date", true],
+                  ["club", "Club", "text", false],
+                  ["province", "Province", "text", false],
+                  ["rating", "Rating", "number", false],
+                  ["email", "Email address", "email", true],
+                  ["phone", "Phone number", "tel", true],
+                ] as const
+              ).map(([field, label, type, required]) => (
                 <div key={field}>
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
                     {label}

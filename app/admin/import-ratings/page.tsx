@@ -33,9 +33,7 @@ function formatDate(value?: string) {
 
   const cleanValue = value.trim();
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) {
-    return cleanValue;
-  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanValue)) return cleanValue;
 
   const parts = cleanValue.split("/");
 
@@ -79,14 +77,10 @@ export default function ImportRatingsPage() {
             const surname = row.SURNAME?.trim();
             const firstName = row.FIRSTNAME?.trim();
 
-            if (!chessSaId || !surname || !firstName) {
-              return null;
-            }
+            if (!chessSaId || !surname || !firstName) return null;
 
             const ratingText = row.RATING?.trim() ?? "";
-            const ratingNumber = Number(
-              ratingText.replace(/[^\d.-]/g, "")
-            );
+            const ratingNumber = Number(ratingText.replace(/[^\d.-]/g, ""));
 
             return {
               chess_sa_id: chessSaId,
@@ -129,7 +123,6 @@ export default function ImportRatingsPage() {
 
     setImporting(true);
 
-    // 500 players per request: fast enough, but not too large for Supabase RPC.
     const batchSize = 500;
     let imported = 0;
 
@@ -149,12 +142,21 @@ export default function ImportRatingsPage() {
           }
         );
 
-        if (error) {
-          throw new Error(error.message);
-        }
+        if (error) throw new Error(error.message);
 
         imported += typeof data === "number" ? data : batch.length;
       }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      await supabase.from("chessa_import_history").insert({
+        rating_type: ratingType,
+        file_name: fileName,
+        players_imported: imported,
+        imported_by: user?.id ?? null,
+      });
 
       setMessage(
         `Import complete. ${imported.toLocaleString()} Chess SA ${ratingType} ratings were updated safely.`
@@ -178,13 +180,12 @@ export default function ImportRatingsPage() {
           PCC Admin
         </p>
 
-        <h1 className="mt-3 text-4xl font-bold">
-          Import Chess SA Ratings
-        </h1>
+        <h1 className="mt-3 text-4xl font-bold">Import Chess SA Ratings</h1>
 
         <p className="mt-4 leading-7 text-gray-300">
-          Upload an official Chess SA Standard, Rapid, or Blitz CSV file.
-          Each import updates only the rating type selected.
+          Upload an official Chess SA Standard, Rapid, or Blitz CSV file. Each
+          import updates only the rating type selected and records import
+          history.
         </p>
 
         <div className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6">
@@ -254,9 +255,8 @@ export default function ImportRatingsPage() {
         </div>
 
         <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5 text-sm leading-6 text-amber-100">
-          You can safely re-import the full Rapid file. The first 19,750
-          players will be updated, not duplicated, and the remaining players
-          will continue importing.
+          Import each file separately: Rapid updates Rapid only, Standard
+          updates Standard only, and Blitz updates Blitz only.
         </div>
       </div>
     </main>
