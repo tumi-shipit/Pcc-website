@@ -17,21 +17,6 @@ type ChessSaPlayer = {
   blitz_rating: number | null;
 };
 
-type Player = {
-  id: string;
-  full_name: string;
-  fide_id: string | null;
-  chess_sa_id: string | null;
-  date_of_birth: string;
-  gender: string;
-  club: string | null;
-  province: string | null;
-  rating: number | null;
-  email: string;
-  phone: string;
-  verification_status: "Verified" | "Pending" | "Rejected";
-};
-
 type Tournament = {
   id: string;
   tournament_name: string;
@@ -41,6 +26,7 @@ type Tournament = {
   province: string | null;
   entry_fee: number;
   payment_details: string | null;
+  poster_image_url: string | null;
 };
 
 type TournamentSection = {
@@ -79,6 +65,30 @@ function formatMoney(amount: number) {
   }).format(amount);
 }
 
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-ZA", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function getSectionLabel(section: TournamentSection) {
+  return section.section_name;
+}
+
+const southAfricanProvinces = [
+  "Eastern Cape",
+  "Free State",
+  "Gauteng",
+  "KwaZulu-Natal",
+  "Limpopo",
+  "Mpumalanga",
+  "Northern Cape",
+  "North West",
+  "Western Cape",
+];
+
 export default function RegisterPage() {
   const [searchMethod, setSearchMethod] = useState<SearchMethod>("surname");
   const [searchValue, setSearchValue] = useState("");
@@ -108,6 +118,7 @@ export default function RegisterPage() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [submittingRegistration, setSubmittingRegistration] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState("");
+  const [openPoster, setOpenPoster] = useState<Tournament | null>(null);
 
   const selectedTournament = useMemo(
     () => tournaments.find((tournament) => tournament.id === selectedTournamentId),
@@ -131,7 +142,7 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details"
+          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, poster_image_url"
         )
         .order("start_date", { ascending: true });
 
@@ -164,6 +175,7 @@ export default function RegisterPage() {
           "id, section_name, minimum_age, maximum_age, gender_restriction, entry_fee_override, maximum_players"
         )
         .eq("tournament_id", selectedTournamentId)
+        .order("maximum_age", { ascending: true, nullsFirst: false })
         .order("section_name", { ascending: true });
 
       if (error) {
@@ -199,7 +211,7 @@ export default function RegisterPage() {
     );
 
     if (error) {
-      setSearchMessage("Search failed. Please check your details and try again.");
+      setSearchMessage(`Search failed: ${error.message}`);
       setSearching(false);
       return;
     }
@@ -235,69 +247,7 @@ export default function RegisterPage() {
     setSearchMessage("Chess SA player selected. Continue with registration.");
   }
 
-  async function getOrCreateTournamentPlayer(chessPlayer: ChessSaPlayer) {
-    const { data: existingData } = await supabase.rpc(
-      "find_player_for_registration",
-      {
-        search_method: "chesssa",
-        search_value: chessPlayer.chess_sa_id,
-        birth_date: chessPlayer.date_of_birth ?? "1900-01-01",
-      }
-    );
 
-    const existingPlayer = existingData?.[0] as Player | undefined;
-
-    if (existingPlayer) {
-      const { data: updatedPlayer, error: updateError } = await supabase
-        .from("players")
-        .update({
-          email: email.trim(),
-          phone: phone.trim(),
-          club: club.trim() || null,
-          province: province.trim() || null,
-          rating:
-            chessPlayer.standard_rating ??
-            chessPlayer.rapid_rating ??
-            chessPlayer.blitz_rating ??
-            existingPlayer.rating,
-        })
-        .eq("id", existingPlayer.id)
-        .select(
-          "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status"
-        )
-        .single();
-
-      if (updateError) throw updateError;
-      return updatedPlayer as Player;
-    }
-
-    const { data: createdPlayer, error: createError } = await supabase
-      .from("players")
-      .insert({
-        full_name: chessPlayer.full_name,
-        fide_id: null,
-        chess_sa_id: chessPlayer.chess_sa_id,
-        date_of_birth: chessPlayer.date_of_birth ?? "1900-01-01",
-        gender: chessPlayer.gender || "Not supplied",
-        club: club.trim() || null,
-        province: province.trim() || null,
-        rating:
-          chessPlayer.standard_rating ??
-          chessPlayer.rapid_rating ??
-          chessPlayer.blitz_rating ??
-          null,
-        email: email.trim(),
-        phone: phone.trim(),
-        verification_status: "Pending",
-      })
-      .select(
-        "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status"
-      )
-      .single();
-
-    if (createError) throw createError;
-    return createdPlayer as Player;
-  }
 
   async function handleRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -323,13 +273,11 @@ export default function RegisterPage() {
     setRegistrationMessage("");
 
     try {
-      const player = await getOrCreateTournamentPlayer(selectedChessSaPlayer);
-
       let proofOfPaymentUrl: string | null = null;
 
       if (paymentChoice === "proof" && proofFile) {
         const safeFileName = proofFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const filePath = `${player.id}/${selectedTournamentId}/${Date.now()}-${safeFileName}`;
+        const filePath = `${selectedChessSaPlayer.chess_sa_id}/${selectedTournamentId}/${Date.now()}-${safeFileName}`;
 
         const { error: uploadError } = await supabase.storage
           .from("proof-of-payments")
@@ -342,25 +290,35 @@ export default function RegisterPage() {
         proofOfPaymentUrl = filePath;
       }
 
-      const { error } = await supabase.from("registrations").insert({
-        player_id: player.id,
-        tournament_id: selectedTournamentId,
-        section_id: selectedSectionId,
-        payment_status:
-          paymentChoice === "proof" ? "Proof Submitted" : "Pending",
-        proof_of_payment_url: proofOfPaymentUrl,
-        registration_status: "Pending",
+      const bestRating =
+        selectedChessSaPlayer.standard_rating ??
+        selectedChessSaPlayer.rapid_rating ??
+        selectedChessSaPlayer.blitz_rating ??
+        null;
+
+      const { error } = await supabase.rpc("submit_tournament_registration", {
+        p_full_name: selectedChessSaPlayer.full_name,
+        p_chess_sa_id: selectedChessSaPlayer.chess_sa_id,
+        p_date_of_birth: selectedChessSaPlayer.date_of_birth,
+        p_gender: selectedChessSaPlayer.gender,
+        p_rating: bestRating,
+        p_email: email.trim(),
+        p_phone: phone.trim(),
+        p_club: club.trim(),
+        p_province: province.trim(),
+        p_tournament_id: selectedTournamentId,
+        p_section_id: selectedSectionId,
+        p_payment_status: paymentChoice === "proof" ? "Proof Submitted" : "Pending",
+        p_proof_of_payment_url: proofOfPaymentUrl,
       });
 
       if (error) {
-        if (error.code === "23505") {
+        if (error.message.toLowerCase().includes("duplicate")) {
           setRegistrationMessage(
             "You are already registered for this tournament. Contact the organiser if you need changes."
           );
         } else {
-          setRegistrationMessage(
-            "Your registration could not be saved. Please try again."
-          );
+          setRegistrationMessage(`Registration error: ${error.message}`);
         }
 
         setSubmittingRegistration(false);
@@ -370,10 +328,11 @@ export default function RegisterPage() {
       setRegistrationMessage(
         "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
       );
-    } catch {
-      setRegistrationMessage(
-        "Your registration could not be completed. Please check your details and try again."
-      );
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error.";
+
+      setRegistrationMessage(`Your registration could not be completed: ${errorMessage}`);
     } finally {
       setSubmittingRegistration(false);
     }
@@ -577,150 +536,232 @@ export default function RegisterPage() {
         )}
 
         {selectedChessSaPlayer && (
-          <form
-            onSubmit={handleRegistration}
-            className="mt-10 rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8"
-          >
-            <h2 className="text-2xl font-bold">2. Complete your entry</h2>
+          <form onSubmit={handleRegistration} className="mt-10 space-y-10">
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
+              <h2 className="text-2xl font-bold">2. Contact details</h2>
 
-            <div className="mt-7 grid gap-5 md:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Email address
-                </label>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-                />
-              </div>
+              <div className="mt-7 grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-200">
+                    Email address
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Phone number
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
-                />
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-200">
+                    Phone number
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Club
-                </label>
-                <input
-                  type="text"
-                  value={club}
-                  onChange={(event) => setClub(event.target.value)}
-                  placeholder="Optional"
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
-                />
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-200">
+                    Club
+                  </label>
+                  <input
+                    type="text"
+                    value={club}
+                    onChange={(event) => setClub(event.target.value)}
+                    placeholder="Optional"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+                  />
+                </div>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Province
-                </label>
-                <input
-                  type="text"
-                  value={province}
-                  onChange={(event) => setProvince(event.target.value)}
-                  placeholder="Optional"
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
-                />
-              </div>
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-200">
+                    Province
+                  </label>
 
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Open tournament
-                </label>
-
-                <select
-                  required
-                  value={selectedTournamentId}
-                  onChange={(event) =>
-                    setSelectedTournamentId(event.target.value)
-                  }
-                  disabled={loadingTournaments}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500 disabled:opacity-60"
-                >
-                  <option value="">
-                    {loadingTournaments
-                      ? "Loading tournaments..."
-                      : "Select a tournament"}
-                  </option>
-
-                  {tournaments.map((tournament) => (
-                    <option key={tournament.id} value={tournament.id}>
-                      {tournament.tournament_name} — {tournament.start_date}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-gray-200">
-                  Tournament section
-                </label>
-
-                <select
-                  required
-                  value={selectedSectionId}
-                  onChange={(event) => setSelectedSectionId(event.target.value)}
-                  disabled={!selectedTournamentId || loadingSections}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500 disabled:opacity-60"
-                >
-                  <option value="">
-                    {loadingSections
-                      ? "Loading sections..."
-                      : "Select a section"}
-                  </option>
-
-                  {sections.map((section) => (
-                    <option key={section.id} value={section.id}>
-                      {section.section_name}
-                      {section.minimum_age !== null ||
-                      section.maximum_age !== null
-                        ? ` (Age ${section.minimum_age ?? "?"}-${
-                            section.maximum_age ?? "?"
-                          })`
-                        : ""}
-                    </option>
-                  ))}
-                </select>
+                  <select
+                    value={province}
+                    onChange={(event) => setProvince(event.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  >
+                    <option value="">Select province</option>
+                    {southAfricanProvinces.map((provinceName) => (
+                      <option key={provinceName} value={provinceName}>
+                        {provinceName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
-            {selectedTournament && (
-              <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-gray-300">
-                <p>
-                  <span className="font-semibold text-white">Venue:</span>{" "}
-                  {selectedTournament.venue}
-                </p>
-                <p className="mt-2">
-                  <span className="font-semibold text-white">Entry fee:</span>{" "}
-                  {formatMoney(entryFee)}
+            <div className="rounded-2xl border border-red-500/30 bg-zinc-900 p-6 md:p-8">
+              <div className="mb-6 border-l-4 border-red-500 pl-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                  Step 3
                 </p>
 
-                {selectedTournament.payment_details && (
-                  <p className="mt-2">
-                    <span className="font-semibold text-white">
-                      Payment details:
-                    </span>{" "}
-                    {selectedTournament.payment_details}
-                  </p>
-                )}
+                <h2 className="mt-2 text-2xl font-bold">
+                  Tournament Selection
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  Choose the tournament you are entering and select your section.
+                </p>
               </div>
-            )}
 
-            <div className="mt-8 border-t border-white/10 pt-8">
-              <h3 className="text-lg font-bold">3. Payment option</h3>
+              <div className="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-200">
+                    Open tournament
+                  </label>
+
+                  <div className="grid gap-4">
+                    {tournaments.map((tournament) => {
+                      const isSelected = selectedTournamentId === tournament.id;
+
+                      return (
+                        <div
+                          key={tournament.id}
+                          className={`group overflow-hidden rounded-2xl border bg-zinc-950 transition ${
+                            isSelected
+                              ? "border-red-500 shadow-lg shadow-red-950/30"
+                              : "border-white/10 hover:border-red-500/60"
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => setOpenPoster(tournament)}
+                            className="relative block h-48 w-full overflow-hidden bg-black"
+                            aria-label={`View ${tournament.tournament_name} poster`}
+                          >
+                            {tournament.poster_image_url ? (
+                              <img
+                                src={tournament.poster_image_url}
+                                alt={`${tournament.tournament_name} poster`}
+                                className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                              />
+                            ) : (
+                              <div className="flex h-full items-center justify-center bg-zinc-900 text-sm text-gray-500">
+                                Tournament poster coming soon
+                              </div>
+                            )}
+
+                            <span className="absolute left-3 top-3 rounded-full bg-green-600 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+                              Open
+                            </span>
+
+                            <span
+                              className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                                isSelected
+                                  ? "bg-red-600 text-white"
+                                  : "bg-black/80 text-white"
+                              }`}
+                            >
+                              {isSelected ? "Selected" : "View Poster"}
+                            </span>
+                          </button>
+
+                          <div className="p-5">
+                            <p className="text-lg font-bold text-white">
+                              {tournament.tournament_name}
+                            </p>
+
+                            <div className="mt-4 space-y-2 text-sm text-gray-400">
+                              <p>📅 {formatDate(tournament.start_date)}</p>
+                              <p>📍 {tournament.venue}</p>
+                              <p className="font-semibold text-red-300">
+                                💰 {formatMoney(tournament.entry_fee)}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTournamentId(tournament.id)}
+                              className={`mt-5 w-full rounded-lg px-4 py-3 text-sm font-bold transition ${
+                                isSelected
+                                  ? "bg-red-600 text-white"
+                                  : "bg-white text-black hover:bg-gray-200"
+                              }`}
+                            >
+                              {isSelected ? "✓ Selected" : "Select Tournament"}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {loadingTournaments && (
+                      <p className="rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+                        Loading tournaments...
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-gray-200">
+                    Tournament section
+                  </label>
+
+                  <select
+                    required
+                    value={selectedSectionId}
+                    onChange={(event) => setSelectedSectionId(event.target.value)}
+                    disabled={!selectedTournamentId || loadingSections}
+                    className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-4 text-white outline-none transition focus:border-red-500 disabled:opacity-60"
+                  >
+                    <option value="">
+                      {loadingSections
+                        ? "Loading sections..."
+                        : "Select a section"}
+                    </option>
+
+                    {sections.map((section) => (
+                      <option key={section.id} value={section.id}>
+                        {getSectionLabel(section)}
+                      </option>
+                    ))}
+                  </select>
+
+                  {selectedTournament && (
+                    <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-gray-300">
+                      <p>
+                        <span className="font-semibold text-white">Venue:</span>{" "}
+                        {selectedTournament.venue}
+                      </p>
+
+                      <p className="mt-2">
+                        <span className="font-semibold text-white">
+                          Entry fee:
+                        </span>{" "}
+                        <span className="font-bold text-red-300">
+                          {formatMoney(entryFee)}
+                        </span>
+                      </p>
+
+                      {selectedTournament.payment_details && (
+                        <p className="mt-2">
+                          <span className="font-semibold text-white">
+                            Payment details:
+                          </span>{" "}
+                          {selectedTournament.payment_details}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
+              <h3 className="text-2xl font-bold">4. Payment option</h3>
 
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <button
@@ -773,23 +814,23 @@ export default function RegisterPage() {
                   />
                 </div>
               )}
+
+              <button
+                type="submit"
+                disabled={submittingRegistration}
+                className="mt-8 w-full rounded-lg bg-red-600 px-5 py-4 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submittingRegistration
+                  ? "Submitting entry..."
+                  : "Submit Tournament Entry"}
+              </button>
+
+              {registrationMessage && (
+                <p className="mt-5 rounded-lg border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
+                  {registrationMessage}
+                </p>
+              )}
             </div>
-
-            <button
-              type="submit"
-              disabled={submittingRegistration}
-              className="mt-8 w-full rounded-lg bg-red-600 px-5 py-4 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {submittingRegistration
-                ? "Submitting entry..."
-                : "Submit Tournament Entry"}
-            </button>
-
-            {registrationMessage && (
-              <p className="mt-5 rounded-lg border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
-                {registrationMessage}
-              </p>
-            )}
           </form>
         )}
 
@@ -818,6 +859,42 @@ export default function RegisterPage() {
           </div>
         </div>
       </section>
+
+      {openPoster && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4">
+          <button
+            type="button"
+            onClick={() => setOpenPoster(null)}
+            className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-200"
+          >
+            Close
+          </button>
+
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-auto rounded-2xl border border-white/10 bg-zinc-950 p-3">
+            <div className="mb-3 flex items-center justify-between gap-4 px-2">
+              <h3 className="text-lg font-bold text-white">
+                {openPoster.tournament_name}
+              </h3>
+              <span className="shrink-0 rounded-full bg-green-600 px-3 py-1 text-xs font-bold uppercase text-white">
+                Registration Open
+              </span>
+            </div>
+
+            {openPoster.poster_image_url ? (
+              <img
+                src={openPoster.poster_image_url}
+                alt={`${openPoster.tournament_name} poster`}
+                className="mx-auto max-h-[78vh] w-auto rounded-xl object-contain"
+              />
+            ) : (
+              <div className="flex h-96 items-center justify-center rounded-xl bg-zinc-900 text-gray-500">
+                Tournament poster coming soon
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
