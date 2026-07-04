@@ -39,6 +39,7 @@ type Tournament = {
   entry_fee: number;
   payment_details: string | null;
   poster_image_url: string | null;
+  registration_status?: string | null;
 };
 
 type TournamentSection = {
@@ -159,8 +160,9 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, poster_image_url"
+          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, poster_image_url, registration_status"
         )
+        .eq("registration_status", "Open")
         .order("start_date", { ascending: true });
 
       if (error) {
@@ -387,56 +389,57 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 pt-28 text-white">
+    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.22),_transparent_38%)]">
-        <div className="mx-auto max-w-5xl px-6 py-16">
-          <div className="rounded-3xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-8 shadow-2xl md:p-12">
-            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-red-500">
+        <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
+          <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-xl md:p-8">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
               Chess Tournament Registration Portal
             </p>
 
-            <h1 className="mt-4 text-4xl font-bold leading-tight md:text-6xl">
+            <h1 className="mt-3 text-xl font-bold md:text-2xl leading-tight md:text-5xl">
               Register for Upcoming Chess Tournaments
             </h1>
 
-            <p className="mt-6 max-w-4xl text-lg leading-8 text-gray-300">
+            <p className="mt-4 max-w-4xl text-sm leading-6 text-gray-300 md:text-base md:leading-7">
               Welcome to the Chess Tournament Registration Portal. This platform
               gives players a simple and secure way to register for upcoming
-              chess tournaments organised by clubs, schools, districts, 
-              and chess organisations across South Africa.
+              chess tournaments organised by clubs, schools, districts,
+              provinces and other recognised chess organisations across South
+              Africa.
             </p>
 
-            <p className="mt-5 max-w-4xl text-lg leading-8 text-gray-300">
+            <p className="mt-3 hidden max-w-4xl text-sm leading-6 text-gray-400 md:block md:text-base md:leading-7">
               Polokwane Chess Club is committed to developing chess by
               supporting players, organisers and arbiters through a modern
               registration system that makes it easier to discover events and
               participate in competitive chess.
             </p>
 
-            <p className="mt-5 text-sm font-semibold uppercase tracking-[0.25em] text-gray-500">
+            <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
               Powered by Polokwane Chess Club
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
-              <span className="rounded-full border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-300">
+            <div className="mt-5 flex flex-wrap gap-2">
+              <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-300">
                 ✓ Tournament Registration
               </span>
 
-              <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-300">
+              <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300">
                 ✓ Chess SA Player Lookup
               </span>
 
-              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300">
+              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
                 ✓ New Player Registration
               </span>
 
-              <span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-300">
+              <span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300">
                 ✓ Secure Online Entries
               </span>
             </div>
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
             {[
               [
                 "1",
@@ -456,14 +459,14 @@ export default function RegisterPage() {
             ].map(([number, title, description]) => (
               <div
                 key={number}
-                className="rounded-2xl border border-white/10 bg-zinc-900 p-5"
+                className="rounded-xl border border-white/10 bg-zinc-900 p-4"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
                   {number}
                 </span>
 
-                <h2 className="mt-4 text-lg font-bold">{title}</h2>
-                <p className="mt-2 text-sm leading-6 text-gray-400">
+                <h2 className="mt-3 text-base font-bold">{title}</h2>
+                <p className="mt-1.5 text-xs leading-5 text-gray-400">
                   {description}
                 </p>
               </div>
@@ -472,16 +475,16 @@ export default function RegisterPage() {
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-6 py-16">
-        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 shadow-2xl md:p-10">
-          <h2 className="text-2xl font-bold">1. Find your Chess SA profile</h2>
+      <section className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
+        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
+          <h2 className="text-xl font-bold md:text-2xl">1. Find your Chess SA profile</h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
             Most players do not know their Chess SA ID, so surname and date of
             birth is the recommended search method.
           </p>
 
-          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+          <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {(
               [
                 ["surname", "Search by surname + date of birth"],
@@ -499,7 +502,7 @@ export default function RegisterPage() {
                   setSelectedChessSaPlayer(null);
                   setSearchMessage("");
                 }}
-                className={`rounded-lg border px-4 py-3 text-sm font-semibold transition ${
+                className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${
                   searchMethod === method
                     ? "border-red-500 bg-red-600 text-white"
                     : "border-white/10 bg-zinc-950 text-gray-300 hover:border-red-500/60"
@@ -510,7 +513,7 @@ export default function RegisterPage() {
             ))}
           </div>
 
-          <form onSubmit={handleSearch} className="mt-8 grid gap-5 md:grid-cols-2">
+          <form onSubmit={handleSearch} className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-200">
                 {searchMethod === "surname" ? "Surname" : "Chess SA ID"}
@@ -526,7 +529,7 @@ export default function RegisterPage() {
                     ? "Enter your surname"
                     : "Enter your Chess SA ID"
                 }
-                className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+                className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
               />
             </div>
 
@@ -541,7 +544,7 @@ export default function RegisterPage() {
                   required
                   value={searchBirthDate}
                   onChange={(event) => setSearchBirthDate(event.target.value)}
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                 />
               </div>
             )}
@@ -550,7 +553,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={searching}
-                className="w-full rounded-lg bg-red-600 px-5 py-4 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {searching ? "Searching..." : "Find My Chess SA Profile"}
               </button>
@@ -582,8 +585,8 @@ export default function RegisterPage() {
         </div>
 
         {matches.length > 1 && !selectedChessSaPlayer && (
-          <div className="mt-10 rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
-            <h2 className="text-2xl font-bold">Select your profile</h2>
+          <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
+            <h2 className="text-xl font-bold md:text-2xl">Select your profile</h2>
 
             <div className="mt-6 grid gap-4">
               {matches.map((match) => (
@@ -609,19 +612,19 @@ export default function RegisterPage() {
         )}
 
         {newPlayerMode && (
-          <div className="mt-10 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-6 md:p-8">
+          <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 md:p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">
               New / Unverified Player
             </p>
 
-            <h2 className="mt-3 text-2xl font-bold">New player details</h2>
+            <h2 className="mt-3 text-xl font-bold md:text-2xl">New player details</h2>
 
             <p className="mt-3 text-sm leading-6 text-gray-300">
               This is for players who are new to chess or do not yet appear in
               the Chess SA database.
             </p>
 
-            <div className="mt-7 grid gap-5 md:grid-cols-3">
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-200">
                   Full name
@@ -636,7 +639,7 @@ export default function RegisterPage() {
                       full_name: event.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                 />
               </div>
 
@@ -654,7 +657,7 @@ export default function RegisterPage() {
                       date_of_birth: event.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                 />
               </div>
 
@@ -671,7 +674,7 @@ export default function RegisterPage() {
                       gender: event.target.value,
                     }))
                   }
-                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                 >
                   <option value="">Select gender</option>
                   <option value="Male">Male</option>
@@ -684,12 +687,12 @@ export default function RegisterPage() {
         )}
 
         {selectedChessSaPlayer && (
-          <div className="mt-10 rounded-2xl border border-green-500/30 bg-green-500/10 p-6 md:p-8">
+          <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 md:p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
               Chess SA profile found
             </p>
 
-            <h2 className="mt-3 text-2xl font-bold">
+            <h2 className="mt-3 text-xl font-bold md:text-2xl">
               {selectedChessSaPlayer.full_name}
             </h2>
 
@@ -738,11 +741,11 @@ export default function RegisterPage() {
         )}
 
         {(selectedChessSaPlayer || newPlayerMode) && (
-          <form onSubmit={handleRegistration} className="mt-10 space-y-10">
-            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
-              <h2 className="text-2xl font-bold">2. Contact details</h2>
+          <form onSubmit={handleRegistration} className="mt-6 space-y-6">
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
+              <h2 className="text-xl font-bold md:text-2xl">2. Contact details</h2>
 
-              <div className="mt-7 grid gap-5 md:grid-cols-2">
+              <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
                     Email address
@@ -752,7 +755,7 @@ export default function RegisterPage() {
                     required
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                   />
                 </div>
 
@@ -765,7 +768,7 @@ export default function RegisterPage() {
                     required
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                   />
                 </div>
 
@@ -778,7 +781,7 @@ export default function RegisterPage() {
                     value={club}
                     onChange={(event) => setClub(event.target.value)}
                     placeholder="Optional"
-                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
                   />
                 </div>
 
@@ -790,7 +793,7 @@ export default function RegisterPage() {
                   <select
                     value={province}
                     onChange={(event) => setProvince(event.target.value)}
-                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                    className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                   >
                     <option value="">Select province</option>
                     {southAfricanProvinces.map((provinceName) => (
@@ -803,17 +806,17 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-red-500/30 bg-zinc-900 p-6 md:p-8">
-              <div className="mb-6 border-l-4 border-red-500 pl-4">
+            <div className="rounded-2xl border border-red-500/30 bg-zinc-900 p-4 md:p-6">
+              <div className="mb-4 border-l-4 border-red-500 pl-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
                   Step 3
                 </p>
 
-                <h2 className="mt-2 text-2xl font-bold">
+                <h2 className="mt-2 text-xl font-bold md:text-2xl">
                   Tournament Selection
                 </h2>
 
-                <p className="mt-2 text-sm leading-6 text-gray-400">
+                <p className="mt-1.5 text-xs leading-5 text-gray-400">
                   Choose the tournament you are entering and select your section.
                 </p>
               </div>
@@ -824,7 +827,7 @@ export default function RegisterPage() {
                     Open tournament
                   </label>
 
-                  <div className="grid gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     {tournaments.map((tournament) => {
                       const isSelected = selectedTournamentId === tournament.id;
 
@@ -840,7 +843,7 @@ export default function RegisterPage() {
                           <button
                             type="button"
                             onClick={() => setOpenPoster(tournament)}
-                            className="relative block h-48 w-full overflow-hidden bg-black"
+                            className="relative block aspect-[3/4] w-full overflow-hidden bg-black"
                             aria-label={`View ${tournament.tournament_name} poster`}
                           >
                             {tournament.poster_image_url ? (
@@ -855,12 +858,12 @@ export default function RegisterPage() {
                               </div>
                             )}
 
-                            <span className="absolute left-3 top-3 rounded-full bg-green-600 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white">
+                            <span className="absolute left-2 top-2 rounded-full bg-green-600 px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-white">
                               Open
                             </span>
 
                             <span
-                              className={`absolute right-3 top-3 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+                              className={`absolute right-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wider ${
                                 isSelected
                                   ? "bg-red-600 text-white"
                                   : "bg-black/80 text-white"
@@ -870,12 +873,12 @@ export default function RegisterPage() {
                             </span>
                           </button>
 
-                          <div className="p-5">
-                            <p className="text-lg font-bold text-white">
+                          <div className="p-3 md:p-4">
+                            <p className="line-clamp-2 text-sm font-bold leading-5 text-white md:text-base">
                               {tournament.tournament_name}
                             </p>
 
-                            <div className="mt-4 space-y-2 text-sm text-gray-400">
+                            <div className="mt-2 space-y-1 text-xs text-gray-400">
                               <p>📅 {formatDate(tournament.start_date)}</p>
                               <p>📍 {tournament.venue}</p>
                               <p className="font-semibold text-red-300">
@@ -886,7 +889,7 @@ export default function RegisterPage() {
                             <button
                               type="button"
                               onClick={() => setSelectedTournamentId(tournament.id)}
-                              className={`mt-5 w-full rounded-lg px-4 py-3 text-sm font-bold transition ${
+                              className={`mt-5 w-full rounded-lg px-3 py-2.5 text-sm font-bold transition ${
                                 isSelected
                                   ? "bg-red-600 text-white"
                                   : "bg-white text-black hover:bg-gray-200"
@@ -900,7 +903,7 @@ export default function RegisterPage() {
                     })}
 
                     {loadingTournaments && (
-                      <p className="rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+                      <p className="col-span-2 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-400">
                         Loading tournaments...
                       </p>
                     )}
@@ -962,10 +965,10 @@ export default function RegisterPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
-              <h3 className="text-2xl font-bold">4. Payment option</h3>
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
+              <h3 className="text-xl font-bold md:text-2xl">4. Payment option</h3>
 
-              <div className="mt-5 grid gap-3 sm:grid-cols-2">
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -1020,7 +1023,7 @@ export default function RegisterPage() {
               <button
                 type="submit"
                 disabled={submittingRegistration}
-                className="mt-8 w-full rounded-lg bg-red-600 px-5 py-4 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-6 w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingRegistration
                   ? "Submitting entry..."
@@ -1036,10 +1039,10 @@ export default function RegisterPage() {
           </form>
         )}
 
-        <div className="mt-10 rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
-          <h2 className="text-2xl font-bold">How registration works</h2>
+        <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
+          <h2 className="text-xl font-bold md:text-2xl">How registration works</h2>
 
-          <div className="mt-7 grid gap-5 md:grid-cols-4">
+          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               ["1", "Search", "Find your Chess SA profile or use New Player."],
               ["2", "Confirm", "Confirm that the player found is you."],
@@ -1050,12 +1053,12 @@ export default function RegisterPage() {
                 key={number}
                 className="rounded-xl border border-white/10 bg-zinc-950 p-5"
               >
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
                   {number}
                 </span>
 
                 <h3 className="mt-4 font-bold">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-gray-400">{text}</p>
+                <p className="mt-1.5 text-xs leading-5 text-gray-400">{text}</p>
               </div>
             ))}
           </div>
