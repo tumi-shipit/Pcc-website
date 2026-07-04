@@ -64,7 +64,7 @@ export default function Tournaments() {
         .select(
           "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
         )
-        .neq("registration_status", "Draft")
+        .in("registration_status", ["Open", "Closed"])
         .order("start_date", { ascending: true });
 
       setTournaments((data ?? []) as Tournament[]);
