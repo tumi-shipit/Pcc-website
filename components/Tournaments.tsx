@@ -13,7 +13,7 @@ type Tournament = {
   end_date: string | null;
   venue: string;
   province: string | null;
-  registration_status: "Draft" | "Open" | "Closed";
+  registration_status: "Draft" | "Open" | "Closed" | "Live" | "Completed";
   entry_fee: number;
   poster_image_url: string | null;
 };
@@ -34,6 +34,21 @@ function formatMoney(amount: number) {
     currency: "ZAR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function getStatusLabel(status: Tournament["registration_status"]) {
+  if (status === "Open") return "Open";
+  if (status === "Live") return "Live";
+  if (status === "Completed") return "Completed";
+  if (status === "Closed") return "Closed";
+  return "Coming Soon";
+}
+
+function getStatusClass(status: Tournament["registration_status"]) {
+  if (status === "Open") return "bg-green-600";
+  if (status === "Live") return "bg-red-600";
+  if (status === "Completed") return "bg-blue-600";
+  return "bg-zinc-700";
 }
 
 export default function Tournaments() {
@@ -64,7 +79,7 @@ export default function Tournaments() {
       <div className="mx-auto max-w-7xl px-4 md:px-6">
         <div className="mb-8 max-w-3xl md:mb-12">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-            Chess Calendar
+            Tournament Centre
           </p>
 
           <h2 className="text-3xl font-bold md:text-5xl">
@@ -72,8 +87,8 @@ export default function Tournaments() {
           </h2>
 
           <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-            View upcoming chess events. Registration opens only when the
-            organisers make entries available.
+            View tournament details, posters and registration status. Entries
+            only open when organisers make registration available.
           </p>
         </div>
 
@@ -89,7 +104,10 @@ export default function Tournaments() {
                   key={tournament.id}
                   className="group overflow-hidden rounded-xl border border-white/10 bg-zinc-900 transition duration-300 hover:-translate-y-1 hover:border-red-500/60"
                 >
-                  <div className="relative aspect-[3/4] overflow-hidden bg-black">
+                  <Link
+                    href={`/tournaments/${tournament.id}`}
+                    className="relative block aspect-[3/4] overflow-hidden bg-black"
+                  >
                     {tournament.poster_image_url ? (
                       <Image
                         src={tournament.poster_image_url}
@@ -105,22 +123,24 @@ export default function Tournaments() {
                     )}
 
                     <span
-                      className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white ${
-                        isOpen ? "bg-green-600" : "bg-zinc-700"
-                      }`}
+                      className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white ${getStatusClass(
+                        tournament.registration_status
+                      )}`}
                     >
-                      {isOpen ? "Open" : "Closed"}
+                      {getStatusLabel(tournament.registration_status)}
                     </span>
-                  </div>
+                  </Link>
 
                   <div className="p-3 md:p-4">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-red-400 md:text-xs">
                       {formatDate(tournament.start_date)}
                     </p>
 
-                    <h3 className="mt-2 line-clamp-2 text-sm font-bold leading-5 md:text-base">
-                      {tournament.tournament_name}
-                    </h3>
+                    <Link href={`/tournaments/${tournament.id}`}>
+                      <h3 className="mt-2 line-clamp-2 text-sm font-bold leading-5 transition hover:text-red-400 md:text-base">
+                        {tournament.tournament_name}
+                      </h3>
+                    </Link>
 
                     <p className="mt-2 line-clamp-1 text-xs text-gray-400">
                       {tournament.venue}
@@ -130,18 +150,27 @@ export default function Tournaments() {
                       {formatMoney(tournament.entry_fee)}
                     </p>
 
-                    {isOpen ? (
+                    <div className="mt-4 grid gap-2">
                       <Link
-                        href="/register"
-                        className="mt-4 block rounded-lg bg-red-600 px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-red-700"
+                        href={`/tournaments/${tournament.id}`}
+                        className="block rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-semibold text-white transition hover:border-red-500"
                       >
-                        Register
+                        View Tournament
                       </Link>
-                    ) : (
-                      <span className="mt-4 block rounded-lg bg-zinc-800 px-3 py-2 text-center text-xs text-gray-400">
-                        Not Open
-                      </span>
-                    )}
+
+                      {isOpen ? (
+                        <Link
+                          href="/register"
+                          className="block rounded-lg bg-red-600 px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-red-700"
+                        >
+                          Register
+                        </Link>
+                      ) : (
+                        <span className="block rounded-lg bg-zinc-800 px-3 py-2 text-center text-xs text-gray-400">
+                          Not Open
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </article>
               );
