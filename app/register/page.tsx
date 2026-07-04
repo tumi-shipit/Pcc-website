@@ -390,23 +390,85 @@ export default function RegisterPage() {
     <main className="min-h-screen bg-zinc-950 pt-28 text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.22),_transparent_38%)]">
         <div className="mx-auto max-w-5xl px-6 py-16">
-          <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
-            PCC Tournament Services
-          </p>
+          <div className="rounded-3xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-8 shadow-2xl md:p-12">
+            <p className="text-sm font-semibold uppercase tracking-[0.35em] text-red-500">
+              Chess Tournament Registration Portal
+            </p>
 
-          <h1 className="mt-4 text-4xl font-bold md:text-6xl">
-            Tournament Entry Portal
-          </h1>
+            <h1 className="mt-4 text-4xl font-bold leading-tight md:text-6xl">
+              Register for Upcoming Chess Tournaments
+            </h1>
 
-          <p className="mt-6 max-w-3xl text-lg leading-8 text-gray-300">
-            Find your Chess SA profile, choose an open tournament and section,
-            then submit your tournament entry.
-          </p>
+            <p className="mt-6 max-w-4xl text-lg leading-8 text-gray-300">
+              Welcome to the Chess Tournament Registration Portal. This platform
+              gives players a simple and secure way to register for upcoming
+              chess tournaments organised by clubs, schools, districts, 
+              and chess organisations across South Africa.
+            </p>
 
-          <p className="mt-5 text-sm leading-6 text-gray-400">
-            This is for tournament entries only. PCC membership profiles will be
-            handled separately under Join PCC.
-          </p>
+            <p className="mt-5 max-w-4xl text-lg leading-8 text-gray-300">
+              Polokwane Chess Club is committed to developing chess by
+              supporting players, organisers and arbiters through a modern
+              registration system that makes it easier to discover events and
+              participate in competitive chess.
+            </p>
+
+            <p className="mt-5 text-sm font-semibold uppercase tracking-[0.25em] text-gray-500">
+              Powered by Polokwane Chess Club
+            </p>
+
+            <div className="mt-8 flex flex-wrap gap-3">
+              <span className="rounded-full border border-green-500/40 bg-green-500/10 px-4 py-2 text-sm font-medium text-green-300">
+                ✓ Tournament Registration
+              </span>
+
+              <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-4 py-2 text-sm font-medium text-blue-300">
+                ✓ Chess SA Player Lookup
+              </span>
+
+              <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm font-medium text-amber-300">
+                ✓ New Player Registration
+              </span>
+
+              <span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-4 py-2 text-sm font-medium text-purple-300">
+                ✓ Secure Online Entries
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {[
+              [
+                "1",
+                "Find yourself",
+                "Search using your Chess SA ID or surname and date of birth. New players can register without a Chess SA profile.",
+              ],
+              [
+                "2",
+                "Choose your tournament",
+                "Select the tournament and section you want to enter.",
+              ],
+              [
+                "3",
+                "Submit your entry",
+                "Add your contact details, payment option and submit your registration for review.",
+              ],
+            ].map(([number, title, description]) => (
+              <div
+                key={number}
+                className="rounded-2xl border border-white/10 bg-zinc-900 p-5"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
+                  {number}
+                </span>
+
+                <h2 className="mt-4 text-lg font-bold">{title}</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  {description}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
