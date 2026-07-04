@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "../lib/supabase";
+import { supabase } from "../../lib/supabase";
 
 type NewsPost = {
   id: string;
@@ -33,7 +33,7 @@ function getCategoryIcon(category: string | null) {
   return "📰";
 }
 
-export default function LatestNews() {
+export default function NewsPage() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,8 +45,7 @@ export default function LatestNews() {
         .from("news_posts")
         .select("id, title, excerpt, image_url, category, published_at")
         .eq("published", true)
-        .order("published_at", { ascending: false })
-        .limit(4);
+        .order("published_at", { ascending: false });
 
       setPosts((data ?? []) as NewsPost[]);
       setLoading(false);
@@ -56,40 +55,25 @@ export default function LatestNews() {
   }, []);
 
   return (
-    <section id="news" className="bg-black py-16 text-white md:py-24">
-      <div className="mx-auto max-w-7xl px-4 md:px-6">
-        <div className="mb-8 flex flex-col gap-3 md:mb-12 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-              Latest News
-            </p>
+    <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
+      <div className="mx-auto max-w-7xl">
+        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+          PCC Media Centre
+        </p>
 
-            <h2 className="text-3xl font-bold md:text-5xl">
-              Club & Tournament Updates
-            </h2>
+        <h1 className="mt-3 text-4xl font-black md:text-6xl">
+          News & Tournament Reports
+        </h1>
 
-            <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-              Follow announcements, tournament updates, reports and platform
-              improvements.
-            </p>
-          </div>
-
-          <Link
-            href="/news"
-            className="inline-flex rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-red-500"
-          >
-            View All News →
-          </Link>
-        </div>
+        <p className="mt-5 max-w-3xl text-gray-400 md:text-lg">
+          Follow tournament reports, platform updates, club news and stories
+          from the chess community.
+        </p>
 
         {loading ? (
-          <p className="text-sm text-gray-400">Loading news...</p>
-        ) : posts.length === 0 ? (
-          <p className="rounded-xl border border-white/10 bg-zinc-900 p-5 text-sm text-gray-400">
-            No news has been published yet.
-          </p>
+          <p className="mt-8 text-gray-400">Loading news...</p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {posts.map((post) => (
               <Link
                 key={post.id}
@@ -102,7 +86,7 @@ export default function LatestNews() {
                       src={post.image_url}
                       alt={post.title}
                       fill
-                      sizes="(max-width: 768px) 100vw, 25vw"
+                      sizes="(max-width: 768px) 100vw, 33vw"
                       className="object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
@@ -121,9 +105,9 @@ export default function LatestNews() {
                     {formatDate(post.published_at)}
                   </p>
 
-                  <h3 className="mt-2 line-clamp-2 text-lg font-bold transition group-hover:text-red-300">
+                  <h2 className="mt-2 line-clamp-2 text-xl font-bold transition group-hover:text-red-300">
                     {post.title}
-                  </h3>
+                  </h2>
 
                   <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-400">
                     {post.excerpt}
@@ -138,6 +122,6 @@ export default function LatestNews() {
           </div>
         )}
       </div>
-    </section>
+    </main>
   );
 }
