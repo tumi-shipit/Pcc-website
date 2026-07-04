@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
+import AdminGuard from "@/components/AdminGuard";
 import * as XLSX from "xlsx";
 
 type RegistrationDetail = {
@@ -487,7 +488,8 @@ export default function RegistrationsPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-6 pb-16 pt-28 text-white">
+    <AdminGuard>
+      <main className="min-h-screen bg-zinc-950 px-6 pb-16 pt-28 text-white">
       <div className="mx-auto max-w-7xl">
         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
           PCC Admin
@@ -939,6 +941,7 @@ export default function RegistrationsPage() {
           </div>
         )}
       </div>
-    </main>
+      </main>
+    </AdminGuard>
   );
 }

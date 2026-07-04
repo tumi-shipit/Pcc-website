@@ -50,7 +50,7 @@ export default function AdminLoginPage() {
       return;
     }
 
-    router.push("/admin/registrations");
+    router.push("/admin/home");
   }
 
   return (
