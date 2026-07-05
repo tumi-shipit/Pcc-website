@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "../../../lib/supabase";
+import { supabase } from "@/lib/supabase";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -18,7 +18,7 @@ export default function AdminLoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
@@ -29,28 +29,8 @@ export default function AdminLoginPage() {
       return;
     }
 
-    const userId = data.user?.id;
-
-    if (!userId) {
-      setMessage("Login failed. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    const { data: adminRow, error: adminError } = await supabase
-      .from("admin_users")
-      .select("user_id")
-      .eq("user_id", userId)
-      .single();
-
-    if (adminError || !adminRow) {
-      await supabase.auth.signOut();
-      setMessage("Access denied. This account is not an admin account.");
-      setLoading(false);
-      return;
-    }
-
-    router.push("/admin/home");
+    router.replace("/admin/home");
+    router.refresh();
   }
 
   return (
