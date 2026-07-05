@@ -255,6 +255,40 @@ export default function RegistrationsPage() {
     setUpdating(false);
   }
 
+  async function deleteRegistration(registration: RegistrationDetail) {
+    const confirmed = window.confirm(
+      `Delete registration for "${registration.full_name}"?\n\nTournament: ${
+        registration.tournament_name
+      }\nSection: ${
+        registration.section_name ?? "No section"
+      }\n\nThis action cannot be undone.`
+    );
+
+    if (!confirmed) return;
+
+    setUpdating(true);
+    setMessage("");
+
+    const { error } = await supabase.rpc("admin_delete_registration", {
+      p_registration_id: registration.registration_id,
+    });
+
+    if (error) {
+      setMessage(`Could not delete registration: ${error.message}`);
+      setUpdating(false);
+      return;
+    }
+
+    setSelectedRegistration(null);
+    setSelectedRegistrationIds((current) =>
+      current.filter((id) => id !== registration.registration_id)
+    );
+
+    await loadRegistrations();
+    setMessage(`Deleted registration for ${registration.full_name}.`);
+    setUpdating(false);
+  }
+
   function splitName(fullName: string) {
     const cleanName = fullName.trim().replace(/\s+/g, " ");
     const parts = cleanName.split(" ");
@@ -490,457 +524,466 @@ export default function RegistrationsPage() {
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-6 pb-16 pt-28 text-white">
-      <div className="mx-auto max-w-7xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-          PCC Admin
-        </p>
+        <div className="mx-auto max-w-7xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            PCC Admin
+          </p>
 
-        <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">Tournament Registrations</h1>
-            <p className="mt-3 text-gray-400">
-              Review entries, approve players, verify payments and export lists.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="rounded-lg border border-white/10 bg-zinc-900 px-5 py-3 font-semibold text-white transition hover:border-red-500"
-            >
-              Export Full CSV
-            </button>
-
-            <button
-              type="button"
-              onClick={exportSwissManagerXlsx}
-              className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700"
-            >
-              Export Current Filter
-            </button>
-
-            <button
-              type="button"
-              onClick={exportEachSectionSeparately}
-              className="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white transition hover:bg-green-700"
-            >
-              Export Each Section
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-8 grid gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-sm text-gray-400">Total entries</p>
-            <p className="mt-2 text-3xl font-bold">{stats.all}</p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-sm text-gray-400">Approved</p>
-            <p className="mt-2 text-3xl font-bold text-green-300">
-              {stats.approved}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-sm text-gray-400">Pending</p>
-            <p className="mt-2 text-3xl font-bold text-yellow-300">
-              {stats.pending}
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-sm text-gray-400">Paid</p>
-            <p className="mt-2 text-3xl font-bold text-green-300">
-              {stats.paid}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-8 flex flex-wrap gap-2">
-          {tabs.map((tab) => (
-            <button
-              key={tab.label}
-              type="button"
-              onClick={() => setActiveTab(tab.label)}
-              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
-                activeTab === tab.label
-                  ? "bg-red-600 text-white"
-                  : "bg-zinc-900 text-gray-300 hover:bg-zinc-800"
-              }`}
-            >
-              {tab.label} ({tab.count})
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search name, Chess SA ID, email or phone..."
-            className="rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
-          />
-
-          <select
-            value={tournamentFilter}
-            onChange={(event) => {
-              setTournamentFilter(event.target.value);
-              setSectionFilter("All");
-            }}
-            className="rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-red-500"
-          >
-            <option value="All">All tournaments</option>
-            {tournaments.map((tournament) => (
-              <option key={tournament} value={tournament}>
-                {tournament}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={sectionFilter}
-            onChange={(event) => setSectionFilter(event.target.value)}
-            className="rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-red-500"
-          >
-            <option value="All">All sections</option>
-            {sections.map((section) => (
-              <option key={section} value={section}>
-                {section}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="font-semibold">Batch actions</p>
-              <p className="mt-1 text-sm text-gray-400">
-                {selectedRegistrationIds.length} registration
-                {selectedRegistrationIds.length === 1 ? "" : "s"} selected
+              <h1 className="text-4xl font-bold">Tournament Registrations</h1>
+              <p className="mt-3 text-gray-400">
+                Review entries, approve players, verify payments and export lists.
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row">
               <button
                 type="button"
-                onClick={toggleAllVisibleRegistrations}
-                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-red-500"
+                onClick={exportCsv}
+                className="rounded-lg border border-white/10 bg-zinc-900 px-5 py-3 font-semibold text-white transition hover:border-red-500"
               >
-                Select visible
+                Export Full CSV
               </button>
 
               <button
                 type="button"
-                onClick={() =>
-                  batchUpdateRegistrations({ registration_status: "Approved" })
-                }
-                disabled={updating || selectedRegistrationIds.length === 0}
-                className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={exportSwissManagerXlsx}
+                className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700"
               >
-                Approve selected
+                Export Current Filter
               </button>
 
               <button
                 type="button"
-                onClick={() => batchUpdateRegistrations({ payment_status: "Paid" })}
-                disabled={updating || selectedRegistrationIds.length === 0}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={exportEachSectionSeparately}
+                className="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white transition hover:bg-green-700"
               >
-                Mark selected paid
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  batchUpdateRegistrations({ registration_status: "Rejected" })
-                }
-                disabled={updating || selectedRegistrationIds.length === 0}
-                className="rounded-lg border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Reject selected
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedRegistrationIds([])}
-                disabled={selectedRegistrationIds.length === 0}
-                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Clear
+                Export Each Section
               </button>
             </div>
           </div>
-        </div>
 
-        {message && (
-          <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
-            {message}
-          </p>
-        )}
+          <div className="mt-8 grid gap-4 md:grid-cols-4">
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+              <p className="text-sm text-gray-400">Total entries</p>
+              <p className="mt-2 text-3xl font-bold">{stats.all}</p>
+            </div>
 
-        {loading ? (
-          <p className="mt-8 text-gray-400">Loading registrations...</p>
-        ) : (
-          <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_420px]">
-            <div className="overflow-hidden rounded-2xl border border-white/10">
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-white/10">
-                  <thead className="bg-zinc-900">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                        <input
-                          type="checkbox"
-                          checked={
-                            filteredRegistrations.length > 0 &&
-                            filteredRegistrations.every((item) =>
-                              selectedRegistrationIds.includes(item.registration_id)
-                            )
-                          }
-                          onChange={toggleAllVisibleRegistrations}
-                          className="h-4 w-4 accent-red-600"
-                          aria-label="Select all visible registrations"
-                        />
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                        Player
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                        Tournament
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                        Status
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+              <p className="text-sm text-gray-400">Approved</p>
+              <p className="mt-2 text-3xl font-bold text-green-300">
+                {stats.approved}
+              </p>
+            </div>
 
-                  <tbody className="divide-y divide-white/10 bg-zinc-950">
-                    {filteredRegistrations.map((item) => (
-                      <tr
-                        key={item.registration_id}
-                        className={
-                          selectedRegistration?.registration_id ===
-                          item.registration_id
-                            ? "bg-red-600/10"
-                            : ""
-                        }
-                      >
-                        <td className="px-4 py-4 align-top">
-                          <input
-                            type="checkbox"
-                            checked={selectedRegistrationIds.includes(
-                              item.registration_id
-                            )}
-                            onChange={() =>
-                              toggleRegistrationSelection(item.registration_id)
-                            }
-                            className="h-4 w-4 accent-red-600"
-                            aria-label={`Select ${item.full_name}`}
-                          />
-                        </td>
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+              <p className="text-sm text-gray-400">Pending</p>
+              <p className="mt-2 text-3xl font-bold text-yellow-300">
+                {stats.pending}
+              </p>
+            </div>
 
-                        <td className="px-4 py-4 align-top">
-                          <p className="font-semibold">{item.full_name}</p>
-                          <p className="mt-1 text-sm text-gray-400">
-                            Chess SA: {item.chess_sa_id ?? "N/A"}
-                          </p>
-                          <p className="text-sm text-gray-400">
-                            Rating: {item.rating ?? "N/A"}
-                          </p>
-                        </td>
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+              <p className="text-sm text-gray-400">Paid</p>
+              <p className="mt-2 text-3xl font-bold text-green-300">
+                {stats.paid}
+              </p>
+            </div>
+          </div>
 
-                        <td className="px-4 py-4 align-top">
-                          <p className="font-semibold">{item.tournament_name}</p>
-                          <p className="mt-1 text-sm text-gray-400">
-                            {item.section_name ?? "No section"}
-                          </p>
-                        </td>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {tabs.map((tab) => (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => setActiveTab(tab.label)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                  activeTab === tab.label
+                    ? "bg-red-600 text-white"
+                    : "bg-zinc-900 text-gray-300 hover:bg-zinc-800"
+                }`}
+              >
+                {tab.label} ({tab.count})
+              </button>
+            ))}
+          </div>
 
-                        <td className="px-4 py-4 align-top">
-                          <p
-                            className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                              item.payment_status
-                            )}`}
-                          >
-                            Payment: {item.payment_status}
-                          </p>
-                          <p
-                            className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                              item.registration_status
-                            )}`}
-                          >
-                            Entry: {item.registration_status}
-                          </p>
-                        </td>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search name, Chess SA ID, email or phone..."
+              className="rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+            />
 
-                        <td className="px-4 py-4 align-top">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedRegistration(item)}
-                            className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-200"
-                          >
-                            Review
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+            <select
+              value={tournamentFilter}
+              onChange={(event) => {
+                setTournamentFilter(event.target.value);
+                setSectionFilter("All");
+              }}
+              className="rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-red-500"
+            >
+              <option value="All">All tournaments</option>
+              {tournaments.map((tournament) => (
+                <option key={tournament} value={tournament}>
+                  {tournament}
+                </option>
+              ))}
+            </select>
 
-                    {filteredRegistrations.length === 0 && (
-                      <tr>
-                        <td
-                          colSpan={5}
-                          className="px-4 py-10 text-center text-gray-400"
-                        >
-                          No registrations found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+            <select
+              value={sectionFilter}
+              onChange={(event) => setSectionFilter(event.target.value)}
+              className="rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-red-500"
+            >
+              <option value="All">All sections</option>
+              {sections.map((section) => (
+                <option key={section} value={section}>
+                  {section}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="font-semibold">Batch actions</p>
+                <p className="mt-1 text-sm text-gray-400">
+                  {selectedRegistrationIds.length} registration
+                  {selectedRegistrationIds.length === 1 ? "" : "s"} selected
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={toggleAllVisibleRegistrations}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:border-red-500"
+                >
+                  Select visible
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    batchUpdateRegistrations({ registration_status: "Approved" })
+                  }
+                  disabled={updating || selectedRegistrationIds.length === 0}
+                  className="rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Approve selected
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => batchUpdateRegistrations({ payment_status: "Paid" })}
+                  disabled={updating || selectedRegistrationIds.length === 0}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Mark selected paid
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    batchUpdateRegistrations({ registration_status: "Rejected" })
+                  }
+                  disabled={updating || selectedRegistrationIds.length === 0}
+                  className="rounded-lg border border-red-500/40 px-4 py-2 text-sm font-semibold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Reject selected
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedRegistrationIds([])}
+                  disabled={selectedRegistrationIds.length === 0}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-sm font-semibold text-gray-300 transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Clear
+                </button>
               </div>
             </div>
+          </div>
 
-            <aside className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
-              {selectedRegistration ? (
-                <>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                    Review Entry
-                  </p>
+          {message && (
+            <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+              {message}
+            </p>
+          )}
 
-                  <h2 className="mt-3 text-2xl font-bold">
-                    {selectedRegistration.full_name}
-                  </h2>
+          {loading ? (
+            <p className="mt-8 text-gray-400">Loading registrations...</p>
+          ) : (
+            <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_420px]">
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-white/10">
+                    <thead className="bg-zinc-900">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                          <input
+                            type="checkbox"
+                            checked={
+                              filteredRegistrations.length > 0 &&
+                              filteredRegistrations.every((item) =>
+                                selectedRegistrationIds.includes(item.registration_id)
+                              )
+                            }
+                            onChange={toggleAllVisibleRegistrations}
+                            className="h-4 w-4 accent-red-600"
+                            aria-label="Select all visible registrations"
+                          />
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                          Player
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                          Tournament
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                          Status
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
 
-                  <div className="mt-5 space-y-3 text-sm text-gray-300">
-                    <p>
-                      <span className="font-semibold text-white">
-                        Chess SA ID:
-                      </span>{" "}
-                      {selectedRegistration.chess_sa_id ?? "N/A"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">Rating:</span>{" "}
-                      {selectedRegistration.rating ?? "N/A"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">DOB:</span>{" "}
-                      {formatDate(selectedRegistration.date_of_birth)}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">Gender:</span>{" "}
-                      {selectedRegistration.gender ?? "N/A"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">Club:</span>{" "}
-                      {selectedRegistration.club ?? "N/A"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">Province:</span>{" "}
-                      {selectedRegistration.province ?? "N/A"}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">Email:</span>{" "}
-                      {selectedRegistration.email}
-                    </p>
-                    <p>
-                      <span className="font-semibold text-white">Phone:</span>{" "}
-                      {selectedRegistration.phone}
-                    </p>
-                  </div>
+                    <tbody className="divide-y divide-white/10 bg-zinc-950">
+                      {filteredRegistrations.map((item) => (
+                        <tr
+                          key={item.registration_id}
+                          className={
+                            selectedRegistration?.registration_id ===
+                            item.registration_id
+                              ? "bg-red-600/10"
+                              : ""
+                          }
+                        >
+                          <td className="px-4 py-4 align-top">
+                            <input
+                              type="checkbox"
+                              checked={selectedRegistrationIds.includes(
+                                item.registration_id
+                              )}
+                              onChange={() =>
+                                toggleRegistrationSelection(item.registration_id)
+                              }
+                              className="h-4 w-4 accent-red-600"
+                              aria-label={`Select ${item.full_name}`}
+                            />
+                          </td>
 
-                  <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-300">
-                    <p className="font-semibold text-white">
-                      {selectedRegistration.tournament_name}
+                          <td className="px-4 py-4 align-top">
+                            <p className="font-semibold">{item.full_name}</p>
+                            <p className="mt-1 text-sm text-gray-400">
+                              Chess SA: {item.chess_sa_id ?? "N/A"}
+                            </p>
+                            <p className="text-sm text-gray-400">
+                              Rating: {item.rating ?? "N/A"}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <p className="font-semibold">{item.tournament_name}</p>
+                            <p className="mt-1 text-sm text-gray-400">
+                              {item.section_name ?? "No section"}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <p
+                              className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
+                                item.payment_status
+                              )}`}
+                            >
+                              Payment: {item.payment_status}
+                            </p>
+                            <p
+                              className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
+                                item.registration_status
+                              )}`}
+                            >
+                              Entry: {item.registration_status}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-4 align-top">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRegistration(item)}
+                              className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-200"
+                            >
+                              Review
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+
+                      {filteredRegistrations.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={5}
+                            className="px-4 py-10 text-center text-gray-400"
+                          >
+                            No registrations found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <aside className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
+                {selectedRegistration ? (
+                  <>
+                    <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                      Review Entry
                     </p>
-                    <p className="mt-2">
-                      Section: {selectedRegistration.section_name ?? "No section"}
-                    </p>
-                    <p className="mt-1">Venue: {selectedRegistration.venue}</p>
-                    <p className="mt-1">
-                      Registered: {formatDate(selectedRegistration.created_at)}
-                    </p>
-                  </div>
 
-                  <div className="mt-6 space-y-3">
-                    <button
-                      type="button"
-                      disabled={updating}
-                      onClick={() =>
-                        updateRegistration(selectedRegistration.registration_id, {
-                          registration_status: "Approved",
-                        })
-                      }
-                      className="w-full rounded-lg bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
-                    >
-                      Approve Registration
-                    </button>
+                    <h2 className="mt-3 text-2xl font-bold">
+                      {selectedRegistration.full_name}
+                    </h2>
 
-                    <button
-                      type="button"
-                      disabled={updating}
-                      onClick={() =>
-                        updateRegistration(selectedRegistration.registration_id, {
-                          payment_status: "Paid",
-                        })
-                      }
-                      className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
-                    >
-                      Mark Paid
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={updating}
-                      onClick={() =>
-                        updateRegistration(selectedRegistration.registration_id, {
-                          payment_status: "Rejected",
-                        })
-                      }
-                      className="w-full rounded-lg border border-yellow-500/40 px-4 py-3 font-semibold text-yellow-200 transition hover:bg-yellow-500/10 disabled:opacity-60"
-                    >
-                      Reject Payment
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={updating}
-                      onClick={() =>
-                        updateRegistration(selectedRegistration.registration_id, {
-                          registration_status: "Rejected",
-                        })
-                      }
-                      className="w-full rounded-lg border border-red-500/40 px-4 py-3 font-semibold text-red-200 transition hover:bg-red-500/10 disabled:opacity-60"
-                    >
-                      Reject Registration
-                    </button>
-                  </div>
-
-                  {selectedRegistration.proof_of_payment_url && (
-                    <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm">
-                      <p className="font-semibold text-white">
-                        Proof of payment path
+                    <div className="mt-5 space-y-3 text-sm text-gray-300">
+                      <p>
+                        <span className="font-semibold text-white">
+                          Chess SA ID:
+                        </span>{" "}
+                        {selectedRegistration.chess_sa_id ?? "N/A"}
                       </p>
-                      <p className="mt-2 break-all text-gray-400">
-                        {selectedRegistration.proof_of_payment_url}
+                      <p>
+                        <span className="font-semibold text-white">Rating:</span>{" "}
+                        {selectedRegistration.rating ?? "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-white">DOB:</span>{" "}
+                        {formatDate(selectedRegistration.date_of_birth)}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-white">Gender:</span>{" "}
+                        {selectedRegistration.gender ?? "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-white">Club:</span>{" "}
+                        {selectedRegistration.club ?? "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-white">Province:</span>{" "}
+                        {selectedRegistration.province ?? "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-white">Email:</span>{" "}
+                        {selectedRegistration.email}
+                      </p>
+                      <p>
+                        <span className="font-semibold text-white">Phone:</span>{" "}
+                        {selectedRegistration.phone}
                       </p>
                     </div>
-                  )}
-                </>
-              ) : (
-                <div className="flex min-h-96 items-center justify-center text-center text-gray-400">
-                  Select a registration to review player details and actions.
-                </div>
-              )}
-            </aside>
-          </div>
-        )}
-      </div>
+
+                    <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-300">
+                      <p className="font-semibold text-white">
+                        {selectedRegistration.tournament_name}
+                      </p>
+                      <p className="mt-2">
+                        Section: {selectedRegistration.section_name ?? "No section"}
+                      </p>
+                      <p className="mt-1">Venue: {selectedRegistration.venue}</p>
+                      <p className="mt-1">
+                        Registered: {formatDate(selectedRegistration.created_at)}
+                      </p>
+                    </div>
+
+                    <div className="mt-6 space-y-3">
+                      <button
+                        type="button"
+                        disabled={updating}
+                        onClick={() =>
+                          updateRegistration(selectedRegistration.registration_id, {
+                            registration_status: "Approved",
+                          })
+                        }
+                        className="w-full rounded-lg bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                      >
+                        Approve Registration
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={updating}
+                        onClick={() =>
+                          updateRegistration(selectedRegistration.registration_id, {
+                            payment_status: "Paid",
+                          })
+                        }
+                        className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                      >
+                        Mark Paid
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={updating}
+                        onClick={() =>
+                          updateRegistration(selectedRegistration.registration_id, {
+                            payment_status: "Rejected",
+                          })
+                        }
+                        className="w-full rounded-lg border border-yellow-500/40 px-4 py-3 font-semibold text-yellow-200 transition hover:bg-yellow-500/10 disabled:opacity-60"
+                      >
+                        Reject Payment
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={updating}
+                        onClick={() =>
+                          updateRegistration(selectedRegistration.registration_id, {
+                            registration_status: "Rejected",
+                          })
+                        }
+                        className="w-full rounded-lg border border-red-500/40 px-4 py-3 font-semibold text-red-200 transition hover:bg-red-500/10 disabled:opacity-60"
+                      >
+                        Reject Registration
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={updating}
+                        onClick={() => deleteRegistration(selectedRegistration)}
+                        className="w-full rounded-lg border border-red-600 px-4 py-3 font-semibold text-red-300 transition hover:bg-red-600/10 disabled:opacity-60"
+                      >
+                        Delete Registration
+                      </button>
+                    </div>
+
+                    {selectedRegistration.proof_of_payment_url && (
+                      <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm">
+                        <p className="font-semibold text-white">
+                          Proof of payment path
+                        </p>
+                        <p className="mt-2 break-all text-gray-400">
+                          {selectedRegistration.proof_of_payment_url}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex min-h-96 items-center justify-center text-center text-gray-400">
+                    Select a registration to review player details and actions.
+                  </div>
+                )}
+              </aside>
+            </div>
+          )}
+        </div>
       </main>
     </AdminGuard>
   );

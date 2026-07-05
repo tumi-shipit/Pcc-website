@@ -17,6 +17,14 @@ type Tournament = {
   registration_status: string;
   entry_fee: number;
   poster_image_url: string | null;
+  payment_details: string | null;
+};
+
+type TournamentSection = {
+  id: string;
+  section_name: string;
+  entry_fee_override: number | null;
+  maximum_players: number | null;
 };
 
 type TournamentStats = {
@@ -24,15 +32,6 @@ type TournamentStats = {
   total_registrations: number;
   approved_registrations: number;
   paid_registrations: number;
-};
-
-type SectionStat = {
-  section_name: string;
-  total: number;
-};
-
-type RegistrationSectionRow = {
-  section_name: string | null;
 };
 
 function formatDate(date: string | null) {
@@ -45,85 +44,92 @@ function formatDate(date: string | null) {
   });
 }
 
-export default function AdminTournamentDashboardPage() {
+function formatMoney(amount: number) {
+  if (amount === 0) return "Free / TBA";
+
+  return new Intl.NumberFormat("en-ZA", {
+    style: "currency",
+    currency: "ZAR",
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function statusStyle(status: string) {
+  if (status === "Open") return "border-green-500/40 bg-green-500/10 text-green-300";
+  if (status === "Completed") return "border-blue-500/40 bg-blue-500/10 text-blue-300";
+  if (status === "Live") return "border-red-500/40 bg-red-500/10 text-red-300";
+  return "border-zinc-500/40 bg-zinc-500/10 text-zinc-300";
+}
+
+function statusLabel(status: string) {
+  if (status === "Open") return "Registration Open";
+  if (status === "Completed") return "Tournament Archive";
+  if (status === "Live") return "Live Tournament";
+  return "Registration Not Open";
+}
+
+export default function TournamentHubPage() {
   const params = useParams();
   const tournamentId = String(params.id);
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [sections, setSections] = useState<TournamentSection[]>([]);
   const [stats, setStats] = useState<TournamentStats | null>(null);
-  const [sectionStats, setSectionStats] = useState<SectionStat[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const unpaidCount = useMemo(() => {
-    const approved = stats?.approved_registrations ?? 0;
-    const paid = stats?.paid_registrations ?? 0;
-    return Math.max(approved - paid, 0);
-  }, [stats]);
+  const isOpen = tournament?.registration_status === "Open";
+  const isCompleted = tournament?.registration_status === "Completed";
+
+  const isShere = useMemo(() => {
+    return tournament?.tournament_name.toLowerCase().includes("shere") ?? false;
+  }, [tournament]);
 
   useEffect(() => {
-    async function loadTournamentDashboard() {
+    async function loadTournamentHub() {
       setLoading(true);
       setMessage("");
 
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
+          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
 
       if (tournamentError || !tournamentData) {
-        setMessage("Tournament could not be loaded.");
+        setMessage("Tournament could not be found.");
         setLoading(false);
         return;
       }
 
+      const { data: sectionData } = await supabase
+        .from("tournament_sections")
+        .select("id, section_name, entry_fee_override, maximum_players")
+        .eq("tournament_id", tournamentId)
+        .order("section_name", { ascending: true });
+
       const { data: statsData } = await supabase
         .from("tournament_public_stats")
-        .select(
-          "tournament_id, total_registrations, approved_registrations, paid_registrations"
-        )
+        .select("tournament_id, total_registrations, approved_registrations, paid_registrations")
         .eq("tournament_id", tournamentId)
         .single();
 
-      const { data: registrationData } = await supabase
-        .from("registration_details")
-        .select("section_name")
-        .eq("tournament_name", tournamentData.tournament_name);
-
-      const groupedSections = (
-        (registrationData ?? []) as RegistrationSectionRow[]
-      ).reduce<Record<string, number>>((groups, item) => {
-        const section = item.section_name ?? "No section";
-        groups[section] = (groups[section] ?? 0) + 1;
-        return groups;
-      }, {});
-
       setTournament(tournamentData as Tournament);
+      setSections((sectionData ?? []) as TournamentSection[]);
       setStats((statsData ?? null) as TournamentStats | null);
-
-      setSectionStats(
-        Object.entries(groupedSections).map(([section_name, total]) => ({
-          section_name,
-          total: Number(total),
-        }))
-      );
-
       setLoading(false);
     }
 
-    if (tournamentId) {
-      loadTournamentDashboard();
-    }
+    if (tournamentId) loadTournamentHub();
   }, [tournamentId]);
 
   if (loading) {
     return (
       <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
         <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-          Loading tournament dashboard...
+          Loading tournament hub...
         </div>
       </main>
     );
@@ -133,172 +139,239 @@ export default function AdminTournamentDashboardPage() {
     return (
       <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-100">
-          {message || "Tournament not found."}
+          <h1 className="text-2xl font-bold">Tournament not found</h1>
+          <p className="mt-3">{message || "Tournament could not be found."}</p>
+          <Link href="/#tournaments" className="mt-5 inline-block rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white">
+            Back to Tournament Centre
+          </Link>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
-      <div className="mx-auto max-w-7xl">
-        <Link
-          href="/admin"
-          className="text-sm font-semibold text-red-300 transition hover:text-red-200"
-        >
-          ← Back to Admin Dashboard
-        </Link>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
+    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
+      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.22),_transparent_42%)]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 md:grid-cols-[360px_1fr] md:px-6 md:py-14">
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black shadow-2xl">
             <div className="relative aspect-[3/4]">
               {tournament.poster_image_url ? (
                 <Image
                   src={tournament.poster_image_url}
                   alt={`${tournament.tournament_name} poster`}
                   fill
-                  sizes="320px"
+                  priority
+                  sizes="(max-width: 768px) 100vw, 360px"
                   className="object-cover"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-gray-500">
-                  Poster coming soon
-                </div>
+                <div className="flex h-full items-center justify-center text-gray-500">Poster coming soon</div>
               )}
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-              Tournament Dashboard
+          <div className="flex flex-col justify-center">
+            <Link href="/#tournaments" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
+              ← Back to Tournament Centre
+            </Link>
+
+            <p className="mt-6 text-xs font-semibold uppercase tracking-[0.3em] text-red-400">
+              Tournament Hub
             </p>
 
-            <h1 className="mt-3 text-3xl font-black leading-tight md:text-5xl">
+            <h1 className="mt-3 text-3xl font-black leading-tight md:text-6xl">
               {tournament.tournament_name}
             </h1>
 
             <div className="mt-5 flex flex-wrap gap-3">
-              <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-semibold text-gray-200">
-                {tournament.registration_status}
+              <span className={`rounded-full border px-4 py-2 text-sm font-bold ${statusStyle(tournament.registration_status)}`}>
+                {statusLabel(tournament.registration_status)}
               </span>
-
-              <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm text-gray-300">
+              <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-gray-200">
                 {formatDate(tournament.start_date)}
               </span>
-
-              <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm text-gray-300">
+              <span className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm text-gray-200">
                 {tournament.venue}
               </span>
             </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-4">
-              <div className="rounded-xl bg-zinc-950 p-4">
-                <p className="text-sm text-gray-400">Total</p>
-                <p className="mt-2 text-3xl font-bold">
-                  {stats?.total_registrations ?? 0}
-                </p>
-              </div>
+            {tournament.description && (
+              <p className="mt-6 max-w-3xl text-sm leading-7 text-gray-300 md:text-lg md:leading-8">
+                {tournament.description}
+              </p>
+            )}
 
-              <div className="rounded-xl bg-zinc-950 p-4">
-                <p className="text-sm text-gray-400">Approved</p>
-                <p className="mt-2 text-3xl font-bold text-green-300">
-                  {stats?.approved_registrations ?? 0}
-                </p>
-              </div>
+            <div className="mt-8 flex flex-wrap gap-3">
+              {isOpen ? (
+                <Link href="/register" className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700">
+                  Register Now
+                </Link>
+              ) : (
+                <span className="rounded-xl bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-400">
+                  {isCompleted ? "Archived Event" : "Registration Not Open"}
+                </span>
+              )}
 
-              <div className="rounded-xl bg-zinc-950 p-4">
-                <p className="text-sm text-gray-400">Paid</p>
-                <p className="mt-2 text-3xl font-bold text-blue-300">
-                  {stats?.paid_registrations ?? 0}
-                </p>
-              </div>
-
-              <div className="rounded-xl bg-zinc-950 p-4">
-                <p className="text-sm text-gray-400">Unpaid</p>
-                <p className="mt-2 text-3xl font-bold text-yellow-300">
-                  {unpaidCount}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Link
-                href={`/admin/registrations?tournament=${encodeURIComponent(
-                  tournament.tournament_name
-                )}`}
-                className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
-              >
-                View Registrations
-              </Link>
-
-              <Link
-                href="/admin/registrations"
-                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
-              >
-                Export Swiss
-              </Link>
-
-              <span className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-center text-sm font-semibold text-gray-400">
-                News Coming Soon
-              </span>
-
-              <span className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-center text-sm font-semibold text-gray-400">
-                Gallery Coming Soon
-              </span>
+              {isShere && (
+                <>
+                  <a
+                    href="https://s2.chess-results.com/tnr1445907.aspx?lan=1&art=4&SNode=S0"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                  >
+                    Open Results
+                  </a>
+                  <a
+                    href="https://s1.chess-results.com/tnr1445906.aspx?lan=1&art=4&SNode=S0"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                  >
+                    Junior Results
+                  </a>
+                </>
+              )}
             </div>
           </div>
         </div>
+      </section>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
-          <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
-            <h2 className="text-2xl font-bold">Section Breakdown</h2>
+      <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
+        <div className="grid gap-5 md:grid-cols-4">
+          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+            <p className="text-sm text-gray-400">Registered players</p>
+            <p className="mt-2 text-3xl font-bold">{stats?.total_registrations ?? 0}</p>
+          </div>
 
-            {sectionStats.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-400">
-                No registrations have been submitted yet.
-              </p>
-            ) : (
-              <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-                {sectionStats.map((section) => (
-                  <div
-                    key={section.section_name}
-                    className="rounded-xl border border-white/10 bg-zinc-950 p-4"
-                  >
-                    <p className="font-bold">{section.section_name}</p>
-                    <p className="mt-2 text-2xl font-bold text-red-300">
-                      {section.total}
-                    </p>
-                    <p className="text-xs text-gray-500">entries</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+            <p className="text-sm text-gray-400">Status</p>
+            <p className="mt-2 text-lg font-bold">{statusLabel(tournament.registration_status)}</p>
+          </div>
 
-          <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
-            <h2 className="text-2xl font-bold">Tournament Tools</h2>
+          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+            <p className="text-sm text-gray-400">Entry fee</p>
+            <p className="mt-2 text-lg font-bold">{formatMoney(tournament.entry_fee)}</p>
+          </div>
 
-            <div className="mt-5 space-y-3">
-              {[
-                "Upload Pairings",
-                "Upload Standings",
-                "Upload Results",
-                "Publish Gallery",
-                "Post Tournament News",
-                "Close Registration",
-                "Set Tournament Live",
-              ].map((tool) => (
-                <div
-                  key={tool}
-                  className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-400"
-                >
-                  {tool} — coming soon
-                </div>
-              ))}
-            </div>
-          </section>
+          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+            <p className="text-sm text-gray-400">Sections</p>
+            <p className="mt-2 text-lg font-bold">{sections.length > 0 ? `${sections.length} sections` : isShere ? "Open & Junior" : "TBA"}</p>
+          </div>
         </div>
-      </div>
+
+        {isShere && <ShereArchive />}
+
+        {!isShere && (
+          <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
+            <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+              <h2 className="text-xl font-bold md:text-2xl">Tournament Information</h2>
+              <div className="mt-5 grid gap-4 text-sm text-gray-300 md:grid-cols-2">
+                <p><span className="font-semibold text-white">Date:</span> {formatDate(tournament.start_date)}</p>
+                <p><span className="font-semibold text-white">End date:</span> {formatDate(tournament.end_date ?? tournament.start_date)}</p>
+                <p><span className="font-semibold text-white">Venue:</span> {tournament.venue}</p>
+                <p><span className="font-semibold text-white">Province:</span> {tournament.province ?? "TBA"}</p>
+                <p><span className="font-semibold text-white">Entry fee:</span> {formatMoney(tournament.entry_fee)}</p>
+                <p><span className="font-semibold text-white">Status:</span> {statusLabel(tournament.registration_status)}</p>
+              </div>
+
+              {tournament.payment_details && (
+                <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
+                  <p className="font-semibold text-white">Payment details</p>
+                  <p className="mt-2">{tournament.payment_details}</p>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+              <h2 className="text-xl font-bold md:text-2xl">Sections</h2>
+              {sections.length === 0 ? (
+                <p className="mt-4 text-sm text-gray-400">Sections will be confirmed soon.</p>
+              ) : (
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {sections.map((section) => (
+                    <div key={section.id} className="rounded-xl border border-white/10 bg-zinc-950 p-4">
+                      <p className="font-bold">{section.section_name}</p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        {section.entry_fee_override ? formatMoney(section.entry_fee_override) : "Standard fee"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </section>
     </main>
+  );
+}
+
+function ShereArchive() {
+  return (
+    <div className="mt-8 space-y-6">
+      <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">Tournament Report</p>
+        <h2 className="mt-3 text-2xl font-black md:text-4xl">Young Stars Shine at the SHERE Chess Open 2026</h2>
+
+        <div className="mt-6 space-y-5 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
+          <p>The SHERE Chess Open 2026, hosted by Glen Cowie Pioneers Chess Club, delivered an unforgettable day of competitive chess as experienced campaigners and rising young stars battled for top honours in both the Open and Junior sections.</p>
+          <p>Held in honour of Shere, a respected member of the local chess community, the tournament celebrated not only competitive chess but also the passion and continued growth of the game in Sekhukhune.</p>
+          <p>The biggest story of the day came in the Open Section, where <strong className="text-white">Mphahlele Phetolo</strong> produced a sensational performance to lift the championship against a field packed with experienced competitors. His remarkable run included victories over respected players such as <strong className="text-white">Joe Mahomole</strong>, a club manager and one of the district's most experienced chess figures.</p>
+          <p>His road to victory was far from easy. <strong className="text-white">Daniel Tshehla</strong> was the only player to defeat the eventual champion, but instead of allowing the setback to define his tournament, Mphahlele responded with determination and resilience, finishing strongly to secure the title.</p>
+          <p>The tournament's namesake, <strong className="text-white">Shere</strong>, also enjoyed an excellent event, finishing in fourth place. His only defeats came against the tournament winner, Mphahlele Phetolo, and runner-up <strong className="text-white">Leshaba Surprise</strong>, highlighting the high standard of competition among the leading players.</p>
+          <p>The Junior Section belonged to <strong className="text-white">Lesedi Motsifane</strong> of SJ van der Merwe, who delivered a flawless, undefeated performance from start to finish.</p>
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+          <h2 className="text-2xl font-black">🏅 Tournament Honours</h2>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-xl border border-white/10 bg-zinc-950 p-5">
+              <h3 className="font-bold text-red-300">Open Section</h3>
+              <div className="mt-4 space-y-3 text-sm text-gray-300">
+                <p>🥇 <strong className="text-white">Champion:</strong> Mphahlele Phetolo</p>
+                <p>🥈 <strong className="text-white">Runner-up:</strong> Leshaba Surprise</p>
+                <p>🥉 <strong className="text-white">Third Place:</strong> Daniel Tshehla</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-zinc-950 p-5">
+              <h3 className="font-bold text-red-300">Junior Section</h3>
+              <div className="mt-4 space-y-3 text-sm text-gray-300">
+                <p>🥇 <strong className="text-white">Champion:</strong> Lesedi Motsifane</p>
+                <p>🥈 <strong className="text-white">Runner-up:</strong> Matabane Mahlogonolo</p>
+                <p>🥉 <strong className="text-white">Third Place:</strong> Bapela Ofentse</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-5 md:p-8">
+          <h2 className="text-2xl font-black text-yellow-100">⭐ Player of the Tournament</h2>
+          <h3 className="mt-4 text-xl font-bold text-white">Elias Mabotja</h3>
+          <p className="mt-4 text-sm leading-7 text-yellow-50/90 md:text-base md:leading-8">
+            Widely known for his service to chess as an organiser, coach and qualified arbiter, Elias is not a regular competitive player. Despite spending most of his time developing the game away from the board, he accepted the challenge of competing against experienced tournament players.
+          </p>
+          <p className="mt-4 text-sm leading-7 text-yellow-50/90 md:text-base md:leading-8">
+            His defining moment came when he defeated Daniel Tshehla, the only player to defeat eventual champion Mphahlele Phetolo. For one of the day's most memorable victories, Elias Mabotja is recognised as the Player of the Tournament.
+          </p>
+        </section>
+      </div>
+
+      <section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 md:p-8">
+        <h2 className="text-2xl font-black text-red-100">🔥 Upset of the Tournament</h2>
+        <p className="mt-4 text-sm leading-7 text-red-50/90 md:text-base md:leading-8">
+          Elias Mabotja defeated Daniel Tshehla — the only player to defeat eventual champion Mphahlele Phetolo.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+        <h2 className="text-2xl font-black">📸 Tournament Gallery</h2>
+        <p className="mt-3 text-sm text-gray-400">Gallery coming soon. Photos from prize-giving, action boards and tournament moments will be added here.</p>
+      </section>
+    </div>
   );
 }

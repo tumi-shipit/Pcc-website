@@ -10,10 +10,7 @@ type Tournament = {
   tournament_name: string;
   start_date: string;
   venue: string;
-  province: string | null;
   registration_status: string;
-  entry_fee: number;
-  poster_image_url: string | null;
 };
 
 type TournamentStats = {
@@ -31,6 +28,33 @@ function formatDate(date: string) {
   });
 }
 
+const adminCards = [
+  {
+    title: "Tournament Management",
+    description: "Create, edit and manage tournament pages.",
+    href: "/admin/tournaments",
+    icon: "🏆",
+  },
+  {
+    title: "Registrations",
+    description: "Approve players, check payments and export Swiss files.",
+    href: "/admin/registrations",
+    icon: "📝",
+  },
+  {
+    title: "Import Ratings",
+    description: "Upload Chess SA rating files.",
+    href: "/admin/import-ratings",
+    icon: "📊",
+  },
+  {
+    title: "Public Website",
+    description: "Open the public PCC website.",
+    href: "/",
+    icon: "🌍",
+  },
+];
+
 export default function AdminDashboardPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [stats, setStats] = useState<TournamentStats[]>([]);
@@ -44,9 +68,7 @@ export default function AdminDashboardPage() {
 
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
-        .select(
-          "id, tournament_name, start_date, venue, province, registration_status, entry_fee, poster_image_url"
-        )
+        .select("id, tournament_name, start_date, venue, registration_status")
         .neq("registration_status", "Draft")
         .order("start_date", { ascending: true });
 
@@ -76,60 +98,83 @@ export default function AdminDashboardPage() {
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
-      <div className="mx-auto max-w-7xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-          Tournament Admin
-        </p>
+        <div className="mx-auto max-w-7xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            PCC Admin
+          </p>
 
-        <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">Admin Dashboard</h1>
-            <p className="mt-3 max-w-2xl text-gray-400">
-              Choose a tournament to manage registrations, exports, news,
-              gallery and live tournament tools.
-            </p>
+          <h1 className="mt-3 text-4xl font-bold md:text-5xl">
+            Admin Control Centre
+          </h1>
+
+          <p className="mt-4 max-w-2xl text-gray-400">
+            Manage tournaments, registrations, ratings, exports and public
+            website content from one place.
+          </p>
+
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {adminCards.map((card) => (
+              <Link
+                key={card.title}
+                href={card.href}
+                className="rounded-2xl border border-white/10 bg-zinc-900 p-5 transition hover:-translate-y-1 hover:border-red-500/60"
+              >
+                <p className="text-3xl">{card.icon}</p>
+                <h2 className="mt-4 text-lg font-bold">{card.title}</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  {card.description}
+                </p>
+              </Link>
+            ))}
           </div>
 
-          <Link
-            href="/admin/registrations"
-            className="rounded-lg bg-red-600 px-5 py-3 text-center font-semibold text-white transition hover:bg-red-700"
-          >
-            All Registrations
-          </Link>
-        </div>
+          <div className="mt-12 flex items-end justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                Active Tournament Dashboards
+              </p>
+              <h2 className="mt-3 text-3xl font-bold">Tournaments</h2>
+            </div>
 
-        {message && (
-          <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
-            {message}
-          </p>
-        )}
+            <Link
+              href="/admin/tournaments/new"
+              className="rounded-lg bg-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-700"
+            >
+              + New Tournament
+            </Link>
+          </div>
 
-        {loading ? (
-          <p className="mt-8 text-gray-400">Loading admin dashboard...</p>
-        ) : (
-          <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {tournaments.map((tournament) => {
-              const tournamentStats = getStats(tournament.id);
+          {message && (
+            <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+              {message}
+            </p>
+          )}
 
-              return (
-                <Link
-                  key={tournament.id}
-                  href={`/admin/tournaments/${tournament.id}`}
-                  className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition hover:-translate-y-1 hover:border-red-500/60"
-                >
-                  <div className="p-5">
+          {loading ? (
+            <p className="mt-8 text-gray-400">Loading admin dashboard...</p>
+          ) : (
+            <div className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {tournaments.map((tournament) => {
+                const tournamentStats = getStats(tournament.id);
+
+                return (
+                  <Link
+                    key={tournament.id}
+                    href={`/admin/tournaments/${tournament.id}`}
+                    className="group rounded-2xl border border-white/10 bg-zinc-900 p-5 transition hover:-translate-y-1 hover:border-red-500/60"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xs font-semibold uppercase tracking-wide text-red-400">
                           {formatDate(tournament.start_date)}
                         </p>
 
-                        <h2 className="mt-2 text-xl font-bold leading-7 transition group-hover:text-red-300">
+                        <h3 className="mt-2 text-xl font-bold leading-7 group-hover:text-red-300">
                           {tournament.tournament_name}
-                        </h2>
+                        </h3>
                       </div>
 
-                      <span className="shrink-0 rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-gray-300">
+                      <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-semibold text-gray-300">
                         {tournament.registration_status}
                       </span>
                     </div>
@@ -164,19 +209,12 @@ export default function AdminDashboardPage() {
                     <p className="mt-5 text-sm font-semibold text-red-300">
                       Open tournament dashboard →
                     </p>
-                  </div>
-                </Link>
-              );
-            })}
-
-            {tournaments.length === 0 && (
-              <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-                No tournaments found.
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </main>
     </AdminGuard>
   );

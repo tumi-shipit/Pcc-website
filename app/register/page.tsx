@@ -45,8 +45,8 @@ type Tournament = {
 type TournamentSection = {
   id: string;
   section_name: string;
-  minimum_age: number | null;
-  maximum_age: number | null;
+  minimum_birth_year: number | null;
+  maximum_birth_year: number | null;
   gender_restriction: string;
   entry_fee_override: number | null;
   maximum_players: number | null;
@@ -71,6 +71,24 @@ function calculateAge(dateOfBirth: string | null) {
   return age;
 }
 
+function getBirthYear(dateOfBirth: string | null) {
+  if (!dateOfBirth) return null;
+
+  const year = new Date(dateOfBirth).getFullYear();
+  return Number.isFinite(year) ? year : null;
+}
+
+function normalizeGender(gender: string | null) {
+  if (!gender) return "";
+
+  const value = gender.trim().toLowerCase();
+
+  if (value === "m" || value === "male") return "Male";
+  if (value === "f" || value === "female") return "Female";
+
+  return gender;
+}
+
 function formatMoney(amount: number) {
   return new Intl.NumberFormat("en-ZA", {
     style: "currency",
@@ -87,7 +105,72 @@ function formatDate(value: string) {
 }
 
 function getSectionLabel(section: TournamentSection) {
+  const minimumBirthYear = section.minimum_birth_year;
+  const maximumBirthYear = section.maximum_birth_year;
+
+  if (!minimumBirthYear && !maximumBirthYear) {
+    return section.section_name;
+  }
+
+  if (minimumBirthYear && !maximumBirthYear) {
+    return `${section.section_name} (${minimumBirthYear} & later)`;
+  }
+
+  if (minimumBirthYear && maximumBirthYear) {
+    return `${section.section_name} (${minimumBirthYear} & ${maximumBirthYear})`;
+  }
+
   return section.section_name;
+}
+
+function getSectionEligibilityMessage(
+  section: TournamentSection,
+  playerDateOfBirth: string | null,
+  playerGender: string | null
+) {
+  if (!playerDateOfBirth) {
+    return "Date of birth is required before choosing a section.";
+  }
+
+  const playerBirthYear = getBirthYear(playerDateOfBirth);
+
+  if (!playerBirthYear) {
+    return "Invalid date of birth. Please check the player's profile.";
+  }
+
+  if (
+    section.minimum_birth_year !== null &&
+    section.minimum_birth_year !== undefined &&
+    playerBirthYear < section.minimum_birth_year
+  ) {
+    return `You are not eligible for ${section.section_name}. This section is for players born ${
+      section.maximum_birth_year
+        ? `${section.minimum_birth_year} to ${section.maximum_birth_year}`
+        : `${section.minimum_birth_year} or later`
+    }.`;
+  }
+
+  if (
+    section.maximum_birth_year !== null &&
+    section.maximum_birth_year !== undefined &&
+    playerBirthYear > section.maximum_birth_year
+  ) {
+    return `You are not eligible for ${section.section_name}. This section is for players born ${
+      section.maximum_birth_year
+        ? `${section.minimum_birth_year} to ${section.maximum_birth_year}`
+        : `${section.minimum_birth_year} or later`
+    }.`;
+  }
+
+  if (
+    section.gender_restriction &&
+    section.gender_restriction !== "All" &&
+    normalizeGender(playerGender) !== section.gender_restriction
+  ) {
+    return `${section.section_name} is restricted to ${section.gender_restriction} players.`;
+  }
+
+  return "";
 }
 
 const southAfricanProvinces = [
@@ -145,10 +228,18 @@ export default function RegisterPage() {
     [selectedSectionId, sections]
   );
 
-  const selectedPlayerAge = calculateAge(
+  const playerDateOfBirth =
     selectedChessSaPlayer?.date_of_birth ??
-      (newPlayerMode ? newPlayer.date_of_birth : null)
-  );
+    (newPlayerMode ? newPlayer.date_of_birth : null);
+
+  const playerGender =
+    selectedChessSaPlayer?.gender ?? (newPlayerMode ? newPlayer.gender : null);
+
+  const selectedPlayerAge = calculateAge(playerDateOfBirth);
+
+  const selectedSectionEligibilityMessage = selectedSection
+    ? getSectionEligibilityMessage(selectedSection, playerDateOfBirth, playerGender)
+    : "";
 
   const entryFee =
     selectedSection?.entry_fee_override ?? selectedTournament?.entry_fee ?? 0;
@@ -191,10 +282,10 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournament_sections")
         .select(
-          "id, section_name, minimum_age, maximum_age, gender_restriction, entry_fee_override, maximum_players"
+          "id, section_name, minimum_birth_year, maximum_birth_year, gender_restriction, entry_fee_override, maximum_players"
         )
         .eq("tournament_id", selectedTournamentId)
-        .order("maximum_age", { ascending: true, nullsFirst: false })
+        .order("minimum_birth_year", { ascending: false, nullsFirst: false })
         .order("section_name", { ascending: true });
 
       if (error) {
@@ -297,6 +388,11 @@ export default function RegisterPage() {
         setRegistrationMessage("Please complete the new player details.");
         return;
       }
+    }
+
+    if (selectedSection && selectedSectionEligibilityMessage) {
+      setRegistrationMessage(selectedSectionEligibilityMessage);
+      return;
     }
 
     if (!email.trim() || !phone.trim()) {
@@ -928,12 +1024,31 @@ export default function RegisterPage() {
                         : "Select a section"}
                     </option>
 
-                    {sections.map((section) => (
-                      <option key={section.id} value={section.id}>
-                        {getSectionLabel(section)}
-                      </option>
-                    ))}
+                    {sections.map((section) => {
+                      const sectionError = getSectionEligibilityMessage(
+                        section,
+                        playerDateOfBirth,
+                        playerGender
+                      );
+
+                      return (
+                        <option
+                          key={section.id}
+                          value={section.id}
+                          disabled={Boolean(sectionError)}
+                        >
+                          {getSectionLabel(section)}
+                          {sectionError ? " — Not eligible" : ""}
+                        </option>
+                      );
+                    })}
                   </select>
+
+                  {selectedSectionEligibilityMessage && (
+                    <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm leading-6 text-red-100">
+                      {selectedSectionEligibilityMessage}
+                    </p>
+                  )}
 
                   {selectedTournament && (
                     <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-gray-300">
@@ -1022,7 +1137,10 @@ export default function RegisterPage() {
 
               <button
                 type="submit"
-                disabled={submittingRegistration}
+                disabled={
+                  submittingRegistration ||
+                  Boolean(selectedSectionEligibilityMessage)
+                }
                 className="mt-6 w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingRegistration
@@ -1099,7 +1217,6 @@ export default function RegisterPage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
