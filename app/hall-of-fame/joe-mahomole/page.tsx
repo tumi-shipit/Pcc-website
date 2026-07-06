@@ -2,36 +2,12 @@ import Image from "next/image";
 import Link from "next/link";
 
 const achievements = [
-  {
-    icon: "🏆",
-    title: "Former President",
-    detail: "Chess South Africa",
-  },
-  {
-    icon: "🌍",
-    title: "Former President",
-    detail: "FIDE Zone 4.5",
-  },
-  {
-    icon: "♟",
-    title: "FIDE Arbiter",
-    detail: "Internationally recognised chess official",
-  },
-  {
-    icon: "🏅",
-    title: "LOC Chairperson",
-    detail: "Mzansi Youth Chess Championships",
-  },
-  {
-    icon: "🎓",
-    title: "Coach & Mentor",
-    detail: "Including work with University of Limpopo Chess Club",
-  },
-  {
-    icon: "👥",
-    title: "Youth Chess Development",
-    detail: "Long-standing service to junior chess growth",
-  },
+  { icon: "🏆", title: "11th President", detail: "Chess South Africa" },
+  { icon: "🌍", title: "Former President", detail: "FIDE Zone 4.5" },
+  { icon: "♟", title: "FIDE Arbiter", detail: "Internationally recognised chess official" },
+  { icon: "🏅", title: "LOC Chairperson", detail: "Mzansi Youth Chess Championships" },
+  { icon: "🎓", title: "Coach & Mentor", detail: "Including work with University of Limpopo Chess Club" },
+  { icon: "👥", title: "Youth Chess Development", detail: "Long-standing service to junior chess growth" },
 ];
 
 const contributions = [
@@ -42,6 +18,19 @@ const contributions = [
   "Coaching, mentorship and player development",
   "Youth chess development across South Africa",
   "Support for chess growth in Limpopo and Polokwane",
+];
+
+const references = [
+  {
+    title: "FIDE Profile",
+    description: "Official FIDE profile and arbiter record",
+    href: "https://ratings.fide.com/profile/14303876",
+  },
+  {
+    title: "Chess South Africa History",
+    description: "Official Chess SA history page listing past presidents",
+    href: "https://chessa.co.za/about/history",
+  },
 ];
 
 export default function JoeMahomoleLegacyPage() {
@@ -66,10 +55,7 @@ export default function JoeMahomoleLegacyPage() {
           </div>
 
           <div className="flex flex-col justify-center">
-            <Link
-              href="/hall-of-fame"
-              className="text-sm font-semibold text-red-300 transition hover:text-red-200"
-            >
+            <Link href="/hall-of-fame" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
               ← Back to Hall of Fame
             </Link>
 
@@ -82,8 +68,7 @@ export default function JoeMahomoleLegacyPage() {
             </h1>
 
             <p className="mt-5 max-w-4xl text-lg font-semibold leading-8 text-red-200 md:text-2xl md:leading-10">
-              Club Manager • Former Chess South Africa President • Former FIDE
-              Zone 4.5 President • FIDE Arbiter
+              11th President of Chess South Africa • Former FIDE Zone 4.5 President • FIDE Arbiter • Club Manager
             </p>
 
             <p className="mt-6 max-w-4xl text-sm leading-7 text-gray-300 md:text-lg md:leading-8">
@@ -93,22 +78,12 @@ export default function JoeMahomoleLegacyPage() {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <a
-                href="https://ratings.fide.com/profile/14303876"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700"
-              >
+              <a href="https://ratings.fide.com/profile/14303876" target="_blank" rel="noopener noreferrer" className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700">
                 View FIDE Profile →
               </a>
 
-              <a
-                href="https://pmg.org.za/committee-meeting/32860/"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-xl border border-white/10 px-5 py-3 text-sm font-black text-white transition hover:border-red-500"
-              >
-                View PMG Record →
+              <a href="https://chessa.co.za/about/history" target="_blank" rel="noopener noreferrer" className="rounded-xl border border-white/10 px-5 py-3 text-sm font-black text-white transition hover:border-red-500">
+                Chess SA Presidency →
               </a>
             </div>
           </div>
@@ -136,12 +111,11 @@ export default function JoeMahomoleLegacyPage() {
             </p>
 
             <p>
-              His service includes leadership as a former President of Chess
-              South Africa and former President of FIDE Zone 4.5, a zone that
-              represents chess activity across Southern Africa. His contribution
-              has not only been administrative; he has also been involved in
-              coaching, mentoring, tournament organisation and the development of
-              youth chess.
+              He served as the 11th President of Chess South Africa and later as
+              President of FIDE Zone 4.5, representing chess leadership across
+              Southern Africa. His contribution has not only been
+              administrative; he has also been involved in coaching, mentoring,
+              tournament organisation and the development of youth chess.
             </p>
 
             <p>
@@ -167,19 +141,10 @@ export default function JoeMahomoleLegacyPage() {
 
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {achievements.map((achievement) => (
-              <div
-                key={`${achievement.title}-${achievement.detail}`}
-                className="rounded-3xl border border-white/10 bg-zinc-900 p-6 transition hover:-translate-y-1 hover:border-red-500/70 hover:shadow-[0_0_35px_rgba(220,38,38,0.22)]"
-              >
+              <div key={`${achievement.title}-${achievement.detail}`} className="rounded-3xl border border-white/10 bg-zinc-900 p-6 transition hover:-translate-y-1 hover:border-red-500/70 hover:shadow-[0_0_35px_rgba(220,38,38,0.22)]">
                 <div className="text-4xl">{achievement.icon}</div>
-
-                <h3 className="mt-5 text-xl font-black text-white">
-                  {achievement.title}
-                </h3>
-
-                <p className="mt-2 text-sm leading-6 text-gray-400">
-                  {achievement.detail}
-                </p>
+                <h3 className="mt-5 text-xl font-black text-white">{achievement.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-gray-400">{achievement.detail}</p>
               </div>
             ))}
           </div>
@@ -207,14 +172,31 @@ export default function JoeMahomoleLegacyPage() {
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {contributions.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-300"
-                >
+                <div key={item} className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-300">
                   ♟ {item}
                 </div>
               ))}
             </div>
+          </div>
+        </section>
+
+        <section className="mt-10 rounded-[2rem] border border-white/10 bg-zinc-900 p-6 md:p-10">
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Official References
+          </p>
+
+          <h2 className="mt-3 text-3xl font-black md:text-5xl">
+            Verified records
+          </h2>
+
+          <div className="mt-8 grid gap-4 md:grid-cols-2">
+            {references.map((reference) => (
+              <a key={reference.href} href={reference.href} target="_blank" rel="noopener noreferrer" className="rounded-2xl border border-white/10 bg-zinc-950 p-5 transition hover:-translate-y-1 hover:border-red-500/70">
+                <p className="text-lg font-black text-white">✓ {reference.title}</p>
+                <p className="mt-2 text-sm leading-6 text-gray-400">{reference.description}</p>
+                <p className="mt-4 text-sm font-bold text-red-300">Open source →</p>
+              </a>
+            ))}
           </div>
         </section>
 
