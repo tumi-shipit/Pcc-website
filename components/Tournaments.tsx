@@ -138,20 +138,29 @@ function TournamentCard({
 export default function Tournaments() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     async function loadTournaments() {
       setLoading(true);
+      setErrorMessage("");
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("tournaments")
         .select(
           "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
         )
-        .in("registration_status", ["Open", "Closed", "Completed"])
+        .neq("registration_status", "Draft")
         .order("start_date", { ascending: true });
 
-      setTournaments((data ?? []) as Tournament[]);
+      if (error) {
+        console.error("Tournament loading error:", error);
+        setErrorMessage("Could not load tournaments. Please try again later.");
+        setTournaments([]);
+      } else {
+        setTournaments((data ?? []) as Tournament[]);
+      }
+
       setLoading(false);
     }
 
@@ -182,17 +191,47 @@ export default function Tournaments() {
             View tournament details, posters and registration status. Entries
             only open when organisers make registration available.
           </p>
+
+          <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-5 text-sm leading-6 text-gray-400">
+            <p className="font-semibold text-white">
+              Why are different tournaments listed here?
+            </p>
+
+            <p className="mt-2">
+              The PCC Tournament Centre supports chess development by helping
+              clubs, schools and districts manage online registrations. Some
+              tournaments are organised directly by Polokwane Chess Club, while
+              others are hosted by partner clubs, schools or district chess
+              structures.
+            </p>
+
+            <p className="mt-2">
+              Each tournament remains under the authority of its official
+              organiser. PCC provides the registration platform, tournament page
+              and admin support where requested.
+            </p>
+          </div>
         </div>
 
         {loading ? (
           <p className="text-sm text-gray-400">Loading tournaments...</p>
+        ) : errorMessage ? (
+          <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">
+            {errorMessage}
+          </p>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {upcomingTournaments.map((tournament) => (
-                <TournamentCard key={tournament.id} tournament={tournament} />
-              ))}
-            </div>
+            {upcomingTournaments.length > 0 ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {upcomingTournaments.map((tournament) => (
+                  <TournamentCard key={tournament.id} tournament={tournament} />
+                ))}
+              </div>
+            ) : (
+              <p className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-sm text-gray-400">
+                No upcoming tournaments are currently listed.
+              </p>
+            )}
 
             {pastTournaments.length > 0 && (
               <div className="mt-16 border-t border-white/10 pt-12">
