@@ -11,6 +11,7 @@ type GenderRestriction = "All" | "Male" | "Female";
 
 type TournamentForm = {
   tournament_name: string;
+  organiser_name: string;
   description: string;
   start_date: string;
   end_date: string;
@@ -36,6 +37,7 @@ type SectionForm = {
 
 const emptyForm: TournamentForm = {
   tournament_name: "",
+  organiser_name: "",
   description: "",
   start_date: "",
   end_date: "",
@@ -64,86 +66,16 @@ const provinces = [
 ];
 
 const quickSectionTemplates: SectionForm[] = [
-  {
-    section_name: "U8",
-    minimum_birth_year: "2019",
-    maximum_birth_year: "",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U10",
-    minimum_birth_year: "2017",
-    maximum_birth_year: "2018",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U12",
-    minimum_birth_year: "2015",
-    maximum_birth_year: "2016",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U14",
-    minimum_birth_year: "2013",
-    maximum_birth_year: "2014",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U16",
-    minimum_birth_year: "2011",
-    maximum_birth_year: "2012",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U18",
-    minimum_birth_year: "2009",
-    maximum_birth_year: "2010",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U20",
-    minimum_birth_year: "2007",
-    maximum_birth_year: "2008",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "Open",
-    minimum_birth_year: "",
-    maximum_birth_year: "",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "Ladies",
-    minimum_birth_year: "",
-    maximum_birth_year: "",
-    gender_restriction: "Female",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "Custom",
-    minimum_birth_year: "",
-    maximum_birth_year: "",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
+  { section_name: "U8", minimum_birth_year: "2019", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U10", minimum_birth_year: "2017", maximum_birth_year: "2018", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U12", minimum_birth_year: "2015", maximum_birth_year: "2016", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U14", minimum_birth_year: "2013", maximum_birth_year: "2014", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Ladies", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "Female", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Custom", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
 ];
 
 const inputClass =
@@ -275,7 +207,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, description, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -288,6 +220,7 @@ export default function EditTournamentPage() {
 
       setForm({
         tournament_name: data.tournament_name ?? "",
+        organiser_name: data.organiser_name ?? "",
         description: data.description ?? "",
         start_date: data.start_date ?? "",
         end_date: data.end_date ?? "",
@@ -301,7 +234,7 @@ export default function EditTournamentPage() {
         payment_details: data.payment_details ?? "",
       });
 
-      const { data: sectionData, error: sectionError } = await supabase
+      const { data: sectionData } = await supabase
         .from("tournament_sections")
         .select(
           "id, section_name, minimum_birth_year, maximum_birth_year, gender_restriction, entry_fee_override, maximum_players"
@@ -309,9 +242,7 @@ export default function EditTournamentPage() {
         .eq("tournament_id", tournamentId)
         .order("section_name", { ascending: true });
 
-      if (sectionError) {
-        setMessage(`Tournament loaded, but sections could not be loaded: ${sectionError.message}`);
-      } else if (sectionData && sectionData.length > 0) {
+      if (sectionData && sectionData.length > 0) {
         setSections(
           sectionData.map((section) => ({
             id: section.id,
@@ -335,16 +266,12 @@ export default function EditTournamentPage() {
                 : String(section.maximum_players),
           }))
         );
-      } else {
-        setSections([createBlankSection()]);
       }
 
       setLoading(false);
     }
 
-    if (tournamentId) {
-      loadTournament();
-    }
+    if (tournamentId) loadTournament();
   }, [tournamentId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -353,38 +280,11 @@ export default function EditTournamentPage() {
     setSaving(true);
     setMessage("");
 
-    const cleanedSections = sections
-      .map((section) => ({
-        ...section,
-        section_name: section.section_name.trim(),
-      }))
-      .filter((section) => section.section_name.length > 0);
-
-    if (cleanedSections.length === 0) {
-      setMessage("Add at least one tournament section.");
-      setSaving(false);
-      return;
-    }
-
-    const duplicateSection = cleanedSections.find((section, index) =>
-      cleanedSections.some(
-        (otherSection, otherIndex) =>
-          otherIndex !== index &&
-          otherSection.section_name.toLowerCase() ===
-            section.section_name.toLowerCase()
-      )
-    );
-
-    if (duplicateSection) {
-      setMessage(`Duplicate section found: ${duplicateSection.section_name}`);
-      setSaving(false);
-      return;
-    }
-
     const { error } = await supabase
       .from("tournaments")
       .update({
         tournament_name: form.tournament_name.trim(),
+        organiser_name: form.organiser_name.trim() || null,
         description: form.description.trim() || null,
         start_date: form.start_date,
         end_date: form.end_date || form.start_date,
@@ -406,17 +306,12 @@ export default function EditTournamentPage() {
     }
 
     if (deletedSectionIds.length > 0) {
-      const { error: deleteError } = await supabase
-        .from("tournament_sections")
-        .delete()
-        .in("id", deletedSectionIds);
-
-      if (deleteError) {
-        setMessage(`Tournament saved, but removed sections could not be deleted: ${deleteError.message}`);
-        setSaving(false);
-        return;
-      }
+      await supabase.from("tournament_sections").delete().in("id", deletedSectionIds);
     }
+
+    const cleanedSections = sections
+      .map((section) => ({ ...section, section_name: section.section_name.trim() }))
+      .filter((section) => section.section_name.length > 0);
 
     for (const section of cleanedSections) {
       const payload = {
@@ -499,10 +394,7 @@ export default function EditTournamentPage() {
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-4xl">
-          <Link
-            href="/admin/tournaments"
-            className="text-sm font-semibold text-red-300 transition hover:text-red-200"
-          >
+          <Link href="/admin/tournaments" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
             ← Back to Tournament Management
           </Link>
 
@@ -511,22 +403,6 @@ export default function EditTournamentPage() {
           </p>
 
           <h1 className="mt-3 text-4xl font-bold">{form.tournament_name}</h1>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link
-              href={`/tournaments/${tournamentId}`}
-              className="rounded-lg border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-red-500"
-            >
-              View Public Page
-            </Link>
-
-            <Link
-              href={`/admin/tournaments/${tournamentId}`}
-              className="rounded-lg border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-red-500"
-            >
-              Tournament Dashboard
-            </Link>
-          </div>
 
           <form
             onSubmit={handleSubmit}
@@ -543,6 +419,30 @@ export default function EditTournamentPage() {
                   onChange={(event) =>
                     updateField("tournament_name", event.target.value)
                   }
+                  className={inputClass}
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Organiser / Host
+                </label>
+                <input
+                  value={form.organiser_name}
+                  onChange={(event) =>
+                    updateField("organiser_name", event.target.value)
+                  }
+                  placeholder="Polokwane Chess Club, Capricorn District Chess, etc."
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">Venue</label>
+                <input
+                  value={form.venue}
+                  onChange={(event) => updateField("venue", event.target.value)}
                   className={inputClass}
                   required
                 />
@@ -570,16 +470,6 @@ export default function EditTournamentPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold">Venue</label>
-                <input
-                  value={form.venue}
-                  onChange={(event) => updateField("venue", event.target.value)}
-                  className={inputClass}
-                  required
-                />
-              </div>
-
-              <div>
                 <label className="mb-2 block text-sm font-semibold">Province</label>
                 <select
                   value={form.province}
@@ -589,6 +479,26 @@ export default function EditTournamentPage() {
                   {provinces.map((province) => (
                     <option key={province} value={province}>
                       {province}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">Status</label>
+                <select
+                  value={form.registration_status}
+                  onChange={(event) =>
+                    updateField(
+                      "registration_status",
+                      event.target.value as TournamentStatus
+                    )
+                  }
+                  className={inputClass}
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
                     </option>
                   ))}
                 </select>
@@ -620,26 +530,6 @@ export default function EditTournamentPage() {
                   }
                   className={inputClass}
                 />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">Status</label>
-                <select
-                  value={form.registration_status}
-                  onChange={(event) =>
-                    updateField(
-                      "registration_status",
-                      event.target.value as TournamentStatus
-                    )
-                  }
-                  className={inputClass}
-                >
-                  {statusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>

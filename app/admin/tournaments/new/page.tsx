@@ -11,6 +11,7 @@ type GenderRestriction = "All" | "Male" | "Female";
 
 type TournamentForm = {
   tournament_name: string;
+  organiser_name: string;
   description: string;
   start_date: string;
   end_date: string;
@@ -36,6 +37,7 @@ type SectionForm = {
 
 const emptyForm: TournamentForm = {
   tournament_name: "",
+  organiser_name: "",
   description: "",
   start_date: "",
   end_date: "",
@@ -64,86 +66,16 @@ const provinces = [
 ];
 
 const quickSectionTemplates: SectionForm[] = [
-  {
-    section_name: "U8",
-    minimum_birth_year: "2019",
-    maximum_birth_year: "",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U10",
-    minimum_birth_year: "2017",
-    maximum_birth_year: "2018",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U12",
-    minimum_birth_year: "2015",
-    maximum_birth_year: "2016",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U14",
-    minimum_birth_year: "2013",
-    maximum_birth_year: "2014",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U16",
-    minimum_birth_year: "2011",
-    maximum_birth_year: "2012",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U18",
-    minimum_birth_year: "2009",
-    maximum_birth_year: "2010",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "U20",
-    minimum_birth_year: "2007",
-    maximum_birth_year: "2008",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "Open",
-    minimum_birth_year: "",
-    maximum_birth_year: "",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "Ladies",
-    minimum_birth_year: "",
-    maximum_birth_year: "",
-    gender_restriction: "Female",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
-  {
-    section_name: "Custom",
-    minimum_birth_year: "",
-    maximum_birth_year: "",
-    gender_restriction: "All",
-    entry_fee_override: "",
-    maximum_players: "",
-  },
+  { section_name: "U8", minimum_birth_year: "2019", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U10", minimum_birth_year: "2017", maximum_birth_year: "2018", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U12", minimum_birth_year: "2015", maximum_birth_year: "2016", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U14", minimum_birth_year: "2013", maximum_birth_year: "2014", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Ladies", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "Female", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Custom", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
 ];
 
 const inputClass =
@@ -282,21 +214,6 @@ export default function NewTournamentPage() {
       return;
     }
 
-    const duplicateSection = cleanedSections.find((section, index) =>
-      cleanedSections.some(
-        (otherSection, otherIndex) =>
-          otherIndex !== index &&
-          otherSection.section_name.toLowerCase() ===
-            section.section_name.toLowerCase()
-      )
-    );
-
-    if (duplicateSection) {
-      setMessage(`Duplicate section found: ${duplicateSection.section_name}`);
-      setSaving(false);
-      return;
-    }
-
     const registrationOpenDate = form.registration_open_date || form.start_date;
     const registrationCloseDate = form.registration_close_date || form.start_date;
 
@@ -304,6 +221,7 @@ export default function NewTournamentPage() {
       .from("tournaments")
       .insert({
         tournament_name: form.tournament_name.trim(),
+        organiser_name: form.organiser_name.trim() || null,
         description: form.description.trim() || null,
         start_date: form.start_date,
         end_date: form.end_date || form.start_date,
@@ -388,6 +306,30 @@ export default function NewTournamentPage() {
               </div>
 
               <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Organiser / Host
+                </label>
+                <input
+                  value={form.organiser_name}
+                  onChange={(event) =>
+                    updateField("organiser_name", event.target.value)
+                  }
+                  placeholder="Polokwane Chess Club, Capricorn District Chess, etc."
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">Venue</label>
+                <input
+                  value={form.venue}
+                  onChange={(event) => updateField("venue", event.target.value)}
+                  className={inputClass}
+                  required
+                />
+              </div>
+
+              <div>
                 <label className="mb-2 block text-sm font-semibold">Start date</label>
                 <input
                   type="date"
@@ -409,16 +351,6 @@ export default function NewTournamentPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold">Venue</label>
-                <input
-                  value={form.venue}
-                  onChange={(event) => updateField("venue", event.target.value)}
-                  className={inputClass}
-                  required
-                />
-              </div>
-
-              <div>
                 <label className="mb-2 block text-sm font-semibold">Province</label>
                 <select
                   value={form.province}
@@ -428,6 +360,26 @@ export default function NewTournamentPage() {
                   {provinces.map((province) => (
                     <option key={province} value={province}>
                       {province}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">Status</label>
+                <select
+                  value={form.registration_status}
+                  onChange={(event) =>
+                    updateField(
+                      "registration_status",
+                      event.target.value as TournamentStatus
+                    )
+                  }
+                  className={inputClass}
+                >
+                  {statusOptions.map((status) => (
+                    <option key={status} value={status}>
+                      {status}
                     </option>
                   ))}
                 </select>
@@ -459,26 +411,6 @@ export default function NewTournamentPage() {
                   }
                   className={inputClass}
                 />
-              </div>
-
-              <div>
-                <label className="mb-2 block text-sm font-semibold">Status</label>
-                <select
-                  value={form.registration_status}
-                  onChange={(event) =>
-                    updateField(
-                      "registration_status",
-                      event.target.value as TournamentStatus
-                    )
-                  }
-                  className={inputClass}
-                >
-                  {statusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>

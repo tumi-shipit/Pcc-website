@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ type Tournament = {
   id: string;
   tournament_name: string;
   description: string | null;
+  tournament_report: string | null;
   start_date: string;
   end_date: string | null;
   venue: string;
@@ -32,6 +34,15 @@ type TournamentStats = {
   total_registrations: number;
   approved_registrations: number;
   paid_registrations: number;
+};
+
+type GalleryImage = {
+  id: string;
+  tournament_id: string;
+  image_url: string;
+  caption: string | null;
+  display_order: number | null;
+  created_at: string;
 };
 
 function formatDate(date: string | null) {
@@ -75,6 +86,9 @@ export default function TournamentHubPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [sections, setSections] = useState<TournamentSection[]>([]);
   const [stats, setStats] = useState<TournamentStats | null>(null);
+  const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [selectedGalleryImage, setSelectedGalleryImage] =
+    useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -93,7 +107,7 @@ export default function TournamentHubPage() {
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details"
+          "id, tournament_name, description, tournament_report, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -116,9 +130,17 @@ export default function TournamentHubPage() {
         .eq("tournament_id", tournamentId)
         .single();
 
+      const { data: galleryData } = await supabase
+        .from("tournament_gallery")
+        .select("id, tournament_id, image_url, caption, display_order, created_at")
+        .eq("tournament_id", tournamentId)
+        .order("display_order", { ascending: true })
+        .order("created_at", { ascending: true });
+
       setTournament(tournamentData as Tournament);
       setSections((sectionData ?? []) as TournamentSection[]);
       setStats((statsData ?? null) as TournamentStats | null);
+      setGallery((galleryData ?? []) as GalleryImage[]);
       setLoading(false);
     }
 
@@ -260,9 +282,11 @@ export default function TournamentHubPage() {
           </div>
         </div>
 
-        {isShere && <ShereArchive />}
+        {isCompleted && (
+          <ArchiveContent tournament={tournament} isShere={isShere} />
+        )}
 
-        {!isShere && (
+        {!isCompleted && (
           <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
             <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
               <h2 className="text-xl font-bold md:text-2xl">Tournament Information</h2>
@@ -302,8 +326,136 @@ export default function TournamentHubPage() {
             </section>
           </div>
         )}
+
+        {isCompleted && (
+          <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                  Tournament Gallery
+                </p>
+                <h2 className="mt-2 text-2xl font-black md:text-4xl">📸 Photo Archive</h2>
+                <p className="mt-3 text-sm leading-6 text-gray-400">
+                  Photos from prize-giving, action boards and tournament moments.
+                </p>
+              </div>
+
+              <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+                {gallery.length} photo{gallery.length === 1 ? "" : "s"}
+              </span>
+            </div>
+
+            {gallery.length === 0 ? (
+              <p className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+                Gallery coming soon.
+              </p>
+            ) : (
+              <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {gallery.map((image) => (
+                  <button
+                    key={image.id}
+                    type="button"
+                    onClick={() => setSelectedGalleryImage(image)}
+                    className="group overflow-hidden rounded-xl border border-white/10 bg-zinc-950 text-left transition hover:border-red-500"
+                  >
+                    <div className="relative aspect-square">
+                      <Image
+                        src={image.image_url}
+                        alt={image.caption ?? "Tournament gallery image"}
+                        fill
+                        sizes="(max-width: 768px) 50vw, 25vw"
+                        className="object-cover transition duration-500 group-hover:scale-105"
+                      />
+                    </div>
+
+                    {image.caption && (
+                      <p className="line-clamp-2 p-3 text-xs text-gray-400">
+                        {image.caption}
+                      </p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </section>
+
+      {selectedGalleryImage && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-4">
+          <button
+            type="button"
+            onClick={() => setSelectedGalleryImage(null)}
+            className="absolute right-4 top-4 rounded-full bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-200"
+          >
+            Close
+          </button>
+
+          <div className="max-h-[90vh] w-full max-w-5xl overflow-auto rounded-2xl border border-white/10 bg-zinc-950 p-3">
+            <img
+              src={selectedGalleryImage.image_url}
+              alt={selectedGalleryImage.caption ?? "Tournament gallery image"}
+              className="mx-auto max-h-[78vh] w-auto rounded-xl object-contain"
+            />
+
+            {selectedGalleryImage.caption && (
+              <p className="px-3 py-4 text-center text-sm text-gray-300">
+                {selectedGalleryImage.caption}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </main>
+  );
+}
+
+function ArchiveContent({
+  tournament,
+  isShere,
+}: {
+  tournament: Tournament;
+  isShere: boolean;
+}) {
+  if (tournament.tournament_report) {
+    return (
+      <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+          Tournament Report
+        </p>
+
+        <h2 className="mt-3 text-2xl font-black md:text-4xl">
+          {tournament.tournament_name}
+        </h2>
+
+        <div className="mt-6 space-y-5 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
+          {tournament.tournament_report.split("\n").map((paragraph, index) =>
+            paragraph.trim() ? <p key={index}>{paragraph}</p> : null
+          )}
+        </div>
+      </section>
+    );
+  }
+
+  if (isShere) {
+    return <ShereArchive />;
+  }
+
+  return (
+    <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+        Tournament Archive
+      </p>
+
+      <h2 className="mt-3 text-2xl font-black md:text-4xl">
+        Archive coming soon
+      </h2>
+
+      <p className="mt-4 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
+        The tournament report, winners and results will be added here once they
+        are confirmed by the organiser.
+      </p>
+    </section>
   );
 }
 
@@ -317,9 +469,9 @@ function ShereArchive() {
         <div className="mt-6 space-y-5 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
           <p>The SHERE Chess Open 2026, hosted by Glen Cowie Pioneers Chess Club, delivered an unforgettable day of competitive chess as experienced campaigners and rising young stars battled for top honours in both the Open and Junior sections.</p>
           <p>Held in honour of Shere, a respected member of the local chess community, the tournament celebrated not only competitive chess but also the passion and continued growth of the game in Sekhukhune.</p>
-          <p>The biggest story of the day came in the Open Section, where <strong className="text-white">Mphahlele Phetolo</strong> produced a sensational performance to lift the championship against a field packed with experienced competitors. His remarkable run included victories over respected players such as <strong className="text-white">Joe Mahomole</strong>, a club manager and one of the district's most experienced chess figures.</p>
+          <p>The biggest story of the day came in the Open Section, where <strong className="text-white">Mphahlele Phetolo</strong> produced a sensational performance to lift the championship against a field packed with experienced competitors. His remarkable run included victories over respected players such as <strong className="text-white">Joe Mahomole</strong>, a club manager and one of the district&apos;s most experienced chess figures.</p>
           <p>His road to victory was far from easy. <strong className="text-white">Daniel Tshehla</strong> was the only player to defeat the eventual champion, but instead of allowing the setback to define his tournament, Mphahlele responded with determination and resilience, finishing strongly to secure the title.</p>
-          <p>The tournament's namesake, <strong className="text-white">Shere</strong>, also enjoyed an excellent event, finishing in fourth place. His only defeats came against the tournament winner, Mphahlele Phetolo, and runner-up <strong className="text-white">Leshaba Surprise</strong>, highlighting the high standard of competition among the leading players.</p>
+          <p>The tournament&apos;s namesake, <strong className="text-white">Shere</strong>, also enjoyed an excellent event, finishing in fourth place. His only defeats came against the tournament winner, Mphahlele Phetolo, and runner-up <strong className="text-white">Leshaba Surprise</strong>, highlighting the high standard of competition among the leading players.</p>
           <p>The Junior Section belonged to <strong className="text-white">Lesedi Motsifane</strong> of SJ van der Merwe, who delivered a flawless, undefeated performance from start to finish.</p>
         </div>
       </section>
@@ -356,7 +508,7 @@ function ShereArchive() {
             Widely known for his service to chess as an organiser, coach and qualified arbiter, Elias is not a regular competitive player. Despite spending most of his time developing the game away from the board, he accepted the challenge of competing against experienced tournament players.
           </p>
           <p className="mt-4 text-sm leading-7 text-yellow-50/90 md:text-base md:leading-8">
-            His defining moment came when he defeated Daniel Tshehla, the only player to defeat eventual champion Mphahlele Phetolo. For one of the day's most memorable victories, Elias Mabotja is recognised as the Player of the Tournament.
+            His defining moment came when he defeated Daniel Tshehla, the only player to defeat eventual champion Mphahlele Phetolo. For one of the day&apos;s most memorable victories, Elias Mabotja is recognised as the Player of the Tournament.
           </p>
         </section>
       </div>
@@ -366,11 +518,6 @@ function ShereArchive() {
         <p className="mt-4 text-sm leading-7 text-red-50/90 md:text-base md:leading-8">
           Elias Mabotja defeated Daniel Tshehla — the only player to defeat eventual champion Mphahlele Phetolo.
         </p>
-      </section>
-
-      <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
-        <h2 className="text-2xl font-black">📸 Tournament Gallery</h2>
-        <p className="mt-3 text-sm text-gray-400">Gallery coming soon. Photos from prize-giving, action boards and tournament moments will be added here.</p>
       </section>
     </div>
   );

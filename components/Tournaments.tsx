@@ -8,6 +8,7 @@ import { supabase } from "../lib/supabase";
 type Tournament = {
   id: string;
   tournament_name: string;
+  organiser_name: string | null;
   description: string | null;
   start_date: string;
   end_date: string | null;
@@ -100,6 +101,12 @@ function TournamentCard({
           </h3>
         </Link>
 
+        {tournament.organiser_name && (
+          <p className="mt-2 line-clamp-1 text-xs font-semibold text-red-300">
+            Hosted by {tournament.organiser_name}
+          </p>
+        )}
+
         <p className="mt-2 line-clamp-1 text-xs text-gray-400">
           {tournament.venue}
         </p>
@@ -148,7 +155,7 @@ export default function Tournaments() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
+          "id, tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
         )
         .neq("registration_status", "Draft")
         .order("start_date", { ascending: true });

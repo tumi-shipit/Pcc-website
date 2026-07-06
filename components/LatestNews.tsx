@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
@@ -26,8 +26,9 @@ function formatDate(value: string | null) {
 
 function getCategoryIcon(category: string | null) {
   if (category === "Platform Update") return "💻";
-  if (category === "Tournament Report") return "🏆";
   if (category === "Tournament News") return "📢";
+  if (category === "Registration") return "📝";
+  if (category === "Live Update") return "🔴";
   if (category === "Achievement") return "🏅";
   if (category === "Player Spotlight") return "👤";
   return "📰";
@@ -35,25 +36,61 @@ function getCategoryIcon(category: string | null) {
 
 export default function LatestNews() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadNews() {
       setLoading(true);
 
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("news_posts")
         .select("id, title, excerpt, image_url, category, published_at")
         .eq("published", true)
+        .neq("category", "Tournament Report")
         .order("published_at", { ascending: false })
-        .limit(4);
+        .limit(8);
 
-      setPosts((data ?? []) as NewsPost[]);
+      if (error) {
+        console.error("Latest news error:", error);
+        setPosts([]);
+      } else {
+        setPosts((data ?? []) as NewsPost[]);
+      }
+
       setLoading(false);
     }
 
     loadNews();
   }, []);
+
+  useEffect(() => {
+    if (posts.length <= 1) return;
+
+    const timer = window.setInterval(() => {
+      setActiveIndex((current) => (current + 1) % posts.length);
+    }, 6000);
+
+    return () => window.clearInterval(timer);
+  }, [posts.length]);
+
+  const activePost = useMemo(() => {
+    return posts[activeIndex] ?? null;
+  }, [posts, activeIndex]);
+
+  function goPrevious() {
+    if (posts.length === 0) return;
+
+    setActiveIndex((current) =>
+      current === 0 ? posts.length - 1 : current - 1
+    );
+  }
+
+  function goNext() {
+    if (posts.length === 0) return;
+
+    setActiveIndex((current) => (current + 1) % posts.length);
+  }
 
   return (
     <section id="news" className="bg-black py-16 text-white md:py-24">
@@ -69,8 +106,8 @@ export default function LatestNews() {
             </h2>
 
             <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-              Follow announcements, tournament updates, reports and platform
-              improvements.
+              Current announcements, registration updates, live tournament
+              notices and important PCC platform updates.
             </p>
           </div>
 
@@ -84,57 +121,105 @@ export default function LatestNews() {
 
         {loading ? (
           <p className="text-sm text-gray-400">Loading news...</p>
-        ) : posts.length === 0 ? (
+        ) : !activePost ? (
           <p className="rounded-xl border border-white/10 bg-zinc-900 p-5 text-sm text-gray-400">
-            No news has been published yet.
+            No current news has been published yet.
           </p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {posts.map((post) => (
+          <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900">
+            <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
               <Link
-                key={post.id}
-                href={`/news/${post.id}`}
-                className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition hover:-translate-y-1 hover:border-red-500/60"
+                href={`/news/${activePost.id}`}
+                className="group relative block min-h-[280px] overflow-hidden bg-zinc-950 md:min-h-[420px]"
               >
-                <div className="relative aspect-[16/10] bg-zinc-950">
-                  {post.image_url ? (
-                    <Image
-                      src={post.image_url}
-                      alt={post.title}
-                      fill
-                      sizes="(max-width: 768px) 100vw, 25vw"
-                      className="object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center text-sm text-gray-500">
-                      News image coming soon
-                    </div>
-                  )}
+                {activePost.image_url ? (
+                  <Image
+                    src={activePost.image_url}
+                    alt={activePost.title}
+                    fill
+                    priority
+                    sizes="(max-width: 1024px) 100vw, 50vw"
+                    className="object-cover transition duration-700 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="flex h-full min-h-[280px] items-center justify-center text-sm text-gray-500 md:min-h-[420px]">
+                    News image coming soon
+                  </div>
+                )}
 
-                  <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                    {getCategoryIcon(post.category)} {post.category ?? "News"}
-                  </span>
-                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
-                <div className="p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-red-400">
-                    {formatDate(post.published_at)}
-                  </p>
-
-                  <h3 className="mt-2 line-clamp-2 text-lg font-bold transition group-hover:text-red-300">
-                    {post.title}
-                  </h3>
-
-                  <p className="mt-3 line-clamp-3 text-sm leading-6 text-gray-400">
-                    {post.excerpt}
-                  </p>
-
-                  <p className="mt-4 text-sm font-semibold text-red-300">
-                    Read article →
-                  </p>
-                </div>
+                <span className="absolute left-4 top-4 rounded-full bg-red-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
+                  {getCategoryIcon(activePost.category)}{" "}
+                  {activePost.category ?? "News"}
+                </span>
               </Link>
-            ))}
+
+              <div className="flex flex-col justify-center p-6 md:p-10">
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                  {formatDate(activePost.published_at)}
+                </p>
+
+                <Link href={`/news/${activePost.id}`}>
+                  <h3 className="mt-4 text-3xl font-black leading-tight transition hover:text-red-300 md:text-5xl">
+                    {activePost.title}
+                  </h3>
+                </Link>
+
+                <p className="mt-5 text-sm leading-7 text-gray-400 md:text-base md:leading-8">
+                  {activePost.excerpt}
+                </p>
+
+                <div className="mt-8 flex flex-wrap items-center gap-3">
+                  <Link
+                    href={`/news/${activePost.id}`}
+                    className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+                  >
+                    Read Update →
+                  </Link>
+
+                  {posts.length > 1 && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={goPrevious}
+                        className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                        aria-label="Previous news"
+                      >
+                        ←
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={goNext}
+                        className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                        aria-label="Next news"
+                      >
+                        →
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {posts.length > 1 && (
+                  <div className="mt-8 flex flex-wrap gap-2">
+                    {posts.map((post, index) => (
+                      <button
+                        key={post.id}
+                        type="button"
+                        onClick={() => setActiveIndex(index)}
+                        aria-label={`Show news item ${index + 1}`}
+                        className={`h-2.5 rounded-full transition ${
+                          activeIndex === index
+                            ? "w-10 bg-red-600"
+                            : "w-2.5 bg-white/20 hover:bg-white/50"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
