@@ -685,6 +685,29 @@ function ArchiveContent({
 }
 
 function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
+  const groupedResults = results.reduce<Record<string, ResultWithPlayer[]>>(
+    (groups, result) => {
+      const sectionName = result.section?.section_name ?? "Overall";
+      groups[sectionName] = groups[sectionName] ?? [];
+      groups[sectionName].push(result);
+      return groups;
+    },
+    {}
+  );
+
+  const sectionEntries = Object.entries(groupedResults).map(
+    ([sectionName, sectionResults]) => ({
+      sectionName,
+      results: [...sectionResults].sort((a, b) => {
+        const aPosition = a.final_position ?? 999999;
+        const bPosition = b.final_position ?? 999999;
+
+        if (aPosition !== bPosition) return aPosition - bPosition;
+        return (b.points ?? 0) - (a.points ?? 0);
+      }),
+    })
+  );
+
   if (results.length === 0) {
     return (
       <section
@@ -719,7 +742,7 @@ function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
             🏆 Final Standings
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Official final ranking imported from tournament results.
+            Final rankings grouped by tournament section.
           </p>
         </div>
 
@@ -728,76 +751,144 @@ function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
         </span>
       </div>
 
-      <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
-        <table className="w-full min-w-[820px] text-left text-sm">
-          <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="p-4">Rank</th>
-              <th className="p-4">Player</th>
-              <th className="p-4">Section</th>
-              <th className="p-4">Rating</th>
-              <th className="p-4">Points</th>
-              <th className="p-4">Tie-break</th>
-              <th className="p-4">Award</th>
-            </tr>
-          </thead>
+      <div className="mt-8 space-y-8">
+        {sectionEntries.map((section) => {
+          const topThree = section.results.filter((result) =>
+            [1, 2, 3].includes(result.final_position ?? 0)
+          );
 
-          <tbody>
-            {results.map((result) => (
-              <tr key={result.id} className="border-t border-white/10">
-                <td className="p-4 font-black text-white">
-                  {medal(result.final_position)}{" "}
-                  {result.final_position ?? "-"}
-                </td>
+          return (
+            <div
+              key={section.sectionName}
+              className="rounded-2xl border border-white/10 bg-zinc-950 p-5"
+            >
+              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                    Section
+                  </p>
+                  <h3 className="mt-2 text-2xl font-black text-white">
+                    {section.sectionName}
+                  </h3>
+                </div>
 
-                <td className="p-4">
-                  {result.player ? (
-                    <Link
-                      href={`/players/${result.player.id}`}
-                      className="font-bold text-white transition hover:text-red-300"
+                <span className="rounded-full bg-zinc-900 px-4 py-2 text-sm text-gray-400">
+                  {section.results.length} player
+                  {section.results.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              {topThree.length > 0 && (
+                <div className="mt-6 grid gap-4 md:grid-cols-3">
+                  {topThree.map((result) => (
+                    <div
+                      key={`top-${result.id}`}
+                      className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-5"
                     >
-                      {result.player.full_name}
-                    </Link>
-                  ) : (
-                    <span className="text-gray-400">Player not linked</span>
-                  )}
+                      <p className="text-3xl">
+                        {medal(result.final_position)}
+                      </p>
 
-                  {result.player?.club && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      {result.player.club}
-                    </p>
-                  )}
-                </td>
+                      <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-yellow-200">
+                        Position {result.final_position}
+                      </p>
 
-                <td className="p-4 text-gray-300">
-                  {result.section?.section_name ?? "Overall"}
-                </td>
+                      {result.player ? (
+                        <Link
+                          href={`/players/${result.player.id}`}
+                          className="mt-2 block text-lg font-black text-white transition hover:text-red-300"
+                        >
+                          {result.player.full_name}
+                        </Link>
+                      ) : (
+                        <p className="mt-2 text-lg font-black text-white">
+                          Player not linked
+                        </p>
+                      )}
 
-                <td className="p-4 text-gray-300">
-                  {result.player?.rating ?? "-"}
-                </td>
+                      <p className="mt-2 text-sm text-yellow-50/80">
+                        {result.points ?? "-"} points
+                      </p>
 
-                <td className="p-4 font-bold text-white">
-                  {result.points ?? "-"}
-                </td>
+                      {result.award_title && (
+                        <span className="mt-3 inline-block rounded-full bg-yellow-500/20 px-3 py-1 text-xs font-bold text-yellow-100">
+                          {result.award_title}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
-                <td className="p-4 text-gray-300">
-                  {result.tie_break ?? "-"}
-                </td>
+              <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
+                <table className="w-full min-w-[820px] text-left text-sm">
+                  <thead className="bg-zinc-900 text-xs uppercase tracking-wide text-gray-500">
+                    <tr>
+                      <th className="p-4">Rank</th>
+                      <th className="p-4">Player</th>
+                      <th className="p-4">Rating</th>
+                      <th className="p-4">Points</th>
+                      <th className="p-4">Tie-break</th>
+                      <th className="p-4">Award</th>
+                    </tr>
+                  </thead>
 
-                <td className="p-4">
-                  {result.award_title ? (
-                    <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-200">
-                      {result.award_title}
-                    </span>
-                  ) : (
-                    <span className="text-gray-600">-</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <tbody>
+                    {section.results.map((result) => (
+                      <tr key={result.id} className="border-t border-white/10">
+                        <td className="p-4 font-black text-white">
+                          {medal(result.final_position)}{" "}
+                          {result.final_position ?? "-"}
+                        </td>
+
+                        <td className="p-4">
+                          {result.player ? (
+                            <Link
+                              href={`/players/${result.player.id}`}
+                              className="font-bold text-white transition hover:text-red-300"
+                            >
+                              {result.player.full_name}
+                            </Link>
+                          ) : (
+                            <span className="text-gray-400">Player not linked</span>
+                          )}
+
+                          {result.player?.club && (
+                            <p className="mt-1 text-xs text-gray-500">
+                              {result.player.club}
+                            </p>
+                          )}
+                        </td>
+
+                        <td className="p-4 text-gray-300">
+                          {result.player?.rating ?? "-"}
+                        </td>
+
+                        <td className="p-4 font-bold text-white">
+                          {result.points ?? "-"}
+                        </td>
+
+                        <td className="p-4 text-gray-300">
+                          {result.tie_break ?? "-"}
+                        </td>
+
+                        <td className="p-4">
+                          {result.award_title ? (
+                            <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-200">
+                              {result.award_title}
+                            </span>
+                          ) : (
+                            <span className="text-gray-600">-</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

@@ -649,7 +649,7 @@ export default function ImportOldTournamentPage() {
     }
 
     const confirmed = window.confirm(
-      `Import ${rowsToImport.length} final rankings? Existing results for this tournament will be deleted first.`
+      `Import ${rowsToImport.length} final rankings? Existing results for the selected section will be deleted first.`
     );
 
     if (!confirmed) return;
@@ -657,18 +657,27 @@ export default function ImportOldTournamentPage() {
     setImportingRankings(true);
     setMessage("");
 
-    const { error: deleteError } = await supabase
+    const defaultSectionId = selectedImportSectionId || createdSectionIds[0] || null;
+
+    let deleteQuery = supabase
       .from("tournament_results")
       .delete()
       .eq("tournament_id", createdTournament.id);
 
+    if (defaultSectionId) {
+      deleteQuery = deleteQuery.eq("section_id", defaultSectionId);
+    } else {
+      deleteQuery = deleteQuery.is("section_id", null);
+    }
+
+    const { error: deleteError } = await deleteQuery;
+
     if (deleteError) {
-      setMessage(`Could not clear old results: ${deleteError.message}`);
+      setMessage(`Could not clear old results for this section: ${deleteError.message}`);
       setImportingRankings(false);
       return;
     }
 
-    const defaultSectionId = selectedImportSectionId || createdSectionIds[0] || null;
     const updatedRows: ImportedStanding[] = [];
 
     for (const row of rankingRows) {
