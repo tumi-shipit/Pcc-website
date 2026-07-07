@@ -44,6 +44,10 @@ type GalleryImage = {
   created_at: string;
 };
 
+type ResultRow = {
+  id: string;
+};
+
 function formatDate(date: string | null) {
   if (!date) return "TBA";
 
@@ -97,6 +101,7 @@ export default function AdminTournamentDashboardPage() {
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [sectionStats, setSectionStats] = useState<SectionStat[]>([]);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
+  const [results, setResults] = useState<ResultRow[]>([]);
   const [galleryCaption, setGalleryCaption] = useState("");
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -108,6 +113,54 @@ export default function AdminTournamentDashboardPage() {
     const paid = stats?.paid_registrations ?? 0;
     return Math.max(approved - paid, 0);
   }, [stats]);
+
+  const lifecycleSteps = useMemo(() => {
+    const total = stats?.total_registrations ?? 0;
+    const approved = stats?.approved_registrations ?? 0;
+    const paid = stats?.paid_registrations ?? 0;
+
+    return [
+      {
+        title: "Registration",
+        description: total > 0 ? `${total} entries received` : "Waiting for entries",
+        complete: total > 0,
+        active: tournament?.registration_status === "Open",
+      },
+      {
+        title: "Approval",
+        description: approved > 0 ? `${approved} players approved` : "No approved players yet",
+        complete: approved > 0,
+        active: total > 0 && approved < total,
+      },
+      {
+        title: "Payments",
+        description: paid > 0 ? `${paid} payments confirmed` : "No payments confirmed yet",
+        complete: paid > 0 && unpaidCount === 0,
+        active: approved > 0 && unpaidCount > 0,
+      },
+      {
+        title: "Results",
+        description: results.length > 0 ? `${results.length} results captured` : "Results not captured yet",
+        complete: results.length > 0,
+        active: tournament?.registration_status === "Completed" && results.length === 0,
+      },
+      {
+        title: "Gallery",
+        description: gallery.length > 0 ? `${gallery.length} photos archived` : "No archive photos yet",
+        complete: gallery.length > 0,
+        active: results.length > 0 && gallery.length === 0,
+      },
+      {
+        title: "Archive",
+        description:
+          tournament?.registration_status === "Completed"
+            ? "Tournament marked completed"
+            : "Not completed yet",
+        complete: tournament?.registration_status === "Completed",
+        active: tournament?.registration_status === "Closed",
+      },
+    ];
+  }, [gallery.length, results.length, stats, tournament?.registration_status, unpaidCount]);
 
   async function loadGallery() {
     const { data, error } = await supabase
@@ -123,6 +176,20 @@ export default function AdminTournamentDashboardPage() {
     }
 
     setGallery((data ?? []) as GalleryImage[]);
+  }
+
+  async function loadResults() {
+    const { data, error } = await supabase
+      .from("tournament_results")
+      .select("id")
+      .eq("tournament_id", tournamentId);
+
+    if (error) {
+      setMessage(`Results could not be loaded: ${error.message}`);
+      return;
+    }
+
+    setResults((data ?? []) as ResultRow[]);
   }
 
   useEffect(() => {
@@ -146,7 +213,9 @@ export default function AdminTournamentDashboardPage() {
 
       const { data: statsData } = await supabase
         .from("tournament_public_stats")
-        .select("tournament_id, total_registrations, approved_registrations, paid_registrations")
+        .select(
+          "tournament_id, total_registrations, approved_registrations, paid_registrations"
+        )
         .eq("tournament_id", tournamentId)
         .single();
 
@@ -155,14 +224,13 @@ export default function AdminTournamentDashboardPage() {
         .select("section_name")
         .eq("tournament_name", tournamentData.tournament_name);
 
-      const groupedSections = ((registrationData ?? []) as RegistrationSectionRow[]).reduce<Record<string, number>>(
-        (groups, item) => {
-          const section = item.section_name ?? "No section";
-          groups[section] = (groups[section] ?? 0) + 1;
-          return groups;
-        },
-        {}
-      );
+      const groupedSections = (
+        (registrationData ?? []) as RegistrationSectionRow[]
+      ).reduce<Record<string, number>>((groups, item) => {
+        const section = item.section_name ?? "No section";
+        groups[section] = (groups[section] ?? 0) + 1;
+        return groups;
+      }, {});
 
       setTournament(tournamentData as Tournament);
       setStats((statsData ?? null) as TournamentStats | null);
@@ -174,6 +242,7 @@ export default function AdminTournamentDashboardPage() {
       );
 
       await loadGallery();
+      await loadResults();
       setLoading(false);
     }
 
@@ -221,8 +290,8 @@ export default function AdminTournamentDashboardPage() {
 
       const safeName = cleanFileName(file.name);
       const relativePath =
-        (originalFile as File & { webkitRelativePath?: string }).webkitRelativePath ??
-        originalFile.name;
+        (originalFile as File & { webkitRelativePath?: string })
+          .webkitRelativePath ?? originalFile.name;
 
       const folderPart = relativePath
         .split("/")
@@ -252,14 +321,18 @@ export default function AdminTournamentDashboardPage() {
         continue;
       }
 
-      const { data } = supabase.storage.from("tournament-gallery").getPublicUrl(filePath);
+      const { data } = supabase.storage
+        .from("tournament-gallery")
+        .getPublicUrl(filePath);
 
-      const { error: insertError } = await supabase.from("tournament_gallery").insert({
-        tournament_id: tournamentId,
-        image_url: data.publicUrl,
-        caption: galleryCaption.trim() || null,
-        display_order: gallery.length + uploadedCount + 1,
-      });
+      const { error: insertError } = await supabase
+        .from("tournament_gallery")
+        .insert({
+          tournament_id: tournamentId,
+          image_url: data.publicUrl,
+          caption: galleryCaption.trim() || null,
+          display_order: gallery.length + uploadedCount + 1,
+        });
 
       if (insertError) {
         console.error("DATABASE ERROR:", insertError);
@@ -277,23 +350,25 @@ export default function AdminTournamentDashboardPage() {
     setUploadProgress("");
 
     if (failedCount > 0) {
-      setMessage(`Uploaded ${uploadedCount} image(s). ${failedCount} image(s) failed.`);
+      setMessage(
+        `Uploaded ${uploadedCount} image(s). ${failedCount} image(s) failed.`
+      );
     } else {
       setMessage(`Uploaded ${uploadedCount} image(s) successfully.`);
     }
   }
 
- async function handleGalleryUpload(event: ChangeEvent<HTMLInputElement>) {
-  const files = Array.from(event.target.files ?? []);
+  async function handleGalleryUpload(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
 
-  console.log("Files selected:", files.length);
+    console.log("Files selected:", files.length);
 
-  setMessage(`Selected ${files.length} file(s). Starting upload...`);
+    setMessage(`Selected ${files.length} file(s). Starting upload...`);
 
-  await uploadGalleryFiles(files);
+    await uploadGalleryFiles(files);
 
-  event.target.value = "";
-}
+    event.target.value = "";
+  }
 
   async function deleteGalleryImage(image: GalleryImage) {
     const confirmed = window.confirm("Delete this gallery image from the archive?");
@@ -301,7 +376,10 @@ export default function AdminTournamentDashboardPage() {
 
     setMessage("");
 
-    const { error } = await supabase.from("tournament_gallery").delete().eq("id", image.id);
+    const { error } = await supabase
+      .from("tournament_gallery")
+      .delete()
+      .eq("id", image.id);
 
     if (error) {
       setMessage(`Could not delete gallery image: ${error.message}`);
@@ -335,7 +413,10 @@ export default function AdminTournamentDashboardPage() {
   return (
     <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
       <div className="mx-auto max-w-7xl">
-        <Link href="/admin" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
+        <Link
+          href="/admin"
+          className="text-sm font-semibold text-red-300 transition hover:text-red-200"
+        >
           ← Back to Admin Dashboard
         </Link>
 
@@ -351,83 +432,202 @@ export default function AdminTournamentDashboardPage() {
                   className="object-cover"
                 />
               ) : (
-                <div className="flex h-full items-center justify-center text-gray-500">Poster coming soon</div>
+                <div className="flex h-full items-center justify-center text-gray-500">
+                  Poster coming soon
+                </div>
               )}
             </div>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">Tournament Dashboard</p>
-            <h1 className="mt-3 text-3xl font-black leading-tight md:text-5xl">{tournament.tournament_name}</h1>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+              Tournament Dashboard
+            </p>
+
+            <h1 className="mt-3 text-3xl font-black leading-tight md:text-5xl">
+              {tournament.tournament_name}
+            </h1>
 
             <div className="mt-5 flex flex-wrap gap-3">
               <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm font-semibold text-gray-200">
                 {tournament.registration_status}
               </span>
+
               <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm text-gray-300">
                 {formatDate(tournament.start_date)}
               </span>
-              <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm text-gray-300">{tournament.venue}</span>
+
+              <span className="rounded-full bg-zinc-800 px-4 py-2 text-sm text-gray-300">
+                {tournament.venue}
+              </span>
             </div>
 
             <div className="mt-8 grid gap-4 sm:grid-cols-4">
               <div className="rounded-xl bg-zinc-950 p-4">
                 <p className="text-sm text-gray-400">Total</p>
-                <p className="mt-2 text-3xl font-bold">{stats?.total_registrations ?? 0}</p>
+                <p className="mt-2 text-3xl font-bold">
+                  {stats?.total_registrations ?? 0}
+                </p>
               </div>
+
               <div className="rounded-xl bg-zinc-950 p-4">
                 <p className="text-sm text-gray-400">Approved</p>
-                <p className="mt-2 text-3xl font-bold text-green-300">{stats?.approved_registrations ?? 0}</p>
+                <p className="mt-2 text-3xl font-bold text-green-300">
+                  {stats?.approved_registrations ?? 0}
+                </p>
               </div>
+
               <div className="rounded-xl bg-zinc-950 p-4">
                 <p className="text-sm text-gray-400">Paid</p>
-                <p className="mt-2 text-3xl font-bold text-blue-300">{stats?.paid_registrations ?? 0}</p>
+                <p className="mt-2 text-3xl font-bold text-blue-300">
+                  {stats?.paid_registrations ?? 0}
+                </p>
               </div>
+
               <div className="rounded-xl bg-zinc-950 p-4">
                 <p className="text-sm text-gray-400">Unpaid</p>
-                <p className="mt-2 text-3xl font-bold text-yellow-300">{unpaidCount}</p>
+                <p className="mt-2 text-3xl font-bold text-yellow-300">
+                  {unpaidCount}
+                </p>
               </div>
             </div>
 
-            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Link
-                href={`/admin/registrations?tournament=${encodeURIComponent(tournament.tournament_name)}`}
+                href={`/admin/registrations?tournament=${encodeURIComponent(
+                  tournament.tournament_name
+                )}`}
                 className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
               >
                 View Registrations
               </Link>
-              <Link href="/admin/registrations" className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500">
+
+              <Link
+                href={`/admin/tournaments/${tournamentId}/results`}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              >
+                🏆 Results Centre
+              </Link>
+
+              <Link
+                href="/admin/registrations"
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              >
                 Export Swiss
               </Link>
-              <Link href={`/admin/tournaments/${tournamentId}/edit`} className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500">
+
+              <Link
+                href={`/admin/tournaments/${tournamentId}/edit`}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              >
                 Edit Tournament
               </Link>
-              <Link href={`/tournaments/${tournamentId}`} className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500">
+
+              <Link
+                href={`/tournaments/${tournamentId}`}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              >
                 Public Page
               </Link>
             </div>
+
+            <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-950 p-5">
+              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                    Tournament Lifecycle
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black">Event progress</h2>
+                </div>
+
+                <span className="rounded-full bg-zinc-900 px-4 py-2 text-xs font-bold text-gray-300">
+                  {lifecycleSteps.filter((step) => step.complete).length} / {lifecycleSteps.length} complete
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {lifecycleSteps.map((step, index) => (
+                  <div
+                    key={step.title}
+                    className={`rounded-2xl border p-4 ${
+                      step.complete
+                        ? "border-green-500/30 bg-green-500/10"
+                        : step.active
+                        ? "border-yellow-500/30 bg-yellow-500/10"
+                        : "border-white/10 bg-black/30"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p
+                          className={`text-xs font-black uppercase tracking-wide ${
+                            step.complete
+                              ? "text-green-300"
+                              : step.active
+                              ? "text-yellow-300"
+                              : "text-gray-500"
+                          }`}
+                        >
+                          Step {index + 1}
+                        </p>
+
+                        <h3 className="mt-2 font-black text-white">{step.title}</h3>
+                      </div>
+
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-black ${
+                          step.complete
+                            ? "bg-green-500/20 text-green-200"
+                            : step.active
+                            ? "bg-yellow-500/20 text-yellow-200"
+                            : "bg-zinc-800 text-gray-400"
+                        }`}
+                      >
+                        {step.complete ? "Done" : step.active ? "Active" : "Pending"}
+                      </span>
+                    </div>
+
+                    <p className="mt-3 text-sm leading-6 text-gray-400">
+                      {step.description}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
           </div>
         </div>
 
         {message && (
-          <p className="mt-6 rounded-lg border border-white/10 bg-zinc-900 p-4 text-sm text-gray-300">{message}</p>
+          <p className="mt-6 rounded-lg border border-white/10 bg-zinc-900 p-4 text-sm text-gray-300">
+            {message}
+          </p>
         )}
 
         {uploadProgress && (
-          <p className="mt-6 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">{uploadProgress}</p>
+          <p className="mt-6 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">
+            {uploadProgress}
+          </p>
         )}
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
           <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
             <h2 className="text-2xl font-bold">Section Breakdown</h2>
+
             {sectionStats.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-400">No registrations have been submitted yet.</p>
+              <p className="mt-4 text-sm text-gray-400">
+                No registrations have been submitted yet.
+              </p>
             ) : (
               <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
                 {sectionStats.map((section) => (
-                  <div key={section.section_name} className="rounded-xl border border-white/10 bg-zinc-950 p-4">
+                  <div
+                    key={section.section_name}
+                    className="rounded-xl border border-white/10 bg-zinc-950 p-4"
+                  >
                     <p className="font-bold">{section.section_name}</p>
-                    <p className="mt-2 text-2xl font-bold text-red-300">{section.total}</p>
+                    <p className="mt-2 text-2xl font-bold text-red-300">
+                      {section.total}
+                    </p>
                     <p className="text-xs text-gray-500">entries</p>
                   </div>
                 ))}
@@ -437,9 +637,26 @@ export default function AdminTournamentDashboardPage() {
 
           <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
             <h2 className="text-2xl font-bold">Tournament Tools</h2>
+
             <div className="mt-5 space-y-3">
-              {["Upload Pairings", "Upload Standings", "Upload Results", "Post Tournament News", "Close Registration", "Set Tournament Live"].map((tool) => (
-                <div key={tool} className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-400">
+              <Link
+                href={`/admin/tournaments/${tournamentId}/results`}
+                className="block rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm font-semibold text-red-100 transition hover:bg-red-500/20"
+              >
+                🏆 Results Centre
+              </Link>
+
+              {[
+                "Upload Pairings",
+                "Upload Standings",
+                "Post Tournament News",
+                "Close Registration",
+                "Set Tournament Live",
+              ].map((tool) => (
+                <div
+                  key={tool}
+                  className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-400"
+                >
                   {tool} — coming soon
                 </div>
               ))}
@@ -450,12 +667,18 @@ export default function AdminTournamentDashboardPage() {
         <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">Archive Gallery</p>
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                Archive Gallery
+              </p>
+
               <h2 className="mt-2 text-2xl font-bold">Tournament Photos</h2>
+
               <p className="mt-2 text-sm text-gray-400">
-                Upload individual photos or a full folder at once. Photos appear on the public archive page when the tournament is completed.
+                Upload individual photos or a full folder at once. Photos appear
+                on the public archive page when the tournament is completed.
               </p>
             </div>
+
             <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
               {gallery.length} photo{gallery.length === 1 ? "" : "s"}
             </span>
@@ -463,7 +686,10 @@ export default function AdminTournamentDashboardPage() {
 
           <div className="mt-6 grid gap-4 md:grid-cols-[1fr_260px_260px]">
             <div>
-              <label className="mb-2 block text-sm font-semibold">Caption for uploaded photo(s)</label>
+              <label className="mb-2 block text-sm font-semibold">
+                Caption for uploaded photo(s)
+              </label>
+
               <input
                 value={galleryCaption}
                 onChange={(event) => setGalleryCaption(event.target.value)}
@@ -473,7 +699,10 @@ export default function AdminTournamentDashboardPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold">Upload photo(s)</label>
+              <label className="mb-2 block text-sm font-semibold">
+                Upload photo(s)
+              </label>
+
               <input
                 type="file"
                 accept=".jpg,.jpeg,.png,.webp"
@@ -485,29 +714,37 @@ export default function AdminTournamentDashboardPage() {
             </div>
 
             <div>
-              <label className="mb-2 block text-sm font-semibold">Upload folder</label>
-             <input
-  type="file"
-  accept=".jpg,.jpeg,.png,.webp"
-  multiple
-  disabled={uploadingGallery}
-  onChange={(event) => {
-    console.log("Folder files:", event.target.files);
-    handleGalleryUpload(event);
-  }}
-  className="block w-full rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-red-600 file:px-4 file:py-2 file:font-semibold file:text-white disabled:opacity-60"
-  // @ts-expect-error folder upload support
-  webkitdirectory=""
-/>
+              <label className="mb-2 block text-sm font-semibold">
+                Upload folder
+              </label>
+
+              <input
+                type="file"
+                accept=".jpg,.jpeg,.png,.webp"
+                multiple
+                disabled={uploadingGallery}
+                onChange={(event) => {
+                  console.log("Folder files:", event.target.files);
+                  handleGalleryUpload(event);
+                }}
+                className="block w-full rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-red-600 file:px-4 file:py-2 file:font-semibold file:text-white disabled:opacity-60"
+                // @ts-expect-error folder upload support
+                webkitdirectory=""
+              />
             </div>
           </div>
 
           {gallery.length === 0 ? (
-            <p className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">No gallery photos have been uploaded yet.</p>
+            <p className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+              No gallery photos have been uploaded yet.
+            </p>
           ) : (
             <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
               {gallery.map((image) => (
-                <div key={image.id} className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950">
+                <div
+                  key={image.id}
+                  className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950"
+                >
                   <div className="relative aspect-square">
                     <Image
                       src={image.image_url}
@@ -517,8 +754,12 @@ export default function AdminTournamentDashboardPage() {
                       className="object-cover"
                     />
                   </div>
+
                   <div className="p-3">
-                    <p className="line-clamp-2 text-xs text-gray-400">{image.caption ?? "No caption"}</p>
+                    <p className="line-clamp-2 text-xs text-gray-400">
+                      {image.caption ?? "No caption"}
+                    </p>
+
                     <button
                       type="button"
                       onClick={() => deleteGalleryImage(image)}
