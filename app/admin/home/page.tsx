@@ -222,6 +222,12 @@ export default function AdminDashboardPage() {
       icon: "👤",
     },
     {
+      title: "Live Control Room",
+      description: "Monitor registrations, payments, results and live updates.",
+      href: "/admin/live",
+      icon: "🎮",
+    },
+    {
       title: "Media Centre",
       description: `${commandStats.publishedNews} published • ${commandStats.draftNews} drafts`,
       href: "/admin/news",
@@ -232,6 +238,12 @@ export default function AdminDashboardPage() {
       description: "Upload Chess SA rating files.",
       href: "/admin/import-ratings",
       icon: "📊",
+    },
+    {
+      title: "Tournament Archive Wizard",
+      description: "Import historical tournaments, players and results.",
+      href: "/admin/import-tournament",
+      icon: "🗄️",
     },
     {
       title: "Public Website",

@@ -365,6 +365,36 @@ export default function TournamentResultsPage() {
             </div>
           </section>
 
+          <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link
+              href={`/admin/tournaments/${tournamentId}/import-results`}
+              className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
+            >
+              📥 Import Swiss Results
+            </Link>
+
+            <Link
+              href={`/admin/tournaments/${tournamentId}`}
+              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Tournament Dashboard
+            </Link>
+
+            <Link
+              href="/admin/players"
+              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Player Centre
+            </Link>
+
+            <Link
+              href="/admin/live"
+              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Live Control Room
+            </Link>
+          </section>
+
           {message && (
             <p className="mt-6 rounded-xl border border-white/10 bg-zinc-900 p-4 text-sm text-gray-300">
               {message}
