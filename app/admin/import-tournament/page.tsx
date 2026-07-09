@@ -50,10 +50,7 @@ type ImportedStanding = {
   message: string;
 };
 
-type DetectedFileType =
-  | "starting_rank"
-  | "final_ranking"
-  | "unknown";
+type DetectedFileType = "starting_rank" | "final_ranking" | "unknown";
 
 const emptyForm: TournamentForm = {
   tournament_name: "",
@@ -93,11 +90,40 @@ function cleanOptionalText(value: unknown) {
   return text ? text : null;
 }
 
+function normalizeHeaderName(value: string) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/^\ufeff/, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function cleanImportedId(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const text = String(value).trim();
+
+  if (!text || text.toLowerCase() === "nan") return null;
+
+  return text.replace(/\.0$/, "");
+}
+
 function getColumnIndex(headers: string[], possibleNames: string[]) {
   const lowerHeaders = headers.map((header) => header.toLowerCase().trim());
 
   return lowerHeaders.findIndex((header) =>
     possibleNames.some((name) => header === name.toLowerCase())
+  );
+}
+
+function getFlexibleColumnIndex(headers: string[], possibleNames: string[]) {
+  const normalizedHeaders = headers.map(normalizeHeaderName);
+  const normalizedPossibleNames = possibleNames.map(normalizeHeaderName);
+
+  return normalizedHeaders.findIndex((header) =>
+    normalizedPossibleNames.some(
+      (name) => header === name || header.includes(name) || name.includes(header)
+    )
   );
 }
 
@@ -171,28 +197,59 @@ function parseStartingRankRows(rows: unknown[][]) {
 
   const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
 
-  const nameIndex = getColumnIndex(headers, ["Name", "Player", "Full Name"]);
-  const ratingIndex = getColumnIndex(headers, ["NRtg", "Rtg", "Rating"]);
-  const federationIndex = getColumnIndex(headers, ["FED", "Federation"]);
-  const clubIndex = getColumnIndex(headers, ["Club", "Team", "School"]);
-  const chessSaIdIndex = getColumnIndex(headers, [
+  const nameIndex = getFlexibleColumnIndex(headers, [
+    "Name",
+    "Player",
+    "Full Name",
+    "Surname and Names",
+  ]);
+
+  const ratingIndex = getFlexibleColumnIndex(headers, [
+    "NRtg",
+    "Rtg",
+    "Rating",
+    "Chess SA Rating",
+    "CHESSA Rating",
+  ]);
+
+  const federationIndex = getFlexibleColumnIndex(headers, [
+    "FED",
+    "Federation",
+    "Province",
+    "Region",
+  ]);
+
+  const clubIndex = getFlexibleColumnIndex(headers, ["Club", "Team", "School"]);
+
+  const chessSaIdIndex = getFlexibleColumnIndex(headers, [
     "Chess SA ID",
     "ChessSA ID",
     "ChessSAID",
     "CHESS SA ID",
     "Chessa ID",
     "ChessSA",
+    "Chess SA",
     "CSA ID",
     "CSAID",
     "CHESSA",
+    "Unique No",
+    "UNIQUE_NO",
+    "Unique Number",
+    "Member ID",
+    "Membership Number",
+    "Player ID",
     "ID",
     "Code",
   ]);
-  const fideIdIndex = getColumnIndex(headers, [
+
+  const fideIdIndex = getFlexibleColumnIndex(headers, [
     "FIDE ID",
     "FideID",
     "FIDEID",
     "FIDE",
+    "FIDE No",
+    "FIDE Number",
+    "FIDE-No",
   ]);
 
   if (nameIndex === -1) {
@@ -210,9 +267,15 @@ function parseStartingRankRows(rows: unknown[][]) {
         rating: ratingIndex >= 0 ? toNumber(row[ratingIndex]) : null,
         federation:
           federationIndex >= 0 && row[federationIndex]
-            ? String(row[federationIndex])
+            ? String(row[federationIndex]).trim()
             : null,
-        club: clubIndex >= 0 && row[clubIndex] ? String(row[clubIndex]) : null,
+        club:
+          clubIndex >= 0 && row[clubIndex]
+            ? String(row[clubIndex]).trim()
+            : null,
+        chess_sa_id:
+          chessSaIdIndex >= 0 ? cleanImportedId(row[chessSaIdIndex]) : null,
+        fide_id: fideIdIndex >= 0 ? cleanImportedId(row[fideIdIndex]) : null,
         player_id: null,
         status: "Ready",
         message: "Ready to import",
@@ -228,7 +291,9 @@ function parseFinalRankingRows(
   const headerRowIndex = findHeaderRow(rows, ["Rank", "Name", "Pts"]);
 
   if (headerRowIndex === -1) {
-    throw new Error("Could not find ranking list header. Expected Rank, Name and Pts columns.");
+    throw new Error(
+      "Could not find ranking list header. Expected Rank, Name and Pts columns."
+    );
   }
 
   const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
@@ -278,7 +343,9 @@ export default function ImportOldTournamentPage() {
   const [createdTournament, setCreatedTournament] =
     useState<CreatedTournament | null>(null);
   const [createdSectionIds, setCreatedSectionIds] = useState<string[]>([]);
-  const [createdSections, setCreatedSections] = useState<{ id: string; section_name: string }[]>([]);
+  const [createdSections, setCreatedSections] = useState<
+    { id: string; section_name: string }[]
+  >([]);
   const [selectedImportSectionId, setSelectedImportSectionId] = useState("");
 
   const [playerRows, setPlayerRows] = useState<ImportedPlayer[]>([]);
@@ -356,7 +423,9 @@ export default function ImportOldTournamentPage() {
 
     if (tournamentError || !tournamentData) {
       setMessage(
-        `Could not create tournament: ${tournamentError?.message ?? "Unknown error"}`
+        `Could not create tournament: ${
+          tournamentError?.message ?? "Unknown error"
+        }`
       );
       setCreatingTournament(false);
       return;
@@ -393,13 +462,18 @@ export default function ImportOldTournamentPage() {
       return;
     }
 
-    const createdSectionRows = (sectionData ?? []) as { id: string; section_name: string }[];
+    const createdSectionRows = (sectionData ?? []) as {
+      id: string;
+      section_name: string;
+    }[];
 
     setCreatedTournament(tournamentData as CreatedTournament);
     setCreatedSectionIds(createdSectionRows.map((row) => row.id));
     setCreatedSections(createdSectionRows);
     setSelectedImportSectionId(createdSectionRows[0]?.id ?? "");
-    setMessage("Tournament archive created. Select a section and import a Starting Rank List next.");
+    setMessage(
+      "Tournament archive created. Select a section and import a Starting Rank List next."
+    );
     setCreatingTournament(false);
   }
 
@@ -523,16 +597,25 @@ export default function ImportOldTournamentPage() {
     ).find((player) => normalizeName(player.full_name) === normalizedName);
 
     if (existingPlayer) {
+      const updatePayload: Record<string, unknown> = {
+        rating: row.rating,
+        club: row.club,
+        province: row.federation || form.province || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (cleanChessSaId) {
+        updatePayload.chess_sa_id = cleanChessSaId;
+        updatePayload.verification_status = "Verified";
+      }
+
+      if (cleanFideId) {
+        updatePayload.fide_id = cleanFideId;
+      }
+
       const { error: updateError } = await supabase
         .from("players")
-        .update({
-          chess_sa_id: cleanChessSaId,
-          fide_id: cleanFideId,
-          rating: row.rating,
-          club: row.club,
-          province: form.province || null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updatePayload)
         .eq("id", existingPlayer.id);
 
       if (updateError) throw new Error(updateError.message);
@@ -548,11 +631,11 @@ export default function ImportOldTournamentPage() {
         date_of_birth: null,
         gender: "Not supplied",
         club: row.club,
-        province: form.province || null,
+        province: row.federation || form.province || null,
         rating: row.rating,
         email: null,
         phone: null,
-        verification_status: "Pending",
+        verification_status: cleanChessSaId ? "Verified" : "Pending",
       })
       .select("id")
       .single();
@@ -773,7 +856,9 @@ export default function ImportOldTournamentPage() {
               : row.rank === 3
               ? "Third Place"
               : null,
-          notes: `Imported from final ranking list: ${rankingFileName || "Swiss Manager file"}`,
+          notes: `Imported from final ranking list: ${
+            rankingFileName || "Swiss Manager file"
+          }`,
         });
 
         if (error) throw error;
@@ -1071,6 +1156,7 @@ export default function ImportOldTournamentPage() {
                   Upload either a Starting Rank List or a Final Ranking List.
                   The system detects the file type automatically.
                 </p>
+
                 <div className="mt-6">
                   <label className="mb-2 block text-sm font-semibold">
                     Section for this import
@@ -1141,7 +1227,12 @@ export default function ImportOldTournamentPage() {
                   <button
                     type="button"
                     onClick={importPlayers}
-                    disabled={!createdTournament || !selectedImportSectionId || playerRows.length === 0 || importingPlayers}
+                    disabled={
+                      !createdTournament ||
+                      !selectedImportSectionId ||
+                      playerRows.length === 0 ||
+                      importingPlayers
+                    }
                     className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {importingPlayers ? "Importing..." : "Import Players"}
@@ -1164,7 +1255,16 @@ export default function ImportOldTournamentPage() {
 
                 <PreviewTable
                   emptyText="Upload a Starting Rank List to preview player rows."
-                  headers={["Name", "Rating", "Chess SA ID", "FIDE ID", "FED", "Club", "Status", "Message"]}
+                  headers={[
+                    "Name",
+                    "Rating",
+                    "Chess SA ID",
+                    "FIDE ID",
+                    "FED",
+                    "Club",
+                    "Status",
+                    "Message",
+                  ]}
                   rows={playerRows.map((row) => [
                     row.name,
                     row.rating ?? "-",
