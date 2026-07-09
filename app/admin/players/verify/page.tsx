@@ -140,7 +140,7 @@ export default function PlayerVerificationQueuePage() {
           </section>
 
           <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
-            <div className="grid gap-4 md:grid-cols-[1fr_260px_160px]">
+            <div className="grid gap-4 md:grid-cols-[1fr_240px_180px_240px]">
               <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search name, Chess SA ID, FIDE ID, club..." className={inputClass} />
               <select value={filter} onChange={(event) => setFilter(event.target.value)} className={inputClass}>
                 <option>Needs Review</option>
@@ -153,6 +153,12 @@ export default function PlayerVerificationQueuePage() {
                 <option>Missing Photo</option>
               </select>
               <Link href="/admin/players/duplicates" className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700">Duplicates</Link>
+              <Link
+  href="/admin/players/verify/import"
+  className="rounded-xl border border-red-500 bg-zinc-950 px-5 py-3 text-center text-sm font-bold text-red-300 transition hover:bg-red-600 hover:text-white"
+>
+  Bulk Verify
+</Link>
             </div>
           </section>
 

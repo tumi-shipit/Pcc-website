@@ -22,6 +22,13 @@ type Player = {
   updated_at: string | null;
 };
 
+<Link
+  href="/admin/players/sync"
+  className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+>
+  Chess SA Master Sync
+</Link>
+
 type Registration = {
   player_id: string | null;
   tournament_id: string | null;
@@ -235,6 +242,38 @@ export default function AdminPlayersPage() {
                 <CommandStat label="Juniors" value={stats.juniors} />
               </div>
             </div>
+          </section>
+
+
+
+          <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Link
+              href="/admin/players/link-chessa"
+              className="rounded-xl border border-red-500 bg-zinc-950 px-5 py-3 text-center text-sm font-bold text-red-300 transition hover:bg-red-600 hover:text-white"
+            >
+              Link Existing to Chess SA
+            </Link>
+
+            <Link
+              href="/admin/players/sync"
+              className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
+            >
+              Chess SA Master Sync
+            </Link>
+
+            <Link
+              href="/admin/players/verify"
+              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Verification Queue
+            </Link>
+
+            <Link
+              href="/admin/players/duplicates"
+              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Duplicate Centre
+            </Link>
           </section>
 
           {message && (
