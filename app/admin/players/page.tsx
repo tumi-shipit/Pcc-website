@@ -244,8 +244,6 @@ export default function AdminPlayersPage() {
             </div>
           </section>
 
-
-
           <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Link
               href="/admin/players/link-chessa"
@@ -263,14 +261,14 @@ export default function AdminPlayersPage() {
 
             <Link
               href="/admin/players/verify"
-              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              className="rounded-xl border border-white/10 bg-zinc-900 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
             >
               Verification Queue
             </Link>
 
             <Link
               href="/admin/players/duplicates"
-              className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              className="rounded-xl border border-white/10 bg-zinc-900 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
             >
               Duplicate Centre
             </Link>
