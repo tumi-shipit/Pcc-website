@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
+import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
+import AdminImportSummaryPanel from "@/components/admin/AdminImportSummaryPanel";
+import { createImportSession, createImportSessionRows } from "@/lib/importSummary";
 import { supabase } from "@/lib/supabase";
 
 type ParsedStanding = {
@@ -65,6 +68,17 @@ export default function ImportTournamentResultsPage() {
   const [loadingPlayers, setLoadingPlayers] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [lastImportSummary, setLastImportSummary] = useState<null | {
+    total_rows: number;
+    matched_rows: number;
+    unmatched_rows: number;
+    created_rows: number;
+    updated_rows: number;
+    skipped_rows: number;
+    failed_rows: number;
+    file_name: string | null;
+    status: string;
+  }>(null);
 
   const stats = useMemo(() => {
     return {
@@ -259,6 +273,61 @@ export default function ImportTournamentResultsPage() {
       return;
     }
 
+    try {
+      const importSession = await createImportSession({
+        import_type: "Tournament Results",
+        source_page: "/admin/tournaments/[id]/import-results",
+        tournament_id: tournamentId,
+        file_name: fileName || null,
+        status: "Completed",
+        total_rows: parsedRows.length,
+        matched_rows: matchedRows.length,
+        unmatched_rows: parsedRows.length - matchedRows.length,
+        created_rows: matchedRows.length,
+        updated_rows: 0,
+        skipped_rows: parsedRows.length - matchedRows.length,
+        failed_rows: 0,
+        summary: {
+          note: "Imported matched Swiss Manager standings rows into tournament_results.",
+        },
+      });
+
+      await createImportSessionRows(
+        importSession.id,
+        parsedRows.map((row, index) => ({
+          row_number: index + 1,
+          imported_name: row.name,
+          matched_player_id: row.matchedPlayerId,
+          matched_player_name: row.matchedPlayerName,
+          confidence_score: row.matchedPlayerId ? 100 : 0,
+          status: row.matchedPlayerId ? "Imported" : "Skipped",
+          message: row.matchedPlayerId
+            ? "Imported into tournament results"
+            : "Skipped because no matching registered player was found",
+          row_data: {
+            rank: row.rank,
+            rating: row.rating,
+            points: row.points,
+            tieBreak: row.tieBreak,
+          },
+        }))
+      );
+    } catch (summaryError) {
+      console.error(summaryError);
+    }
+
+    setLastImportSummary({
+      total_rows: parsedRows.length,
+      matched_rows: matchedRows.length,
+      unmatched_rows: parsedRows.length - matchedRows.length,
+      created_rows: matchedRows.length,
+      updated_rows: 0,
+      skipped_rows: parsedRows.length - matchedRows.length,
+      failed_rows: 0,
+      file_name: fileName || null,
+      status: "Completed",
+    });
+
     setMessage(`Imported ${matchedRows.length} results successfully.`);
     setImporting(false);
   }
@@ -273,6 +342,8 @@ export default function ImportTournamentResultsPage() {
           >
             ← Back to Results Centre
           </Link>
+
+          <AdminTournamentTabs id={tournamentId} />
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -295,6 +366,8 @@ export default function ImportTournamentResultsPage() {
               {message}
             </p>
           )}
+
+          <AdminImportSummaryPanel summary={lastImportSummary} />
 
           <section className="mt-8 grid gap-6 lg:grid-cols-[420px_1fr]">
             <section className="rounded-3xl border border-white/10 bg-zinc-900 p-6">

@@ -2,40 +2,22 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
 import AdminGuard from "@/components/AdminGuard";
+import AdminModuleCard from "@/components/admin/AdminModuleCard";
+import AdminSearchBar from "@/components/admin/AdminSearchBar";
+import type { NewsPost, TournamentLite, TournamentStats } from "@/lib/pccTypes";
+import { formatDate } from "@/lib/supabaseHelpers";
+import { supabase } from "@/lib/supabase";
 
-type Tournament = {
-  id: string;
-  tournament_name: string;
-  start_date: string;
-  venue: string;
-  registration_status: string;
-};
+type DashboardTournament = Pick<
+  TournamentLite,
+  "id" | "tournament_name" | "start_date" | "venue" | "registration_status"
+>;
 
-type TournamentStats = {
-  tournament_id: string;
-  total_registrations: number;
-  approved_registrations: number;
-  paid_registrations: number;
-};
-
-type NewsPost = {
-  id: string;
-  title: string;
-  category: string | null;
-  published: boolean;
-  created_at: string;
-  published_at: string | null;
-};
-
-function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
+type DashboardNewsPost = Pick<
+  NewsPost,
+  "id" | "title" | "category" | "published" | "created_at" | "published_at"
+>;
 
 function formatTimeAgo(value: string | null) {
   if (!value) return "Not published";
@@ -53,7 +35,7 @@ function formatTimeAgo(value: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function statusClass(status: string) {
+function statusClass(status: string | null) {
   if (status === "Open") return "bg-green-500/10 text-green-300";
   if (status === "Completed") return "bg-blue-500/10 text-blue-300";
   if (status === "Closed") return "bg-yellow-500/10 text-yellow-300";
@@ -62,9 +44,9 @@ function statusClass(status: string) {
 }
 
 export default function AdminDashboardPage() {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [tournaments, setTournaments] = useState<DashboardTournament[]>([]);
   const [stats, setStats] = useState<TournamentStats[]>([]);
-  const [newsPosts, setNewsPosts] = useState<NewsPost[]>([]);
+  const [newsPosts, setNewsPosts] = useState<DashboardNewsPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -93,7 +75,7 @@ export default function AdminDashboardPage() {
     if (tournamentError) {
       setMessage(`Could not load tournaments: ${tournamentError.message}`);
     } else {
-      setTournaments((tournamentData ?? []) as Tournament[]);
+      setTournaments((tournamentData ?? []) as unknown as DashboardTournament[]);
     }
 
     if (statsError) {
@@ -101,7 +83,7 @@ export default function AdminDashboardPage() {
         current || `Could not load registration stats: ${statsError.message}`
       );
     } else {
-      setStats((statsData ?? []) as TournamentStats[]);
+      setStats((statsData ?? []) as unknown as TournamentStats[]);
     }
 
     if (newsError) {
@@ -109,7 +91,7 @@ export default function AdminDashboardPage() {
         current || `Could not load newsroom stats: ${newsError.message}`
       );
     } else {
-      setNewsPosts((newsData ?? []) as NewsPost[]);
+      setNewsPosts((newsData ?? []) as unknown as DashboardNewsPost[]);
     }
 
     setLoading(false);
@@ -125,7 +107,7 @@ export default function AdminDashboardPage() {
 
   const commandStats = useMemo(() => {
     const activeTournaments = tournaments.filter((item) =>
-      ["Open", "Live", "Closed"].includes(item.registration_status)
+      ["Open", "Live", "Closed"].includes(item.registration_status ?? "")
     ).length;
 
     const archivedTournaments = tournaments.filter(
@@ -149,9 +131,6 @@ export default function AdminDashboardPage() {
 
     const publishedNews = newsPosts.filter((post) => post.published).length;
     const draftNews = newsPosts.filter((post) => !post.published).length;
-    const liveUpdates = newsPosts.filter(
-      (post) => post.category === "Live Update"
-    ).length;
 
     return {
       activeTournaments,
@@ -165,93 +144,8 @@ export default function AdminDashboardPage() {
       ),
       publishedNews,
       draftNews,
-      liveUpdates,
     };
   }, [newsPosts, stats, tournaments]);
-
-  const quickActions = [
-    {
-      title: "New Tournament",
-      href: "/admin/tournaments/new",
-      icon: "🏆",
-      tone: "bg-red-600 hover:bg-red-700",
-    },
-    {
-      title: "News Update",
-      href: "/admin/news",
-      icon: "📰",
-      tone: "bg-zinc-900 hover:border-red-500 border border-white/10",
-    },
-    {
-      title: "Live Update",
-      href: "/admin/news",
-      icon: "🔴",
-      tone: "bg-zinc-900 hover:border-red-500 border border-white/10",
-    },
-    {
-      title: "Registrations",
-      href: "/admin/registrations",
-      icon: "📝",
-      tone: "bg-zinc-900 hover:border-red-500 border border-white/10",
-    },
-    {
-      title: "Import Ratings",
-      href: "/admin/import-ratings",
-      icon: "📊",
-      tone: "bg-zinc-900 hover:border-red-500 border border-white/10",
-    },
-  ];
-
-  const adminCards = [
-    {
-      title: "Tournament Management",
-      description: `${commandStats.activeTournaments} active • ${commandStats.archivedTournaments} archived`,
-      href: "/admin/tournaments",
-      icon: "🏆",
-    },
-    {
-      title: "Registrations",
-      description: `${commandStats.totalRegistrations} total • ${commandStats.paidRegistrations} paid`,
-      href: "/admin/registrations",
-      icon: "📝",
-    },
-    {
-      title: "Player Centre",
-      description: "Search players, ratings and tournament history.",
-      href: "/admin/players",
-      icon: "👤",
-    },
-    {
-      title: "Live Control Room",
-      description: "Monitor registrations, payments, results and live updates.",
-      href: "/admin/live",
-      icon: "🎮",
-    },
-    {
-      title: "Media Centre",
-      description: `${commandStats.publishedNews} published • ${commandStats.draftNews} drafts`,
-      href: "/admin/news",
-      icon: "📰",
-    },
-    {
-      title: "Import Ratings",
-      description: "Upload Chess SA rating files.",
-      href: "/admin/import-ratings",
-      icon: "📊",
-    },
-    {
-      title: "Tournament Archive Wizard",
-      description: "Import historical tournaments, players and results.",
-      href: "/admin/import-tournament",
-      icon: "🗄️",
-    },
-    {
-      title: "Public Website",
-      description: "Open the public PCC website.",
-      href: "/",
-      icon: "🌍",
-    },
-  ];
 
   return (
     <AdminGuard>
@@ -285,17 +179,8 @@ export default function AdminDashboardPage() {
             </div>
           </section>
 
-          <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            {quickActions.map((action) => (
-              <Link
-                key={action.title}
-                href={action.href}
-                className={`rounded-2xl px-5 py-4 text-center text-sm font-black text-white transition hover:-translate-y-1 ${action.tone}`}
-              >
-                <span className="mr-2">{action.icon}</span>
-                {action.title}
-              </Link>
-            ))}
+          <section className="mt-6">
+            <AdminSearchBar />
           </section>
 
           {message && (
@@ -304,22 +189,65 @@ export default function AdminDashboardPage() {
             </p>
           )}
 
-          <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {adminCards.map((card) => (
-              <Link
-                key={card.title}
-                href={card.href}
-                className="group rounded-2xl border border-white/10 bg-zinc-900 p-5 transition hover:-translate-y-1 hover:border-red-500/60"
-              >
-                <p className="text-3xl">{card.icon}</p>
-                <h2 className="mt-4 text-lg font-black group-hover:text-red-300">
-                  {card.title}
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-gray-400">
-                  {card.description}
-                </p>
-              </Link>
-            ))}
+          <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <AdminModuleCard
+              title="Tournament Centre"
+              description={`${commandStats.activeTournaments} active • ${commandStats.archivedTournaments} archived`}
+              href="/admin/tournaments"
+              color="red"
+            />
+
+            <AdminModuleCard
+              title="Player Centre"
+              description="Search players, ratings and tournament history."
+              href="/admin/players"
+              color="green"
+            />
+
+            <AdminModuleCard
+              title="Official Centre"
+              description="View arbiters, organisers and tournament officials."
+              href="/admin/officials"
+              color="blue"
+            />
+
+            <AdminModuleCard
+              title="Media Centre"
+              description={`${commandStats.publishedNews} published • ${commandStats.draftNews} drafts`}
+              href="/admin/news"
+              color="blue"
+            />
+
+            <AdminModuleCard
+              title="Operations Centre"
+              description="Mission control for tournaments, payments and live activity."
+              href="/admin/operations"
+              color="yellow"
+            />
+
+            <AdminModuleCard
+              title="Registrations"
+              description={`${commandStats.totalRegistrations} total • ${commandStats.paidRegistrations} paid`}
+              href="/admin/registrations"
+            />
+
+            <AdminModuleCard
+              title="Import Centre"
+              description="View import history and summaries."
+              href="/admin/imports"
+            />
+
+            <AdminModuleCard
+              title="Archive Wizard"
+              description="Import historical tournaments, players and results."
+              href="/admin/import-tournament"
+            />
+
+            <AdminModuleCard
+              title="Public Website"
+              description="Open the public PCC website."
+              href="/"
+            />
           </section>
 
           <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">
@@ -369,7 +297,7 @@ export default function AdminDashboardPage() {
                               tournament.registration_status
                             )}`}
                           >
-                            {tournament.registration_status}
+                            {tournament.registration_status ?? "TBA"}
                           </span>
                         </div>
 

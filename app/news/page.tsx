@@ -47,7 +47,7 @@ export default function NewsPage() {
         .eq("published", true)
         .order("published_at", { ascending: false });
 
-      setPosts((data ?? []) as NewsPost[]);
+      setPosts((data ?? []) as unknown as NewsPost[]);
       setLoading(false);
     }
 

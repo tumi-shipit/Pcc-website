@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
+import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import { supabase } from "@/lib/supabase";
 
 type Tournament = {
@@ -121,7 +122,7 @@ export default function TournamentResultsPage() {
       .eq("tournament_id", tournamentId)
       .order("section_name", { ascending: true });
 
-    setSections((sectionData ?? []) as Section[]);
+    setSections((sectionData ?? []) as unknown as Section[]);
 
     const { data: registrationData } = await supabase
       .from("registrations")
@@ -143,7 +144,7 @@ export default function TournamentResultsPage() {
         .in("id", playerIds)
         .order("full_name", { ascending: true });
 
-      setPlayers((playerData ?? []) as Player[]);
+      setPlayers((playerData ?? []) as unknown as Player[]);
     } else {
       setPlayers([]);
     }
@@ -161,7 +162,7 @@ export default function TournamentResultsPage() {
     if (resultsError) {
       setMessage(`Could not load results: ${resultsError.message}`);
     } else {
-      setResults((resultsData ?? []) as ResultRow[]);
+      setResults((resultsData ?? []) as unknown as ResultRow[]);
     }
 
     setLoading(false);
@@ -331,6 +332,8 @@ export default function TournamentResultsPage() {
           >
             ← Back to Tournament Dashboard
           </Link>
+
+          <AdminTournamentTabs id={tournamentId} />
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">

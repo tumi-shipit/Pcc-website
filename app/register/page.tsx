@@ -259,7 +259,7 @@ export default function RegisterPage() {
       if (error) {
         setSearchMessage("Could not load open tournaments. Please try again.");
       } else {
-        setTournaments((data ?? []) as Tournament[]);
+        setTournaments((data ?? []) as unknown as Tournament[]);
       }
 
       setLoadingTournaments(false);
@@ -293,7 +293,7 @@ export default function RegisterPage() {
           "Could not load tournament sections. Please try again."
         );
       } else {
-        setSections((data ?? []) as TournamentSection[]);
+        setSections((data ?? []) as unknown as TournamentSection[]);
       }
 
       setLoadingSections(false);

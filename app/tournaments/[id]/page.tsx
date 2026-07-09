@@ -238,7 +238,7 @@ export default function TournamentHubPage() {
       setTournament(loadedTournament);
       setSections(loadedSections);
       setStats((statsData ?? null) as TournamentStats | null);
-      setGallery((galleryData ?? []) as GalleryImage[]);
+      setGallery((galleryData ?? []) as unknown as GalleryImage[]);
       setResults(resultRowsWithPlayers);
       setArbiter(
         players.find((player) => player.id === loadedTournament.arbiter_player_id) ??

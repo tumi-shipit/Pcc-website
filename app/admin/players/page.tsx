@@ -102,7 +102,7 @@ export default function AdminPlayersPage() {
     if (playerError) {
       setMessage(`Could not load players: ${playerError.message}`);
     } else {
-      setPlayers((playerData ?? []) as Player[]);
+      setPlayers((playerData ?? []) as unknown as Player[]);
     }
 
     if (registrationError) {
@@ -110,7 +110,7 @@ export default function AdminPlayersPage() {
         current || `Could not load player activity: ${registrationError.message}`
       );
     } else {
-      setRegistrations((registrationData ?? []) as Registration[]);
+      setRegistrations((registrationData ?? []) as unknown as Registration[]);
     }
 
     setLoading(false);

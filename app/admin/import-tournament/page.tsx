@@ -4,6 +4,8 @@ import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
+import AdminImportSummaryPanel from "@/components/admin/AdminImportSummaryPanel";
+import { createImportSession, createImportSessionRows } from "@/lib/importSummary";
 import { supabase } from "@/lib/supabase";
 
 type TournamentForm = {
@@ -290,6 +292,17 @@ export default function ImportOldTournamentPage() {
   const [importingPlayers, setImportingPlayers] = useState(false);
   const [importingRankings, setImportingRankings] = useState(false);
   const [message, setMessage] = useState("");
+  const [lastImportSummary, setLastImportSummary] = useState<null | {
+    total_rows: number;
+    matched_rows: number;
+    unmatched_rows: number;
+    created_rows: number;
+    updated_rows: number;
+    skipped_rows: number;
+    failed_rows: number;
+    file_name: string | null;
+    status: string;
+  }>(null);
 
   const playerStats = useMemo(() => {
     return {
@@ -631,6 +644,64 @@ export default function ImportOldTournamentPage() {
       setPlayerRows([...updatedRows, ...playerRows.slice(updatedRows.length)]);
     }
 
+    const importedCount = updatedRows.filter((row) => row.status === "Imported").length;
+    const failedCount = updatedRows.filter((row) => row.status === "Failed").length;
+
+    try {
+      const importSession = await createImportSession({
+        import_type: "Tournament Players",
+        source_page: "/admin/import-tournament",
+        tournament_id: createdTournament.id,
+        file_name: playerFileName || null,
+        status: failedCount > 0 ? "Completed with errors" : "Completed",
+        total_rows: playerRows.length,
+        matched_rows: importedCount,
+        unmatched_rows: 0,
+        created_rows: importedCount,
+        updated_rows: 0,
+        skipped_rows: 0,
+        failed_rows: failedCount,
+        summary: {
+          section_id: defaultSectionId,
+          note: "Imported players and created or updated tournament registrations.",
+        },
+      });
+
+      await createImportSessionRows(
+        importSession.id,
+        updatedRows.map((row, index) => ({
+          row_number: index + 1,
+          imported_name: row.name,
+          matched_player_id: row.player_id,
+          matched_player_name: row.player_id ? row.name : null,
+          confidence_score: row.player_id ? 100 : 0,
+          status: row.status,
+          message: row.message,
+          row_data: {
+            rating: row.rating,
+            federation: row.federation,
+            club: row.club,
+            chess_sa_id: row.chess_sa_id,
+            fide_id: row.fide_id,
+          },
+        }))
+      );
+    } catch (summaryError) {
+      console.error(summaryError);
+    }
+
+    setLastImportSummary({
+      total_rows: playerRows.length,
+      matched_rows: importedCount,
+      unmatched_rows: 0,
+      created_rows: importedCount,
+      updated_rows: 0,
+      skipped_rows: 0,
+      failed_rows: failedCount,
+      file_name: playerFileName || null,
+      status: failedCount > 0 ? "Completed with errors" : "Completed",
+    });
+
     setImportingPlayers(false);
     setMessage("Player import completed. You can now import the Final Ranking List.");
   }
@@ -728,6 +799,64 @@ export default function ImportOldTournamentPage() {
       setRankingRows([...updatedRows, ...rankingRows.slice(updatedRows.length)]);
     }
 
+    const importedCount = updatedRows.filter((row) => row.status === "Imported").length;
+    const failedCount = updatedRows.filter((row) => row.status === "Failed").length;
+    const unmatchedCount = updatedRows.filter((row) => row.status === "Unmatched").length;
+
+    try {
+      const importSession = await createImportSession({
+        import_type: "Tournament Final Rankings",
+        source_page: "/admin/import-tournament",
+        tournament_id: createdTournament.id,
+        file_name: rankingFileName || null,
+        status: failedCount > 0 ? "Completed with errors" : "Completed",
+        total_rows: rankingRows.length,
+        matched_rows: importedCount,
+        unmatched_rows: unmatchedCount,
+        created_rows: importedCount,
+        updated_rows: 0,
+        skipped_rows: unmatchedCount,
+        failed_rows: failedCount,
+        summary: {
+          section_id: defaultSectionId,
+          note: "Imported final ranking rows into tournament_results.",
+        },
+      });
+
+      await createImportSessionRows(
+        importSession.id,
+        updatedRows.map((row, index) => ({
+          row_number: index + 1,
+          imported_name: row.name,
+          matched_player_id: row.player_id,
+          matched_player_name: row.matchedPlayerName,
+          confidence_score: row.player_id ? 100 : 0,
+          status: row.status,
+          message: row.message,
+          row_data: {
+            rank: row.rank,
+            rating: row.rating,
+            points: row.points,
+            tieBreak: row.tieBreak,
+          },
+        }))
+      );
+    } catch (summaryError) {
+      console.error(summaryError);
+    }
+
+    setLastImportSummary({
+      total_rows: rankingRows.length,
+      matched_rows: importedCount,
+      unmatched_rows: unmatchedCount,
+      created_rows: importedCount,
+      updated_rows: 0,
+      skipped_rows: unmatchedCount,
+      failed_rows: failedCount,
+      file_name: rankingFileName || null,
+      status: failedCount > 0 ? "Completed with errors" : "Completed",
+    });
+
     setImportingRankings(false);
     setMessage("Final ranking import completed.");
   }
@@ -764,6 +893,8 @@ export default function ImportOldTournamentPage() {
               {message}
             </p>
           )}
+
+          <AdminImportSummaryPanel summary={lastImportSummary} />
 
           <section className="mt-8 grid gap-8 lg:grid-cols-[420px_1fr]">
             <section className="rounded-3xl border border-white/10 bg-zinc-900 p-6">

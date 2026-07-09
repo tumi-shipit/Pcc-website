@@ -55,7 +55,7 @@ export default function AdminTournamentsPage() {
     if (error) {
       setMessage(`Could not load tournaments: ${error.message}`);
     } else {
-      setTournaments((data ?? []) as Tournament[]);
+      setTournaments((data ?? []) as unknown as Tournament[]);
     }
 
     setLoading(false);

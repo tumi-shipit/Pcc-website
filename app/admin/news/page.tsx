@@ -202,8 +202,8 @@ export default function AdminNewsPage() {
     if (error) {
       setMessage(`Could not load news posts: ${error.message}`);
     } else {
-      setPosts((data ?? []) as NewsPost[]);
-      setTournaments((tournamentData ?? []) as Tournament[]);
+      setPosts((data ?? []) as unknown as NewsPost[]);
+      setTournaments((tournamentData ?? []) as unknown as Tournament[]);
     }
 
     setLoading(false);

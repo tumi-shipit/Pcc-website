@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 
 type Tournament = {
   id: string;
@@ -175,7 +176,7 @@ export default function AdminTournamentDashboardPage() {
       return;
     }
 
-    setGallery((data ?? []) as GalleryImage[]);
+    setGallery((data ?? []) as unknown as GalleryImage[]);
   }
 
   async function loadResults() {
@@ -189,7 +190,7 @@ export default function AdminTournamentDashboardPage() {
       return;
     }
 
-    setResults((data ?? []) as ResultRow[]);
+    setResults((data ?? []) as unknown as ResultRow[]);
   }
 
   useEffect(() => {

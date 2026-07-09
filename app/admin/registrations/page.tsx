@@ -90,7 +90,7 @@ export default function RegistrationsPage() {
     if (error) {
       setMessage(`Could not load registrations: ${error.message}`);
     } else {
-      setRegistrations((data ?? []) as RegistrationDetail[]);
+      setRegistrations((data ?? []) as unknown as RegistrationDetail[]);
     }
 
     setLoading(false);
