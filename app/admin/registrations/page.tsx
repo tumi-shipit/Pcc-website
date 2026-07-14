@@ -40,7 +40,7 @@ type StatusTab =
   | "Awaiting Payment";
 
 function formatDate(date: string | null) {
-  if (!date) return "N/A";
+  if (!date) return "Not recorded";
 
   return new Date(date).toLocaleDateString("en-ZA", {
     day: "numeric",
@@ -523,7 +523,7 @@ export default function RegistrationsPage() {
 
   return (
     <AdminGuard>
-      <main className="min-h-screen bg-zinc-950 px-6 pb-16 pt-28 text-white">
+      <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
             PCC Admin
@@ -531,7 +531,9 @@ export default function RegistrationsPage() {
 
           <div className="mt-3 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <h1 className="text-4xl font-bold">Tournament Registrations</h1>
+              <h1 className="text-3xl font-bold md:text-4xl">
+                Tournament Registrations
+              </h1>
               <p className="mt-3 text-gray-400">
                 Review entries, approve players, verify payments and export lists.
               </p>
@@ -720,7 +722,106 @@ export default function RegistrationsPage() {
             <p className="mt-8 text-gray-400">Loading registrations...</p>
           ) : (
             <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_420px]">
-              <div className="overflow-hidden rounded-2xl border border-white/10">
+              <div className="space-y-3 lg:hidden">
+                {filteredRegistrations.map((item) => (
+                  <article
+                    key={item.registration_id}
+                    className={`rounded-2xl border border-white/10 bg-zinc-900 p-4 ${
+                      selectedRegistration?.registration_id === item.registration_id
+                        ? "border-red-500/60"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedRegistrationIds.includes(
+                          item.registration_id
+                        )}
+                        onChange={() =>
+                          toggleRegistrationSelection(item.registration_id)
+                        }
+                        className="mt-1 h-4 w-4 accent-red-600"
+                        aria-label={`Select ${item.full_name}`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-lg font-bold text-white">
+                          {item.full_name}
+                        </p>
+                        <p className="mt-1 text-sm text-gray-400">
+                          {item.tournament_name}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {item.section_name ?? "No section"} | Chess SA:{" "}
+                          {item.chess_sa_id ?? "Not recorded"} | Rating:{" "}
+                          {item.rating ?? "Not rated"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
+                      <span
+                        className={`rounded-full px-3 py-2 font-semibold ${statusClass(
+                          item.payment_status
+                        )}`}
+                      >
+                        Payment: {item.payment_status}
+                      </span>
+                      <span
+                        className={`rounded-full px-3 py-2 font-semibold ${statusClass(
+                          item.registration_status
+                        )}`}
+                      >
+                        Entry: {item.registration_status}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRegistration(item)}
+                        className="rounded-lg bg-white px-4 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
+                      >
+                        Review Entry
+                      </button>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <button
+                          type="button"
+                          disabled={updating}
+                          onClick={() =>
+                            updateRegistration(item.registration_id, {
+                              registration_status: "Approved",
+                            })
+                          }
+                          className="rounded-lg bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-60"
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          disabled={updating}
+                          onClick={() =>
+                            updateRegistration(item.registration_id, {
+                              payment_status: "Paid",
+                            })
+                          }
+                          className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+                        >
+                          Mark Paid
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+
+                {filteredRegistrations.length === 0 && (
+                  <p className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center text-sm text-gray-400">
+                    No registrations found.
+                  </p>
+                )}
+              </div>
+
+              <div className="hidden overflow-hidden rounded-2xl border border-white/10 lg:block">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-white/10">
                     <thead className="bg-zinc-900">
@@ -782,10 +883,10 @@ export default function RegistrationsPage() {
                           <td className="px-4 py-4 align-top">
                             <p className="font-semibold">{item.full_name}</p>
                             <p className="mt-1 text-sm text-gray-400">
-                              Chess SA: {item.chess_sa_id ?? "N/A"}
+                              Chess SA: {item.chess_sa_id ?? "Not recorded"}
                             </p>
                             <p className="text-sm text-gray-400">
-                              Rating: {item.rating ?? "N/A"}
+                              Rating: {item.rating ?? "Not rated"}
                             </p>
                           </td>
 
@@ -856,11 +957,11 @@ export default function RegistrationsPage() {
                         <span className="font-semibold text-white">
                           Chess SA ID:
                         </span>{" "}
-                        {selectedRegistration.chess_sa_id ?? "N/A"}
+                        {selectedRegistration.chess_sa_id ?? "Not recorded"}
                       </p>
                       <p>
                         <span className="font-semibold text-white">Rating:</span>{" "}
-                        {selectedRegistration.rating ?? "N/A"}
+                        {selectedRegistration.rating ?? "Not rated"}
                       </p>
                       <p>
                         <span className="font-semibold text-white">DOB:</span>{" "}
@@ -868,15 +969,15 @@ export default function RegistrationsPage() {
                       </p>
                       <p>
                         <span className="font-semibold text-white">Gender:</span>{" "}
-                        {selectedRegistration.gender ?? "N/A"}
+                        {selectedRegistration.gender ?? "Not recorded"}
                       </p>
                       <p>
                         <span className="font-semibold text-white">Club:</span>{" "}
-                        {selectedRegistration.club ?? "N/A"}
+                        {selectedRegistration.club ?? "Not recorded"}
                       </p>
                       <p>
                         <span className="font-semibold text-white">Province:</span>{" "}
-                        {selectedRegistration.province ?? "N/A"}
+                        {selectedRegistration.province ?? "Not recorded"}
                       </p>
                       <p>
                         <span className="font-semibold text-white">Email:</span>{" "}

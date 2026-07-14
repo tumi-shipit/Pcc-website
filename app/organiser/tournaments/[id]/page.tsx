@@ -556,7 +556,106 @@ function TournamentEntries({
           </div>
         </section>
 
-        <section className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
+        <section className="mt-8 space-y-3 lg:hidden">
+          {filteredRows.map((row) => (
+            <article
+              key={row.registration_id}
+              className="rounded-2xl border border-white/10 bg-zinc-900 p-4"
+            >
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedRegistrationIds.includes(row.registration_id)}
+                  onChange={() => toggleRegistrationSelection(row.registration_id)}
+                  className="mt-1 h-4 w-4 accent-red-600"
+                  aria-label={`Select ${row.full_name}`}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-lg font-black text-white">
+                    {row.full_name ?? "Unknown player"}
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    {row.section_name ?? "No section"} | Rating:{" "}
+                    {valueOrDash(row.rating)}
+                  </p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Chess SA: {valueOrDash(row.chess_sa_id)}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 text-xs sm:grid-cols-2">
+                <span
+                  className={`rounded-full px-3 py-2 font-bold ${statusClass(
+                    row.payment_status
+                  )}`}
+                >
+                  Payment: {row.payment_status ?? "Pending"}
+                </span>
+                <span
+                  className={`rounded-full px-3 py-2 font-bold ${statusClass(
+                    row.registration_status
+                  )}`}
+                >
+                  Entry: {row.registration_status ?? "Pending"}
+                </span>
+              </div>
+
+              <div className="mt-4 text-xs leading-5 text-zinc-400">
+                <p>{valueOrDash(row.email)}</p>
+                <p>{valueOrDash(row.phone)}</p>
+                <p>Proof: {row.proof_of_payment_url ? "Uploaded" : "None"}</p>
+              </div>
+
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() =>
+                    requestRegistrationChanges([row.registration_id], {
+                      registration_status: "Approved",
+                    })
+                  }
+                  className="rounded-lg bg-green-600 px-3 py-3 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
+                >
+                  Request Approval
+                </button>
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() =>
+                    requestRegistrationChanges([row.registration_id], {
+                      payment_status: "Paid",
+                    })
+                  }
+                  className="rounded-lg bg-blue-600 px-3 py-3 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                >
+                  Request Payment Confirmation
+                </button>
+                <button
+                  type="button"
+                  disabled={updating}
+                  onClick={() =>
+                    requestRegistrationChanges([row.registration_id], {
+                      registration_status: "Rejected",
+                    })
+                  }
+                  className="rounded-lg border border-red-500/40 px-3 py-3 text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-50"
+                >
+                  Request Rejection
+                </button>
+              </div>
+            </article>
+          ))}
+
+          {filteredRows.length === 0 && (
+            <p className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center text-sm text-zinc-400">
+              No entries match the current filters.
+            </p>
+          )}
+        </section>
+
+        <section className="mt-8 hidden overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 lg:block">
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1260px] text-left text-sm">
               <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
@@ -644,7 +743,7 @@ function TournamentEntries({
                   }
                           className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
                         >
-                  Ask approve
+                  Request Approval
                 </button>
                 <button
                   type="button"
@@ -656,7 +755,7 @@ function TournamentEntries({
                   }
                           className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
                         >
-                  Ask paid
+                  Request Payment Confirmation
                 </button>
                 <button
                   type="button"
@@ -668,7 +767,7 @@ function TournamentEntries({
                   }
                           className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-50"
                         >
-                  Ask reject
+                  Request Rejection
                 </button>
                       </div>
                     </td>

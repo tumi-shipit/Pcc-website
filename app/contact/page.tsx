@@ -65,8 +65,8 @@ export default function ContactPage() {
       `Reason: ${reason}`,
       `Name: ${name || ""}`,
       `Contact: ${contact || ""}`,
-      `Chess SA ID: ${chessSaId || "N/A"}`,
-      `Tournament: ${tournament || "N/A"}`,
+      `Chess SA ID: ${chessSaId || "Not provided"}`,
+      `Tournament: ${tournament || "Not provided"}`,
       "",
       `Message: ${message || ""}`,
     ].join("\n");
@@ -88,7 +88,7 @@ export default function ContactPage() {
           <div className="mt-3 grid gap-8 lg:grid-cols-[1fr_420px] lg:items-end">
             <div>
               <h1 className="max-w-4xl text-4xl font-black leading-tight md:text-6xl">
-                The right front desk for every chess question
+                Contact Polokwane Chess Club
               </h1>
               <p className="mt-5 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
                 Choose the route that matches what you need. For tournament
@@ -98,7 +98,7 @@ export default function ContactPage() {
             </div>
 
             <aside className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-              <p className="text-sm font-bold text-white">Fastest response</p>
+              <p className="text-sm font-bold text-white">Recommended Contact Method</p>
               <p className="mt-2 text-sm leading-6 text-zinc-400">
                 Urgent tournament matters should go through WhatsApp. Profile,
                 history and media corrections can be sent with the guided form.

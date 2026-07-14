@@ -43,11 +43,11 @@ export default function OrganiserLoginPage() {
             Organiser Portal
           </p>
           <h1 className="mt-3 text-4xl font-black leading-tight md:text-6xl">
-            Tournament entries without full admin access
+            Tournament Entry Portal
           </h1>
           <p className="mt-5 max-w-2xl text-sm leading-7 text-zinc-300 md:text-base">
-            Organisers sign in here to view entries only for tournaments they
-            have been assigned to. They cannot see the wider PCC admin system.
+            Organisers sign in here to view entries for assigned tournaments
+            and submit entry status requests for admin review.
           </p>
         </section>
 

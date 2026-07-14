@@ -60,8 +60,8 @@ const adminDirectory = [
   {
     group: "Daily control",
     links: [
-      { href: "/admin/home", label: "Command Centre", text: "Main admin homepage and dashboard." },
-      { href: "/admin/operations", label: "Operations Centre", text: "Payments, profile health, imports and live issues." },
+      { href: "/admin/home", label: "Command Overview", text: "Main administration dashboard." },
+      { href: "/admin/operations", label: "Operations Centre", text: "Payments, profile health, imports and operational issues." },
       { href: "/admin/search", label: "Admin Search", text: "Find players and tournaments quickly." },
       { href: "/admin/organiser-access", label: "Organiser Access", text: "Grant tournament-only entry access." },
       { href: "/admin/organiser-requests", label: "Organiser Requests", text: "Approve or reject organiser entry changes." },
@@ -282,13 +282,12 @@ export default function AdminDashboardPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
                   PCC Command Centre
                 </p>
-                <h1 className="mt-3 text-4xl font-black md:text-6xl">
-                  Today&apos;s work
+              <h1 className="mt-3 text-3xl font-black md:text-6xl">
+                  Command Overview
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
-                  Keep the club database clean, run tournaments, manage
-                  registrations and publish the public archive from one focused
-                  workspace.
+                  Manage club records, tournaments, registrations and publishing
+                  from one secure workspace.
                 </p>
               </div>
 
@@ -297,7 +296,7 @@ export default function AdminDashboardPage() {
                 <CommandStat label="Registrations" value={commandStats.totalRegistrations} />
                 <CommandStat label="Verified players" value={commandStats.verifiedPlayers} />
                 <CommandStat label="Organisers" value={commandStats.activeOrganiserAccess} />
-                <CommandStat label="Needs work" value={commandStats.incompletePlayers} tone="warn" />
+                <CommandStat label="Requires attention" value={commandStats.incompletePlayers} tone="warn" />
               </div>
             </div>
           </section>
@@ -362,8 +361,8 @@ export default function AdminDashboardPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
                   Admin Directory
                 </p>
-                <h2 className="mt-2 text-2xl font-black">
-                  Everything private starts here
+              <h2 className="mt-2 text-2xl font-black">
+                  Admin Directory
                 </h2>
               </div>
               <Link
@@ -387,13 +386,13 @@ export default function AdminDashboardPage() {
 
           <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
-              What to keep
+              Core Systems
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <KeepItem title="Player verification" text="This protects public profile quality." />
-              <KeepItem title="Chess SA sync" text="This saves hours of manual data repair." />
-              <KeepItem title="Tournament archive" text="This is the club memory bank." />
-              <KeepItem title="News publishing" text="This makes the site feel alive." />
+              <KeepItem title="Player verification" text="Protect public profile quality and identity accuracy." />
+              <KeepItem title="Chess SA sync" text="Keep ratings and player details aligned with official source data." />
+              <KeepItem title="Tournament archive" text="Preserve tournament results, reports and galleries." />
+              <KeepItem title="News publishing" text="Publish club updates, reports and player stories." />
             </div>
           </section>
 
@@ -475,7 +474,7 @@ export default function AdminDashboardPage() {
 
             <aside className="space-y-6">
               <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
-                <h2 className="text-xl font-black">Keep</h2>
+                <h2 className="text-xl font-black">Core Tools</h2>
                 <div className="mt-4 space-y-3">
                   <QuickLink href="/admin/organiser-access" label="Organiser access" />
                   <QuickLink href="/admin/players/sync" label="Chess SA sync" />

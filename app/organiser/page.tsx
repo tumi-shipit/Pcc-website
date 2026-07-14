@@ -123,8 +123,8 @@ function OrganiserDashboard({
               Your tournament entries
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300">
-              Signed in as {email}. This portal only shows tournaments assigned
-              to this organiser account.
+              Signed in as {email}. You can only access tournaments assigned to
+              this organiser account.
             </p>
             {!isAdmin && access.length > 0 && (
               <p className="mt-2 text-xs leading-6 text-zinc-500">
