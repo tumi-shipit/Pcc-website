@@ -17,7 +17,7 @@ export default function Navbar() {
     { href: "/organisers", label: "Organisers" },
     { href: "/hall-of-fame", label: "Hall of Fame" },
     { href: "/news", label: "News" },
-    { href: "/#contact", label: "Contact" },
+    { href: "/contact", label: "Contact" },
     { href: "/admin", label: "Admin" },
   ];
 
