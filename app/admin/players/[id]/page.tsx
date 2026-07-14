@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, use, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -112,6 +112,16 @@ function cleanFileName(name: string) {
   return name.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
 }
 
+function missingProfileFields(player: Player) {
+  return [
+    !player.chess_sa_id ? "Chess SA ID" : null,
+    !player.date_of_birth ? "Date of birth" : null,
+    !player.gender ? "Gender" : null,
+    !player.club ? "Club" : null,
+    !player.province ? "Province" : null,
+  ].filter((value): value is string => Boolean(value));
+}
+
 export default function AdminPlayerProfilePage({
   params,
 }: {
@@ -209,6 +219,13 @@ export default function AdminPlayerProfilePage({
       officialEvents: officialAssignments.length,
     };
   }, [results, registrations, officialAssignments]);
+
+  const missingFields = useMemo(
+    () => (player ? missingProfileFields(player) : []),
+    [player]
+  );
+  const profileReady =
+    player?.verification_status === "Verified" && missingFields.length === 0;
 
   function updateField(field: keyof Player, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -367,7 +384,7 @@ export default function AdminPlayerProfilePage({
             href="/admin/players"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Player Centre
+             Back to Player Centre
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -397,7 +414,7 @@ export default function AdminPlayerProfilePage({
                   </h1>
 
                   <p className="mt-3 text-gray-300">
-                    {valueOrDash(player.title)} • {valueOrDash(player.club)} •{" "}
+                    {valueOrDash(player.title)}  -  {valueOrDash(player.club)}  - {" "}
                     {valueOrDash(player.province)}
                   </p>
 
@@ -462,6 +479,51 @@ export default function AdminPlayerProfilePage({
               {message}
             </p>
           )}
+
+          <section className="mt-6 grid gap-4 lg:grid-cols-[1fr_360px]">
+            <div
+              className={`rounded-xl border p-5 ${
+                profileReady
+                  ? "border-green-500/30 bg-green-500/10"
+                  : "border-yellow-500/30 bg-yellow-500/10"
+              }`}
+            >
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-300">
+                Profile health
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                {profileReady ? "Ready for public use" : "Needs admin attention"}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-gray-300">
+                {profileReady
+                  ? "This player has a verified identity and the key Player Centre fields are complete."
+                  : missingFields.length > 0
+                  ? `Missing: ${missingFields.join(", ")}.`
+                  : "Identity fields are complete, but verification is still pending."}
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">
+                Next action
+              </p>
+              <div className="mt-4 grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-left text-sm font-bold text-white transition hover:border-red-500"
+                >
+                  Edit profile details
+                </button>
+                <Link
+                  href="/admin/players/sync"
+                  className="rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                >
+                  Run Chess SA sync
+                </Link>
+              </div>
+            </div>
+          </section>
 
           <section className="mt-8 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
             <StatCard label="Events" value={stats.tournamentsPlayed} />
@@ -675,13 +737,13 @@ export default function AdminPlayerProfilePage({
                               "Unknown tournament"}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
-                            {formatDate(result.tournaments?.start_date ?? null)} •{" "}
+                            {formatDate(result.tournaments?.start_date ?? null)}  - {" "}
                             {result.tournament_sections?.section_name ?? "Overall"}
                           </p>
                         </div>
 
                         <div className="text-sm text-gray-300">
-                          Pos {valueOrDash(result.final_position)} •{" "}
+                          Pos {valueOrDash(result.final_position)}  - {" "}
                           {valueOrDash(result.points)} pts
                         </div>
                       </div>
@@ -749,7 +811,7 @@ export default function AdminPlayerProfilePage({
                         <p className="mt-1 text-xs text-gray-500">
                           {registration.tournament_sections?.section_name ??
                             "Overall"}{" "}
-                          • {registration.registration_status}
+                           -  {registration.registration_status}
                         </p>
                       </Link>
                     ))
@@ -806,3 +868,4 @@ function StatCard({
     </div>
   );
 }
+

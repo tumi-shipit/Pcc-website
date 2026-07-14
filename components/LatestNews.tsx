@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -25,13 +25,13 @@ function formatDate(value: string | null) {
 }
 
 function getCategoryIcon(category: string | null) {
-  if (category === "Platform Update") return "💻";
-  if (category === "Tournament News") return "📢";
-  if (category === "Registration") return "📝";
-  if (category === "Live Update") return "🔴";
-  if (category === "Achievement") return "🏅";
-  if (category === "Player Spotlight") return "👤";
-  return "📰";
+  if (category === "Platform Update") return "Platform";
+  if (category === "Tournament News") return "Tournament";
+  if (category === "Registration") return "Registration";
+  if (category === "Live Update") return "Live";
+  if (category === "Achievement") return "Honours";
+  if (category === "Player Spotlight") return "Player";
+  return "News";
 }
 
 export default function LatestNews() {
@@ -98,16 +98,16 @@ export default function LatestNews() {
         <div className="mb-8 flex flex-col gap-3 md:mb-12 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-              Latest News
+              PCC Newsroom
             </p>
 
             <h2 className="text-3xl font-bold md:text-5xl">
-              Club & Tournament Updates
+              Reports, updates and player stories
             </h2>
 
             <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-              Current announcements, registration updates, live tournament
-              notices and important PCC platform updates.
+              Tournament reports, player spotlights, registration notices and
+              club announcements, curated for players, parents and supporters.
             </p>
           </div>
 
@@ -115,7 +115,7 @@ export default function LatestNews() {
             href="/news"
             className="inline-flex rounded-lg border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:border-red-500"
           >
-            View All News →
+            View All News 
           </Link>
         </div>
 
@@ -175,7 +175,7 @@ export default function LatestNews() {
                     href={`/news/${activePost.id}`}
                     className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
                   >
-                    Read Update →
+                    Read Update 
                   </Link>
 
                   {posts.length > 1 && (
@@ -186,7 +186,7 @@ export default function LatestNews() {
                         className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
                         aria-label="Previous news"
                       >
-                        ←
+                        Previous
                       </button>
 
                       <button
@@ -195,7 +195,7 @@ export default function LatestNews() {
                         className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
                         aria-label="Next news"
                       >
-                        →
+                        Next
                       </button>
                     </>
                   )}
@@ -226,3 +226,4 @@ export default function LatestNews() {
     </section>
   );
 }
+

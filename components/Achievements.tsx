@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 
 export default function Achievements() {
@@ -39,7 +39,7 @@ export default function Achievements() {
                 href="/news"
                 className="mt-8 inline-flex rounded-lg bg-red-600 px-6 py-3 font-semibold transition hover:bg-red-700"
               >
-                View Full Story →
+                View Full Story 
               </Link>
             </div>
 

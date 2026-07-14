@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import type { IdentityMatch, IdentityPlayer } from "@/lib/identityResolver";
@@ -59,7 +59,7 @@ export default function IdentityMatchCard({
               </div>
 
               <p className="mt-3 text-sm text-gray-400">
-                {match.reasons.join(" • ")}
+                {match.reasons.join("  -  ")}
               </p>
 
               <div className="mt-4 rounded-xl border border-white/10 bg-zinc-900 p-4">
@@ -135,3 +135,4 @@ export default function IdentityMatchCard({
     </div>
   );
 }
+

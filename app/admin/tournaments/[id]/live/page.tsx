@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { use, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -104,10 +104,10 @@ function valueOrDash(value: string | number | null | undefined) {
 }
 
 function medal(position: number | null) {
-  if (position === 1) return "🥇";
-  if (position === 2) return "🥈";
-  if (position === 3) return "🥉";
-  return "♟";
+  if (position === 1) return "1st";
+  if (position === 2) return "2nd";
+  if (position === 3) return "3rd";
+  return "";
 }
 
 export default function TournamentLiveControlPage({
@@ -303,7 +303,7 @@ Tournament ID: ${tournamentId}`;
             href={`/admin/tournaments/${tournamentId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Tournament Dashboard
+             Back to Tournament Dashboard
           </Link>
 
           <AdminTournamentTabs id={tournamentId} />
@@ -458,7 +458,7 @@ Tournament ID: ${tournamentId}`;
                 <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-950 p-5">
                   <p className="text-sm text-gray-400">Display summary</p>
                   <p className="mt-2 text-2xl font-black">
-                    Round {currentRound} • {clockMinutes}+{incrementSeconds}
+                    Round {currentRound}  -  {clockMinutes}+{incrementSeconds}
                   </p>
                   <p className="mt-1 text-sm text-gray-500">{roundStatus}</p>
                 </div>
@@ -640,7 +640,7 @@ Tournament ID: ${tournamentId}`;
                       >
                         <p className="font-bold text-white">{post.title}</p>
                         <p className="mt-1 text-xs text-gray-500">
-                          {post.category ?? "News"} •{" "}
+                          {post.category ?? "News"}  - {" "}
                           {formatDateTime(post.published_at)}
                         </p>
                       </Link>
@@ -681,3 +681,4 @@ function StatCard({
     </div>
   );
 }
+

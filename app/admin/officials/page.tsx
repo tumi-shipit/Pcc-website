@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -48,6 +48,42 @@ type NormalizedOfficialRow = Omit<
   tournaments: OfficialTournament | null;
 };
 
+type OrganiserAccessPlayer = {
+  id: string;
+  full_name: string;
+  chess_sa_id: string | null;
+  profile_photo_url: string | null;
+};
+
+type OrganiserAccessTournament = {
+  id: string;
+  tournament_name: string;
+  start_date: string;
+  venue: string | null;
+};
+
+type OrganiserAccessQueryRow = {
+  id: string;
+  tournament_id: string;
+  player_id: string | null;
+  chess_sa_id: string | null;
+  organiser_email: string;
+  organiser_name: string | null;
+  role: string | null;
+  access_status: string | null;
+  created_at: string | null;
+  tournaments: OrganiserAccessTournament | OrganiserAccessTournament[] | null;
+  players: OrganiserAccessPlayer | OrganiserAccessPlayer[] | null;
+};
+
+type NormalizedOrganiserAccessRow = Omit<
+  OrganiserAccessQueryRow,
+  "players" | "tournaments"
+> & {
+  players: OrganiserAccessPlayer | null;
+  tournaments: OrganiserAccessTournament | null;
+};
+
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
 
@@ -82,6 +118,9 @@ function roleTone(role: string) {
 
 export default function AdminOfficialsPage() {
   const [officials, setOfficials] = useState<NormalizedOfficialRow[]>([]);
+  const [organiserAccess, setOrganiserAccess] = useState<
+    NormalizedOrganiserAccessRow[]
+  >([]);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
   const [tournamentFilter, setTournamentFilter] = useState("All");
@@ -93,13 +132,23 @@ export default function AdminOfficialsPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase
+    const [{ data, error }, { data: accessData, error: accessError }] =
+      await Promise.all([
+        supabase
       .from("tournament_officials")
       .select(
         "id, tournament_id, player_id, role, notes, created_at, updated_at, players(id, full_name, chess_sa_id, fide_id, club, province, rating, verification_status, profile_photo_url, title), tournaments(id, tournament_name, start_date, venue, province, registration_status)"
       )
       .order("created_at", { ascending: false })
-      .limit(10000);
+          .limit(10000),
+        supabase
+          .from("tournament_organiser_access")
+          .select(
+            "id, tournament_id, player_id, chess_sa_id, organiser_email, organiser_name, role, access_status, created_at, tournaments(id, tournament_name, start_date, venue), players(id, full_name, chess_sa_id, profile_photo_url)"
+          )
+          .order("created_at", { ascending: false })
+          .limit(200),
+      ]);
 
     if (error) {
       setMessage(`Could not load officials: ${error.message}`);
@@ -108,6 +157,22 @@ export default function AdminOfficialsPage() {
 
       setOfficials(
         rows.map((row) => ({
+          ...row,
+          players: singleRelation(row.players),
+          tournaments: singleRelation(row.tournaments),
+        }))
+      );
+    }
+
+    if (accessError) {
+      setMessage((current) =>
+        current || "Could not load organiser portal access. Run the organiser access setup first."
+      );
+    } else {
+      const accessRows = (accessData ?? []) as OrganiserAccessQueryRow[];
+
+      setOrganiserAccess(
+        accessRows.map((row) => ({
           ...row,
           players: singleRelation(row.players),
           tournaments: singleRelation(row.tournaments),
@@ -184,6 +249,9 @@ export default function AdminOfficialsPage() {
     const uniquePeople = new Set(
       officials.map((official) => official.player_id).filter(Boolean)
     ).size;
+    const activePortalAccess = organiserAccess.filter(
+      (item) => item.access_status !== "Revoked"
+    );
 
     return {
       assignments: officials.length,
@@ -196,8 +264,26 @@ export default function AdminOfficialsPage() {
       support: officials.filter((item) => roleGroups.Support.includes(item.role))
         .length,
       missingProfiles: officials.filter((item) => !item.players).length,
+      portalAccess: activePortalAccess.length,
     };
-  }, [officials]);
+  }, [officials, organiserAccess]);
+
+  const activeOrganiserAccess = useMemo(
+    () => organiserAccess.filter((item) => item.access_status !== "Revoked"),
+    [organiserAccess]
+  );
+
+  const officialHasPortalAccess = (official: NormalizedOfficialRow) => {
+    const playerChessSaId = official.players?.chess_sa_id;
+
+    return activeOrganiserAccess.some((access) => {
+      if (access.tournament_id !== official.tournament_id) return false;
+      if (access.player_id && access.player_id === official.player_id) return true;
+      return Boolean(
+        access.chess_sa_id && playerChessSaId && access.chess_sa_id === playerChessSaId
+      );
+    });
+  };
 
   return (
     <AdminGuard>
@@ -207,7 +293,7 @@ export default function AdminOfficialsPage() {
             href="/admin/home"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Admin Home
+             Back to Admin Home
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -232,11 +318,12 @@ export default function AdminOfficialsPage() {
             </p>
           )}
 
-          <section className="mt-8 grid gap-4 md:grid-cols-3 lg:grid-cols-6">
+          <section className="mt-8 grid gap-4 md:grid-cols-3 lg:grid-cols-7">
             <StatCard label="Assignments" value={stats.assignments} />
             <StatCard label="People" value={stats.uniquePeople} tone="green" />
             <StatCard label="Arbiter Roles" value={stats.arbiters} tone="red" />
             <StatCard label="Organising" value={stats.organisers} tone="blue" />
+            <StatCard label="Portal Access" value={stats.portalAccess} tone="green" />
             <StatCard label="Support" value={stats.support} tone="yellow" />
             <StatCard label="Missing Profiles" value={stats.missingProfiles} tone="red" />
           </section>
@@ -304,6 +391,11 @@ export default function AdminOfficialsPage() {
               description="Open a tournament and assign arbiters or organisers."
             />
             <QuickAction
+              href="/admin/organiser-access"
+              title="Organiser Access"
+              description="Give organisers tournament-only access to entries."
+            />
+            <QuickAction
               href="/admin/players"
               title="Find Player Profile"
               description="Search the Player Centre before assigning officials."
@@ -318,6 +410,81 @@ export default function AdminOfficialsPage() {
               title="Duplicate Centre"
               description="Merge duplicate official or player profiles."
             />
+          </section>
+
+          <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                  Linked Access
+                </p>
+                <h2 className="mt-2 text-2xl font-black text-white">
+                  Organiser Portal Access
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
+                  Official assignments control event roles. Portal access controls
+                  which organiser can log in and view entries for one tournament.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/admin/organiser-access"
+                  className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+                >
+                  Manage Access
+                </Link>
+                <Link
+                  href="/organiser/login"
+                  className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                >
+                  Organiser Login
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-6 grid gap-3 lg:grid-cols-2">
+              {activeOrganiserAccess.slice(0, 8).map((access) => (
+                <div
+                  key={access.id}
+                  className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-black text-white">
+                        {access.players?.full_name ||
+                          access.organiser_name ||
+                          access.organiser_email}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        {access.organiser_email}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
+                      {access.access_status ?? "Active"}
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-2 text-sm text-gray-400 md:grid-cols-2">
+                    <p>
+                      Chess SA:{" "}
+                      {valueOrDash(access.chess_sa_id ?? access.players?.chess_sa_id)}
+                    </p>
+                    <p>Role: {valueOrDash(access.role ?? "Organiser")}</p>
+                    <p className="md:col-span-2">
+                      Tournament:{" "}
+                      {access.tournaments?.tournament_name ?? access.tournament_id}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {!loading && activeOrganiserAccess.length === 0 && (
+                <p className="rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400 lg:col-span-2">
+                  No active organiser portal access has been granted yet.
+                </p>
+              )}
+            </div>
           </section>
 
           {loading ? (
@@ -383,6 +550,12 @@ export default function AdminOfficialsPage() {
                                 Missing player profile
                               </span>
                             )}
+
+                            {officialHasPortalAccess(official) && (
+                              <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
+                                Portal access linked
+                              </span>
+                            )}
                           </div>
 
                           {player ? (
@@ -426,7 +599,7 @@ export default function AdminOfficialsPage() {
                             </Link>
 
                             <p className="mt-2 text-sm text-gray-400">
-                              {formatDate(tournament.start_date)} • {tournament.venue}
+                              {formatDate(tournament.start_date)}  -  {tournament.venue}
                             </p>
 
                             <p className="mt-1 text-xs text-gray-500">
@@ -446,6 +619,13 @@ export default function AdminOfficialsPage() {
                                 className="rounded-xl border border-white/10 px-3 py-2 text-center text-xs font-bold text-white transition hover:border-red-500"
                               >
                                 Organisers
+                              </Link>
+
+                              <Link
+                                href="/admin/organiser-access"
+                                className="rounded-xl border border-white/10 px-3 py-2 text-center text-xs font-bold text-white transition hover:border-red-500"
+                              >
+                                Portal access
                               </Link>
                             </div>
                           </>
@@ -514,3 +694,4 @@ function StatCard({
     </div>
   );
 }
+

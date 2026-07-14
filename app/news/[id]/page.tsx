@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -27,12 +27,12 @@ function formatDate(value: string | null) {
 }
 
 function getCategoryIcon(category: string | null) {
-  if (category === "Platform Update") return "💻";
-  if (category === "Tournament Report") return "🏆";
-  if (category === "Tournament News") return "📢";
-  if (category === "Achievement") return "🏅";
-  if (category === "Player Spotlight") return "👤";
-  return "📰";
+  if (category === "Platform Update") return "Platform";
+  if (category === "Tournament Report") return "Results";
+  if (category === "Tournament News") return "Tournament";
+  if (category === "Achievement") return "Honours";
+  if (category === "Player Spotlight") return "Player";
+  return "News";
 }
 
 function renderArticleContent(content: string | null) {
@@ -121,7 +121,7 @@ function renderArticleContent(content: string | null) {
         >
           {items.map((item) => (
             <li key={item} className="flex gap-3">
-              <span className="mt-1 text-red-400">●</span>
+              <span className="mt-1 text-red-400">-</span>
               <span>{item}</span>
             </li>
           ))}
@@ -221,7 +221,7 @@ export default function NewsArticlePage() {
             href="/news"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to News
+             Back to News
           </Link>
 
           <div className="mt-7">
@@ -271,3 +271,4 @@ export default function NewsArticlePage() {
     </main>
   );
 }
+

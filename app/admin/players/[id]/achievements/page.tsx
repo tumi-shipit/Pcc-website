@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { use, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -305,7 +305,7 @@ export default function AdminPlayerAchievementsPage({
             href={`/admin/players/${playerId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Player Profile
+             Back to Player Profile
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -397,7 +397,7 @@ export default function AdminPlayerAchievementsPage({
                     <option value="">No tournament linked</option>
                     {tournaments.map((tournament) => (
                       <option key={tournament.id} value={tournament.id}>
-                        {tournament.tournament_name} —{" "}
+                        {tournament.tournament_name}  - {" "}
                         {formatDate(tournament.start_date)}
                       </option>
                     ))}
@@ -578,3 +578,4 @@ function StatCard({
     </div>
   );
 }
+

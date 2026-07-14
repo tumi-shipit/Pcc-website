@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -126,7 +126,7 @@ export default function PlayerDuplicatesPage() {
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <Link href="/admin/players" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
-            ← Back to Player Centre
+             Back to Player Centre
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -175,7 +175,7 @@ export default function PlayerDuplicatesPage() {
                           <span className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(match.confidence)}`}>{match.confidence} confidence</span>
                           <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">{match.score}% match</span>
                         </div>
-                        <p className="mt-4 text-sm text-gray-400">{match.reasons.join(" • ")}</p>
+                        <p className="mt-4 text-sm text-gray-400">{match.reasons.join("  -  ")}</p>
                       </div>
                       <button type="button" onClick={() => ignorePair(match)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500">Ignore</button>
                     </div>
@@ -227,3 +227,4 @@ function StatCard({ label, value, tone = "default" }: { label: string; value: st
     </div>
   );
 }
+

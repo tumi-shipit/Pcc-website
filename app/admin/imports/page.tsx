@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -88,7 +88,7 @@ export default function AdminImportsHistoryPage() {
             href="/admin/home"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Admin Home
+             Back to Admin Home
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -248,3 +248,4 @@ function StatCard({
     </div>
   );
 }
+

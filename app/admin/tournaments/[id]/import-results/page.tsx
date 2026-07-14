@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, useMemo, useState } from "react";
 import Link from "next/link";
@@ -340,7 +340,7 @@ export default function ImportTournamentResultsPage() {
             href={`/admin/tournaments/${tournamentId}/results`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Results Centre
+             Back to Results Centre
           </Link>
 
           <AdminTournamentTabs id={tournamentId} />
@@ -498,3 +498,4 @@ function MiniStat({
     </div>
   );
 }
+

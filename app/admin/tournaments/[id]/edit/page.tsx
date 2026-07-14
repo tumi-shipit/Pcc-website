@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -396,7 +396,7 @@ export default function EditTournamentPage() {
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-4xl">
           <Link href="/admin/tournaments" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
-            ← Back to Tournament Management
+             Back to Tournament Management
           </Link>
 
           <p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -642,7 +642,7 @@ export default function EditTournamentPage() {
                     <div className="flex items-center justify-between gap-3">
                       <h3 className="font-bold">
                         Section {index + 1}
-                        {section.section_name ? ` — ${section.section_name}` : ""}
+                        {section.section_name ? `  -  ${section.section_name}` : ""}
                       </h3>
 
                       <button
@@ -800,3 +800,4 @@ export default function EditTournamentPage() {
     </AdminGuard>
   );
 }
+

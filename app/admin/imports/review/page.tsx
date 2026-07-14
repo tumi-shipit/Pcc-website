@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -284,7 +284,7 @@ export default function ImportReviewPage() {
             href="/admin/imports"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Import Centre
+             Back to Import Centre
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -325,7 +325,7 @@ export default function ImportReviewPage() {
                 {payload?.file_name ?? "Import review"}
               </p>
               <p className="mt-1 text-sm text-gray-400">
-                {payload?.import_type ?? "Import"} • {rows.length} rows
+                {payload?.import_type ?? "Import"}  -  {rows.length} rows
               </p>
             </div>
 
@@ -375,3 +375,4 @@ function StatCard({
     </div>
   );
 }
+

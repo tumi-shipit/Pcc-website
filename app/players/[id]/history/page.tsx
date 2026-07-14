@@ -1,4 +1,4 @@
-// Path: app/players/[id]/history/page.tsx
+﻿// Path: app/players/[id]/history/page.tsx
 
 "use client";
 
@@ -107,7 +107,7 @@ export default function PlayerHistoryPage({
         href={`/players/${playerId}`}
         className="text-red-300 font-semibold"
       >
-        ← Back to Player Profile
+         Back to Player Profile
       </Link>
 
       <div className="mt-8">
@@ -213,9 +213,9 @@ export default function PlayerHistoryPage({
               <div className="text-right">
 
                 <p className="text-3xl">
-                  {result.final_position===1?"🥇":
-                   result.final_position===2?"🥈":
-                   result.final_position===3?"🥉":"♟"}
+                  {result.final_position===1?"1st":
+                   result.final_position===2?"2nd":
+                   result.final_position===3?"3rd":""}
                 </p>
 
                 <p className="font-black">
@@ -238,3 +238,6 @@ export default function PlayerHistoryPage({
     </main>
   );
 }
+
+
+

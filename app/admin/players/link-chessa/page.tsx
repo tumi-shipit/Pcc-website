@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
@@ -203,11 +203,11 @@ export default function LinkExistingChessSaPage() {
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <Link href="/admin/players" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
-            ← Back to Player Centre
+             Back to Player Centre
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">PCC v2 — Safe Linking</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">PCC v2  -  Safe Linking</p>
             <h1 className="mt-3 text-4xl font-black md:text-6xl">Link Existing Players to Chess SA</h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
               Use this for imported tournament players who already exist in PCC but do not have Chess SA IDs. This tool updates existing players only and does not create new profiles.
@@ -277,3 +277,4 @@ function StatCard({
     </div>
   );
 }
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
@@ -25,12 +25,12 @@ function formatDate(value: string | null) {
 }
 
 function getCategoryIcon(category: string | null) {
-  if (category === "Platform Update") return "💻";
-  if (category === "Tournament Report") return "🏆";
-  if (category === "Tournament News") return "📢";
-  if (category === "Achievement") return "🏅";
-  if (category === "Player Spotlight") return "👤";
-  return "📰";
+  if (category === "Platform Update") return "Platform";
+  if (category === "Tournament Report") return "Results";
+  if (category === "Tournament News") return "Tournament";
+  if (category === "Achievement") return "Honours";
+  if (category === "Player Spotlight") return "Player";
+  return "News";
 }
 
 export default function NewsPage() {
@@ -70,8 +70,19 @@ export default function NewsPage() {
           from the chess community.
         </p>
 
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <NewsLane title="Reports" text="Tournament results and event stories." />
+          <NewsLane title="Players" text="Spotlights, honours and profile features." />
+          <NewsLane title="Club" text="Notices, leadership updates and announcements." />
+          <NewsLane title="Live" text="Time-sensitive registration and event updates." />
+        </div>
+
         {loading ? (
           <p className="mt-8 text-gray-400">Loading news...</p>
+        ) : posts.length === 0 ? (
+          <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
+            No published news yet.
+          </p>
         ) : (
           <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {posts.map((post) => (
@@ -114,7 +125,7 @@ export default function NewsPage() {
                   </p>
 
                   <p className="mt-4 text-sm font-semibold text-red-300">
-                    Read article →
+                    Read article 
                   </p>
                 </div>
               </Link>
@@ -125,3 +136,13 @@ export default function NewsPage() {
     </main>
   );
 }
+
+function NewsLane({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+      <p className="text-sm font-black text-white">{title}</p>
+      <p className="mt-2 text-xs leading-5 text-gray-400">{text}</p>
+    </div>
+  );
+}
+

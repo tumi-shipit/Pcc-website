@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
@@ -518,19 +518,19 @@ export default function RegisterPage() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-300">
-                ✓ Tournament Registration
+                Tournament Registration
               </span>
 
               <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300">
-                ✓ Chess SA Player Lookup
+                Chess SA Player Lookup
               </span>
 
               <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
-                ✓ New Player Registration
+                New Player Registration
               </span>
 
               <span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300">
-                ✓ Secure Online Entries
+                Secure Online Entries
               </span>
             </div>
           </div>
@@ -697,8 +697,8 @@ export default function RegisterPage() {
                     Chess SA ID: {match.chess_sa_id}
                   </p>
                   <p className="mt-1 text-sm text-gray-400">
-                    Standard: {match.standard_rating ?? "Not rated"} • Rapid:{" "}
-                    {match.rapid_rating ?? "Not rated"} • Blitz:{" "}
+                    Standard: {match.standard_rating ?? "Not rated"}  -  Rapid:{" "}
+                    {match.rapid_rating ?? "Not rated"}  -  Blitz:{" "}
                     {match.blitz_rating ?? "Not rated"}
                   </p>
                 </button>
@@ -975,10 +975,10 @@ export default function RegisterPage() {
                             </p>
 
                             <div className="mt-2 space-y-1 text-xs text-gray-400">
-                              <p>📅 {formatDate(tournament.start_date)}</p>
-                              <p>📍 {tournament.venue}</p>
+                              <p>Date: {formatDate(tournament.start_date)}</p>
+                              <p>Venue: {tournament.venue}</p>
                               <p className="font-semibold text-red-300">
-                                💰 {formatMoney(tournament.entry_fee)}
+                                Entry fee: {formatMoney(tournament.entry_fee)}
                               </p>
                             </div>
 
@@ -991,7 +991,7 @@ export default function RegisterPage() {
                                   : "bg-white text-black hover:bg-gray-200"
                               }`}
                             >
-                              {isSelected ? "✓ Selected" : "Select Tournament"}
+                              {isSelected ? "Selected" : "Select Tournament"}
                             </button>
                           </div>
                         </div>
@@ -1038,7 +1038,7 @@ export default function RegisterPage() {
                           disabled={Boolean(sectionError)}
                         >
                           {getSectionLabel(section)}
-                          {sectionError ? " — Not eligible" : ""}
+                          {sectionError ? "  -  Not eligible" : ""}
                         </option>
                       );
                     })}
@@ -1220,3 +1220,4 @@ export default function RegisterPage() {
     </main>
   );
 }
+

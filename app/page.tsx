@@ -5,6 +5,7 @@ import About from "../components/About";
 import Achievements from "../components/Achievements";
 import Tournaments from "../components/Tournaments";
 import Leadership from "../components/Leadership";
+import TrustDetails from "../components/TrustDetails";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
       <LatestNews />
 
       <About />
+      <TrustDetails />
       <Achievements />
       <Tournaments />
       <Leadership />

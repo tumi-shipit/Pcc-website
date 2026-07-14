@@ -70,9 +70,14 @@ export async function createImportSessionRows(
     row_data: row.row_data ?? {},
   }));
 
-  const { error } = await supabase.from("import_session_rows").insert(payload);
+  const batchSize = 500;
 
-  if (error) throw error;
+  for (let index = 0; index < payload.length; index += batchSize) {
+    const batch = payload.slice(index, index + batchSize);
+    const { error } = await supabase.from("import_session_rows").insert(batch);
+
+    if (error) throw error;
+  }
 }
 
 export function buildImportPercent(done: number, total: number) {

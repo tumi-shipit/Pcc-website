@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -421,7 +421,7 @@ export default function AdminNewsPage() {
             href="/admin/home"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Admin Dashboard
+             Back to Admin Dashboard
           </Link>
 
           <section className="mt-6 overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -716,7 +716,7 @@ export default function AdminNewsPage() {
                                 {tournament.tournament_name}
                               </p>
                               <p className="mt-1 text-xs text-gray-500">
-                                {formatDate(tournament.start_date)} •{" "}
+                                {formatDate(tournament.start_date)}  - {" "}
                                 {tournament.registration_status}
                               </p>
                             </button>
@@ -933,3 +933,4 @@ function StatCard({
     </div>
   );
 }
+

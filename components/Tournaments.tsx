@@ -19,9 +19,32 @@ type Tournament = {
   poster_image_url: string | null;
 };
 
+function parseCalendarDate(value: string) {
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (dateOnly) {
+    const [, year, month, day] = dateOnly;
+
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      12,
+      0,
+      0
+    );
+  }
+
+  return new Date(value);
+}
+
 function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-ZA", {
-    day: "numeric",
+  const parsedDate = parseCalendarDate(date);
+
+  if (Number.isNaN(parsedDate.getTime())) return "TBA";
+
+  return parsedDate.toLocaleDateString("en-ZA", {
+    day: "2-digit",
     month: "short",
     year: "numeric",
   });
@@ -108,11 +131,11 @@ function TournamentCard({
         )}
 
         <p className="mt-2 line-clamp-1 text-xs text-gray-400">
-          {tournament.venue}
+          Venue: {tournament.venue}
         </p>
 
         <p className="mt-1 text-xs font-semibold text-gray-300">
-          {archive ? "Results & gallery" : formatMoney(tournament.entry_fee)}
+          {archive ? "Results and gallery" : `Entry: ${formatMoney(tournament.entry_fee)}`}
         </p>
 
         <div className="mt-4 grid gap-2">
@@ -185,39 +208,30 @@ export default function Tournaments() {
   return (
     <section id="tournaments" className="bg-zinc-950 py-16 text-white md:py-24">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
-        <div className="mb-8 max-w-3xl md:mb-12">
+        <div className="mb-8 flex flex-col gap-4 md:mb-12 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
             Tournament Centre
           </p>
 
           <h2 className="text-3xl font-bold md:text-5xl">
-            Upcoming Tournaments
+            Play, follow and revisit PCC events
           </h2>
 
           <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-            View tournament details, posters and registration status. Entries
-            only open when organisers make registration available.
+            Find open registrations, live events and completed tournament
+            archives from one public hub. Each tournament page shows status,
+            dates, venue, sections, fees, results and archive material where
+            available.
           </p>
-
-          <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-5 text-sm leading-6 text-gray-400">
-            <p className="font-semibold text-white">
-              Why are different tournaments listed here?
-            </p>
-
-            <p className="mt-2">
-              The PCC Tournament Centre supports chess development by helping
-              clubs, schools and districts manage online registrations. Some
-              tournaments are organised directly by Polokwane Chess Club, while
-              others are hosted by partner clubs, schools or district chess
-              structures.
-            </p>
-
-            <p className="mt-2">
-              Each tournament remains under the authority of its official
-              organiser. PCC provides the registration platform, tournament page
-              and admin support where requested.
-            </p>
           </div>
+
+          <Link
+            href="/tournaments"
+            className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+          >
+            Open all tournaments
+          </Link>
         </div>
 
         {loading ? (

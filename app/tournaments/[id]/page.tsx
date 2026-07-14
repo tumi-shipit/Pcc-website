@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -111,10 +111,10 @@ function statusLabel(status: string) {
 }
 
 function medal(position: number | null) {
-  if (position === 1) return "🥇";
-  if (position === 2) return "🥈";
-  if (position === 3) return "🥉";
-  return "♟";
+  if (position === 1) return "1st";
+  if (position === 2) return "2nd";
+  if (position === 3) return "3rd";
+  return "";
 }
 
 function initials(name: string) {
@@ -305,7 +305,7 @@ export default function TournamentHubPage() {
               href="/#tournaments"
               className="text-sm font-semibold text-red-300 transition hover:text-red-200"
             >
-              ← Back to Tournament Centre
+               Back to Tournament Centre
             </Link>
 
             <p className="mt-6 text-xs font-semibold uppercase tracking-[0.3em] text-red-400">
@@ -382,6 +382,14 @@ export default function TournamentHubPage() {
                 </>
               )}
             </div>
+
+            {!isCompleted && (
+              <div className="mt-6 grid gap-3 sm:grid-cols-3">
+                <NextStep label="1. Check details" text="Confirm date, venue, section and fee." />
+                <NextStep label="2. Register" text="Use the tournament registration form when open." />
+                <NextStep label="3. Follow updates" text="Results and archive material appear here." />
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -507,7 +515,7 @@ export default function TournamentHubPage() {
                   Tournament Gallery
                 </p>
                 <h2 className="mt-2 text-2xl font-black md:text-4xl">
-                  📸 Photo Archive
+                  Photo Archive
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-gray-400">
                   Photos from prize-giving, action boards and tournament moments.
@@ -618,7 +626,7 @@ function ArbiterCard({ arbiter }: { arbiter: Player }) {
             </Link>
             <p className="mt-1 text-sm text-gray-400">
               {arbiter.club ?? "Chess official"}
-              {arbiter.province ? ` • ${arbiter.province}` : ""}
+              {arbiter.province ? `  -  ${arbiter.province}` : ""}
             </p>
           </div>
         </div>
@@ -627,10 +635,21 @@ function ArbiterCard({ arbiter }: { arbiter: Player }) {
           href={`/players/${arbiter.id}`}
           className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
         >
-          View Profile →
+          View Profile
         </Link>
       </div>
     </section>
+  );
+}
+
+function NextStep({ label, text }: { label: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/25 p-3">
+      <p className="text-xs font-black uppercase tracking-wide text-red-200">
+        {label}
+      </p>
+      <p className="mt-2 text-xs leading-5 text-gray-400">{text}</p>
+    </div>
   );
 }
 
@@ -698,13 +717,14 @@ function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
   const sectionEntries = Object.entries(groupedResults).map(
     ([sectionName, sectionResults]) => ({
       sectionName,
-      results: [...sectionResults].sort((a, b) => {
-        const aPosition = a.final_position ?? 999999;
-        const bPosition = b.final_position ?? 999999;
+      results: [...sectionResults]
+        .sort((a, b) => {
+          const aPosition = a.final_position ?? 999999;
+          const bPosition = b.final_position ?? 999999;
 
-        if (aPosition !== bPosition) return aPosition - bPosition;
-        return (b.points ?? 0) - (a.points ?? 0);
-      }),
+          if (aPosition !== bPosition) return aPosition - bPosition;
+          return (b.points ?? 0) - (a.points ?? 0);
+        })
     })
   );
 
@@ -739,156 +759,96 @@ function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
             Final Ranking
           </p>
           <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            🏆 Final Standings
+            Full standings by section
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Final rankings grouped by tournament section.
+            Every imported player is shown in section order for the public
+            tournament archive.
           </p>
         </div>
 
         <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
-          {results.length} player{results.length === 1 ? "" : "s"}
+          {sectionEntries.length} section
+          {sectionEntries.length === 1 ? "" : "s"}
         </span>
       </div>
 
-      <div className="mt-8 space-y-8">
-        {sectionEntries.map((section) => {
-          const topThree = section.results.filter((result) =>
-            [1, 2, 3].includes(result.final_position ?? 0)
-          );
-
-          return (
+      <div className="mt-8 overflow-x-auto pb-3">
+        <div
+          className="grid min-w-max gap-4"
+          style={{
+            gridTemplateColumns: `repeat(${Math.max(
+              sectionEntries.length,
+              1
+            )}, minmax(280px, 1fr))`,
+          }}
+        >
+          {sectionEntries.map((section) => (
             <div
               key={section.sectionName}
-              className="rounded-2xl border border-white/10 bg-zinc-950 p-5"
+              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
             >
-              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
-                    Section
-                  </p>
-                  <h3 className="mt-2 text-2xl font-black text-white">
-                    {section.sectionName}
-                  </h3>
-                </div>
-
-                <span className="rounded-full bg-zinc-900 px-4 py-2 text-sm text-gray-400">
-                  {section.results.length} player
-                  {section.results.length === 1 ? "" : "s"}
-                </span>
+              <div className="border-b border-white/10 bg-black/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                  Section
+                </p>
+                <h3 className="mt-2 text-xl font-black text-white">
+                  {section.sectionName}
+                </h3>
               </div>
 
-              {topThree.length > 0 && (
-                <div className="mt-6 grid gap-4 md:grid-cols-3">
-                  {topThree.map((result) => (
+              <div className="divide-y divide-white/10">
+                {Array.from({ length: 10 }, (_, index) => {
+                  const result = section.results[index];
+                  const position = result?.final_position ?? index + 1;
+
+                  return (
                     <div
-                      key={`top-${result.id}`}
-                      className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-5"
+                      key={`${section.sectionName}-${index}`}
+                      className="grid min-h-[78px] grid-cols-[38px_1fr_auto] items-center gap-3 px-4 py-3"
                     >
-                      <p className="text-3xl">
-                        {medal(result.final_position)}
-                      </p>
+                      <span className="text-center text-sm font-black text-red-300">
+                        {position}.
+                      </span>
 
-                      <p className="mt-3 text-sm font-semibold uppercase tracking-wide text-yellow-200">
-                        Position {result.final_position}
-                      </p>
-
-                      {result.player ? (
-                        <Link
-                          href={`/players/${result.player.id}`}
-                          className="mt-2 block text-lg font-black text-white transition hover:text-red-300"
-                        >
-                          {result.player.full_name}
-                        </Link>
-                      ) : (
-                        <p className="mt-2 text-lg font-black text-white">
-                          Player not linked
-                        </p>
-                      )}
-
-                      <p className="mt-2 text-sm text-yellow-50/80">
-                        {result.points ?? "-"} points
-                      </p>
-
-                      {result.award_title && (
-                        <span className="mt-3 inline-block rounded-full bg-yellow-500/20 px-3 py-1 text-xs font-bold text-yellow-100">
-                          {result.award_title}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
-                <table className="w-full min-w-[820px] text-left text-sm">
-                  <thead className="bg-zinc-900 text-xs uppercase tracking-wide text-gray-500">
-                    <tr>
-                      <th className="p-4">Rank</th>
-                      <th className="p-4">Player</th>
-                      <th className="p-4">Rating</th>
-                      <th className="p-4">Points</th>
-                      <th className="p-4">Tie-break</th>
-                      <th className="p-4">Award</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {section.results.map((result) => (
-                      <tr key={result.id} className="border-t border-white/10">
-                        <td className="p-4 font-black text-white">
-                          {medal(result.final_position)}{" "}
-                          {result.final_position ?? "-"}
-                        </td>
-
-                        <td className="p-4">
+                      {result ? (
+                        <div className="min-w-0">
                           {result.player ? (
                             <Link
                               href={`/players/${result.player.id}`}
-                              className="font-bold text-white transition hover:text-red-300"
+                              className="block truncate text-sm font-bold text-white transition hover:text-red-300"
                             >
                               {result.player.full_name}
                             </Link>
                           ) : (
-                            <span className="text-gray-400">Player not linked</span>
-                          )}
-
-                          {result.player?.club && (
-                            <p className="mt-1 text-xs text-gray-500">
-                              {result.player.club}
+                            <p className="truncate text-sm font-bold text-gray-400">
+                              Player not linked
                             </p>
                           )}
-                        </td>
 
-                        <td className="p-4 text-gray-300">
-                          {result.player?.rating ?? "-"}
-                        </td>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {result.points ?? "-"} pts
+                            {result.player?.rating
+                              ? `  -  ${result.player.rating}`
+                              : ""}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-700"> - </p>
+                      )}
 
-                        <td className="p-4 font-bold text-white">
-                          {result.points ?? "-"}
-                        </td>
-
-                        <td className="p-4 text-gray-300">
-                          {result.tie_break ?? "-"}
-                        </td>
-
-                        <td className="p-4">
-                          {result.award_title ? (
-                            <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-200">
-                              {result.award_title}
-                            </span>
-                          ) : (
-                            <span className="text-gray-600">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                      {result && [1, 2, 3].includes(result.final_position ?? 0) && (
+                        <span className="text-lg">
+                          {medal(result.final_position)}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
-          );
-        })}
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -928,22 +888,22 @@ function ShereArchive() {
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
-          <h2 className="text-2xl font-black">🏅 Tournament Honours</h2>
+          <h2 className="text-2xl font-black">Tournament Honours</h2>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2">
             <div className="rounded-xl border border-white/10 bg-zinc-950 p-5">
               <h3 className="font-bold text-red-300">Open Section</h3>
               <div className="mt-4 space-y-3 text-sm text-gray-300">
                 <p>
-                  🥇 <strong className="text-white">Champion:</strong> Mphahlele
+                  1st <strong className="text-white">Champion:</strong> Mphahlele
                   Phetolo
                 </p>
                 <p>
-                  🥈 <strong className="text-white">Runner-up:</strong> Leshaba
+                  2nd <strong className="text-white">Runner-up:</strong> Leshaba
                   Surprise
                 </p>
                 <p>
-                  🥉 <strong className="text-white">Third Place:</strong> Daniel
+                  3rd <strong className="text-white">Third Place:</strong> Daniel
                   Tshehla
                 </p>
               </div>
@@ -953,15 +913,15 @@ function ShereArchive() {
               <h3 className="font-bold text-red-300">Junior Section</h3>
               <div className="mt-4 space-y-3 text-sm text-gray-300">
                 <p>
-                  🥇 <strong className="text-white">Champion:</strong> Lesedi
+                  1st <strong className="text-white">Champion:</strong> Lesedi
                   Motsifane
                 </p>
                 <p>
-                  🥈 <strong className="text-white">Runner-up:</strong> Matabane
+                  2nd <strong className="text-white">Runner-up:</strong> Matabane
                   Mahlogonolo
                 </p>
                 <p>
-                  🥉 <strong className="text-white">Third Place:</strong> Bapela
+                  3rd <strong className="text-white">Third Place:</strong> Bapela
                   Ofentse
                 </p>
               </div>
@@ -971,7 +931,7 @@ function ShereArchive() {
 
         <section className="rounded-2xl border border-yellow-500/30 bg-yellow-500/10 p-5 md:p-8">
           <h2 className="text-2xl font-black text-yellow-100">
-            ⭐ Player of the Tournament
+            Featured Player of the Tournament
           </h2>
           <h3 className="mt-4 text-xl font-bold text-white">Elias Mabotja</h3>
           <p className="mt-4 text-sm leading-7 text-yellow-50/90 md:text-base md:leading-8">
@@ -986,13 +946,17 @@ function ShereArchive() {
 
       <section className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 md:p-8">
         <h2 className="text-2xl font-black text-red-100">
-          🔥 Upset of the Tournament
+          Upset of the Tournament
         </h2>
         <p className="mt-4 text-sm leading-7 text-red-50/90 md:text-base md:leading-8">
-          Elias Mabotja defeated Daniel Tshehla — the only player to defeat
+          Elias Mabotja defeated Daniel Tshehla  -  the only player to defeat
           eventual champion Mphahlele Phetolo.
         </p>
       </section>
     </div>
   );
 }
+
+
+
+

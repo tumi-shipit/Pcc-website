@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
-import AdminModuleCard from "@/components/admin/AdminModuleCard";
 import AdminSearchBar from "@/components/admin/AdminSearchBar";
 import type { NewsPost, TournamentLite, TournamentStats } from "@/lib/pccTypes";
 import { formatDate } from "@/lib/supabaseHelpers";
@@ -19,9 +18,98 @@ type DashboardNewsPost = Pick<
   "id" | "title" | "category" | "published" | "created_at" | "published_at"
 >;
 
-function formatTimeAgo(value: string | null) {
-  if (!value) return "Not published";
+type PlayerHealthRow = {
+  id: string;
+  verification_status: string | null;
+  chess_sa_id: string | null;
+  date_of_birth: string | null;
+  gender: string | null;
+  club: string | null;
+  province: string | null;
+};
 
+type ImportRow = {
+  id: string;
+  import_type: string;
+  status: string;
+  total_rows: number;
+  updated_rows: number;
+  skipped_rows: number;
+  failed_rows: number;
+  created_at: string;
+};
+
+type OrganiserAccessRow = {
+  id: string;
+  tournament_id: string;
+  organiser_email: string;
+  organiser_name: string | null;
+  chess_sa_id: string | null;
+  access_status: string | null;
+  created_at: string | null;
+  tournaments: {
+    tournament_name: string;
+  } | null;
+  players: {
+    full_name: string;
+    chess_sa_id: string | null;
+  } | null;
+};
+
+const adminDirectory = [
+  {
+    group: "Daily control",
+    links: [
+      { href: "/admin/home", label: "Command Centre", text: "Main admin homepage and dashboard." },
+      { href: "/admin/operations", label: "Operations Centre", text: "Payments, profile health, imports and live issues." },
+      { href: "/admin/search", label: "Admin Search", text: "Find players and tournaments quickly." },
+      { href: "/admin/organiser-access", label: "Organiser Access", text: "Grant tournament-only entry access." },
+      { href: "/admin/organiser-requests", label: "Organiser Requests", text: "Approve or reject organiser entry changes." },
+    ],
+  },
+  {
+    group: "Players",
+    links: [
+      { href: "/admin/players", label: "Player Centre", text: "Search, filter and open player records." },
+      { href: "/admin/players/link-chessa", label: "Link Chess SA IDs", text: "Connect existing players to Chess SA IDs." },
+      { href: "/admin/players/sync", label: "Chess SA Sync", text: "Import ratings and complete missing details." },
+      { href: "/admin/players/verify", label: "Verification Queue", text: "Review and approve player records." },
+      { href: "/admin/players/verify/import", label: "Verification Import", text: "Bulk review imported player details." },
+      { href: "/admin/players/duplicates", label: "Duplicate Centre", text: "Find and repair duplicate profiles." },
+    ],
+  },
+  {
+    group: "Tournaments",
+    links: [
+      { href: "/admin/tournaments", label: "Tournament Centre", text: "Open and manage all tournaments." },
+      { href: "/admin/tournaments/new", label: "New Tournament", text: "Create a new tournament page." },
+      { href: "/admin/registrations", label: "Registrations", text: "Approve entries and confirm payments." },
+      { href: "/admin/officials", label: "Officials", text: "Assign arbiters, organisers and officials." },
+      { href: "/organiser", label: "Organiser Portal", text: "Preview the organiser-facing dashboard." },
+    ],
+  },
+  {
+    group: "Imports and media",
+    links: [
+      { href: "/admin/imports", label: "Import History", text: "Review every import session." },
+      { href: "/admin/imports/review", label: "Import Review", text: "Inspect imported rows that need attention." },
+      { href: "/admin/import-ratings", label: "Ratings Import", text: "Upload rating files." },
+      { href: "/admin/import-tournament", label: "Archive Import", text: "Create archive events from files." },
+      { href: "/admin/news", label: "Newsroom", text: "Publish news, reports and player stories." },
+    ],
+  },
+];
+
+function statusClass(status: string | null) {
+  if (status === "Open") return "bg-green-500/10 text-green-300";
+  if (status === "Completed") return "bg-blue-500/10 text-blue-300";
+  if (status === "Closed") return "bg-yellow-500/10 text-yellow-300";
+  if (status === "Live") return "bg-red-500/10 text-red-300";
+  return "bg-zinc-800 text-zinc-300";
+}
+
+function formatTimeAgo(value: string | null) {
+  if (!value) return "No date";
   const date = new Date(value);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -35,18 +123,13 @@ function formatTimeAgo(value: string | null) {
   return `${diffDays} day${diffDays === 1 ? "" : "s"} ago`;
 }
 
-function statusClass(status: string | null) {
-  if (status === "Open") return "bg-green-500/10 text-green-300";
-  if (status === "Completed") return "bg-blue-500/10 text-blue-300";
-  if (status === "Closed") return "bg-yellow-500/10 text-yellow-300";
-  if (status === "Live") return "bg-red-500/10 text-red-300";
-  return "bg-zinc-800 text-zinc-300";
-}
-
 export default function AdminDashboardPage() {
   const [tournaments, setTournaments] = useState<DashboardTournament[]>([]);
   const [stats, setStats] = useState<TournamentStats[]>([]);
   const [newsPosts, setNewsPosts] = useState<DashboardNewsPost[]>([]);
+  const [players, setPlayers] = useState<PlayerHealthRow[]>([]);
+  const [imports, setImports] = useState<ImportRow[]>([]);
+  const [organiserAccess, setOrganiserAccess] = useState<OrganiserAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -70,28 +153,61 @@ export default function AdminDashboardPage() {
       .from("news_posts")
       .select("id, title, category, published, created_at, published_at")
       .order("created_at", { ascending: false })
-      .limit(6);
+      .limit(5);
 
-    if (tournamentError) {
-      setMessage(`Could not load tournaments: ${tournamentError.message}`);
-    } else {
-      setTournaments((tournamentData ?? []) as unknown as DashboardTournament[]);
-    }
+    const { data: playerData, error: playerError } = await supabase
+      .from("players")
+      .select(
+        "id, verification_status, chess_sa_id, date_of_birth, gender, club, province"
+      )
+      .limit(20000);
+
+    const { data: importData, error: importError } = await supabase
+      .from("import_sessions")
+      .select(
+        "id, import_type, status, total_rows, updated_rows, skipped_rows, failed_rows, created_at"
+      )
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    const { data: organiserAccessData, error: organiserAccessError } =
+      await supabase
+        .from("tournament_organiser_access")
+        .select("id, tournament_id, organiser_email, organiser_name, chess_sa_id, access_status, created_at, tournaments(tournament_name), players(full_name, chess_sa_id)")
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+    if (tournamentError) setMessage(`Could not load tournaments: ${tournamentError.message}`);
+    else setTournaments((tournamentData ?? []) as unknown as DashboardTournament[]);
 
     if (statsError) {
-      setMessage((current) =>
-        current || `Could not load registration stats: ${statsError.message}`
-      );
+      setMessage((current) => current || `Could not load registration stats: ${statsError.message}`);
     } else {
       setStats((statsData ?? []) as unknown as TournamentStats[]);
     }
 
     if (newsError) {
-      setMessage((current) =>
-        current || `Could not load newsroom stats: ${newsError.message}`
-      );
+      setMessage((current) => current || `Could not load newsroom stats: ${newsError.message}`);
     } else {
       setNewsPosts((newsData ?? []) as unknown as DashboardNewsPost[]);
+    }
+
+    if (playerError) {
+      setMessage((current) => current || `Could not load player health: ${playerError.message}`);
+    } else {
+      setPlayers((playerData ?? []) as unknown as PlayerHealthRow[]);
+    }
+
+    if (importError) {
+      setMessage((current) => current || `Could not load imports: ${importError.message}`);
+    } else {
+      setImports((importData ?? []) as unknown as ImportRow[]);
+    }
+
+    if (organiserAccessError) {
+      setMessage((current) => current || "Could not load organiser access. Run the organiser access SQL setup.");
+    } else {
+      setOrganiserAccess((organiserAccessData ?? []) as unknown as OrganiserAccessRow[]);
     }
 
     setLoading(false);
@@ -109,72 +225,79 @@ export default function AdminDashboardPage() {
     const activeTournaments = tournaments.filter((item) =>
       ["Open", "Live", "Closed"].includes(item.registration_status ?? "")
     ).length;
-
-    const archivedTournaments = tournaments.filter(
-      (item) => item.registration_status === "Completed"
-    ).length;
-
     const totalRegistrations = stats.reduce(
       (sum, item) => sum + (item.total_registrations ?? 0),
       0
     );
-
-    const approvedRegistrations = stats.reduce(
-      (sum, item) => sum + (item.approved_registrations ?? 0),
-      0
-    );
-
     const paidRegistrations = stats.reduce(
       (sum, item) => sum + (item.paid_registrations ?? 0),
       0
     );
-
-    const publishedNews = newsPosts.filter((post) => post.published).length;
+    const verifiedPlayers = players.filter(
+      (player) => player.verification_status === "Verified"
+    ).length;
+    const incompletePlayers = players.filter(
+      (player) =>
+        player.verification_status !== "Verified" ||
+        !player.chess_sa_id ||
+        !player.date_of_birth ||
+        !player.gender ||
+        !player.club ||
+        !player.province
+    ).length;
     const draftNews = newsPosts.filter((post) => !post.published).length;
+    const failedImports = imports.filter((item) => item.failed_rows > 0).length;
+    const activeOrganiserAccess = organiserAccess.filter(
+      (item) => item.access_status === "Active"
+    ).length;
+    const unlinkedOrganiserAccess = organiserAccess.filter(
+      (item) => !item.chess_sa_id && !item.players?.chess_sa_id
+    ).length;
 
     return {
       activeTournaments,
-      archivedTournaments,
       totalRegistrations,
-      approvedRegistrations,
       paidRegistrations,
-      pendingRegistrations: Math.max(
-        totalRegistrations - approvedRegistrations,
-        0
-      ),
-      publishedNews,
+      verifiedPlayers,
+      incompletePlayers,
       draftNews,
+      failedImports,
+      activeOrganiserAccess,
+      unlinkedOrganiserAccess,
     };
-  }, [newsPosts, stats, tournaments]);
+  }, [imports, newsPosts, organiserAccess, players, stats, tournaments]);
+
+  const activeTournaments = tournaments.filter((item) =>
+    ["Open", "Live", "Closed"].includes(item.registration_status ?? "")
+  );
+  const nextTournaments = activeTournaments.length > 0 ? activeTournaments : tournaments.slice(0, 6);
 
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
-          <section className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.25),_transparent_35%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
-            <div className="absolute inset-0 opacity-[0.06] [background-image:linear-gradient(45deg,#fff_1px,transparent_1px),linear-gradient(-45deg,#fff_1px,transparent_1px)] [background-size:42px_42px]" />
-
-            <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <section className="border-b border-white/10 pb-6">
+            <div className="grid gap-6 lg:grid-cols-[1fr_520px] lg:items-end">
               <div>
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
                   PCC Command Centre
                 </p>
-
                 <h1 className="mt-3 text-4xl font-black md:text-6xl">
-                  Club Control Centre
+                  Today&apos;s work
                 </h1>
-
-                <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-                  Manage tournaments, registrations, payments, ratings, news,
-                  live updates and public website content from one place.
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
+                  Keep the club database clean, run tournaments, manage
+                  registrations and publish the public archive from one focused
+                  workspace.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <CommandStat label="Active Events" value={commandStats.activeTournaments} />
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                <CommandStat label="Active events" value={commandStats.activeTournaments} />
                 <CommandStat label="Registrations" value={commandStats.totalRegistrations} />
-                <CommandStat label="Paid" value={commandStats.paidRegistrations} />
-                <CommandStat label="Draft News" value={commandStats.draftNews} />
+                <CommandStat label="Verified players" value={commandStats.verifiedPlayers} />
+                <CommandStat label="Organisers" value={commandStats.activeOrganiserAccess} />
+                <CommandStat label="Needs work" value={commandStats.incompletePlayers} tone="warn" />
               </div>
             </div>
           </section>
@@ -184,196 +307,212 @@ export default function AdminDashboardPage() {
           </section>
 
           {message && (
-            <p className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+            <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
               {message}
             </p>
           )}
 
-          <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <AdminModuleCard
-              title="Tournament Centre"
-              description={`${commandStats.activeTournaments} active • ${commandStats.archivedTournaments} archived`}
-              href="/admin/tournaments"
-              color="red"
-            />
-
-            <AdminModuleCard
-              title="Player Centre"
-              description="Search players, ratings and tournament history."
+          <section className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <WorkflowLink
               href="/admin/players"
-              color="green"
+              title="Clean Player Centre"
+              metric={`${commandStats.incompletePlayers} need attention`}
+              description="Verify players, repair missing IDs and review Chess SA sync results."
+              primary
             />
-
-            <AdminModuleCard
-              title="Official Centre"
-              description="View arbiters, organisers and tournament officials."
-              href="/admin/officials"
-              color="blue"
+            <WorkflowLink
+              href="/admin/tournaments"
+              title="Run Tournaments"
+              metric={`${commandStats.activeTournaments} active`}
+              description="Open dashboards, registration lists, results and galleries."
             />
-
-            <AdminModuleCard
-              title="Media Centre"
-              description={`${commandStats.publishedNews} published • ${commandStats.draftNews} drafts`}
-              href="/admin/news"
-              color="blue"
-            />
-
-            <AdminModuleCard
-              title="Operations Centre"
-              description="Mission control for tournaments, payments and live activity."
-              href="/admin/operations"
-              color="yellow"
-            />
-
-            <AdminModuleCard
-              title="Registrations"
-              description={`${commandStats.totalRegistrations} total • ${commandStats.paidRegistrations} paid`}
+            <WorkflowLink
               href="/admin/registrations"
+              title="Registrations"
+              metric={`${commandStats.paidRegistrations} paid`}
+              description="Approve entries, confirm payments and export Swiss lists."
             />
-
-            <AdminModuleCard
-              title="Import Centre"
-              description="View import history and summaries."
+            <WorkflowLink
               href="/admin/imports"
+              title="Import History"
+              metric={`${commandStats.failedImports} with errors`}
+              description="Review Chess SA, archive and tournament import reports."
             />
-
-            <AdminModuleCard
-              title="Archive Wizard"
-              description="Import historical tournaments, players and results."
-              href="/admin/import-tournament"
+            <WorkflowLink
+              href="/admin/organiser-access"
+              title="Organiser Access"
+              metric={`${commandStats.activeOrganiserAccess} active`}
+              description={
+                commandStats.unlinkedOrganiserAccess > 0
+                  ? `${commandStats.unlinkedOrganiserAccess} need Chess SA link`
+                  : "Grant tournament-only access linked to Chess SA IDs."
+              }
             />
-
-            <AdminModuleCard
-              title="Public Website"
-              description="Open the public PCC website."
-              href="/"
+            <WorkflowLink
+              href="/admin/organiser-requests"
+              title="Organiser Requests"
+              metric="Admin approval"
+              description="Review organiser entry changes before they affect the tournament."
             />
           </section>
 
-          <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_360px]">
+          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
+                  Admin Directory
+                </p>
+                <h2 className="mt-2 text-2xl font-black">
+                  Everything private starts here
+                </h2>
+              </div>
+              <Link
+                href="/admin/login"
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
+              >
+                Login page
+              </Link>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-2">
+              {adminDirectory.map((section) => (
+                <AdminDirectoryGroup
+                  key={section.group}
+                  group={section.group}
+                  links={section.links}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
+              What to keep
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-4">
+              <KeepItem title="Player verification" text="This protects public profile quality." />
+              <KeepItem title="Chess SA sync" text="This saves hours of manual data repair." />
+              <KeepItem title="Tournament archive" text="This is the club memory bank." />
+              <KeepItem title="News publishing" text="This makes the site feel alive." />
+            </div>
+          </section>
+
+          <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_380px]">
             <div>
               <div className="flex items-end justify-between gap-4">
                 <div>
-                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                    Tournament Operations
+                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                    Event Operations
                   </p>
-                  <h2 className="mt-3 text-3xl font-black">Tournament Dashboards</h2>
+                  <h2 className="mt-2 text-3xl font-black">Active dashboards</h2>
                 </div>
-
                 <Link
                   href="/admin/tournaments/new"
-                  className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+                  className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
                 >
-                  + New
+                  New event
                 </Link>
               </div>
 
               {loading ? (
-                <p className="mt-8 text-gray-400">Loading admin dashboard...</p>
+                <p className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
+                  Loading command centre...
+                </p>
+              ) : nextTournaments.length === 0 ? (
+                <p className="mt-6 rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
+                  No tournaments found.
+                </p>
               ) : (
-                <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-                  {tournaments.map((tournament) => {
-                    const tournamentStats = getStats(tournament.id);
-
-                    return (
-                      <Link
-                        key={tournament.id}
-                        href={`/admin/tournaments/${tournament.id}`}
-                        className="group rounded-2xl border border-white/10 bg-zinc-900 p-5 transition hover:-translate-y-1 hover:border-red-500/60"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-red-400">
-                              {formatDate(tournament.start_date)}
-                            </p>
-
-                            <h3 className="mt-2 text-xl font-black leading-7 group-hover:text-red-300">
-                              {tournament.tournament_name}
-                            </h3>
-                          </div>
-
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(
-                              tournament.registration_status
-                            )}`}
-                          >
-                            {tournament.registration_status ?? "TBA"}
-                          </span>
-                        </div>
-
-                        <p className="mt-3 text-sm text-gray-400">
-                          {tournament.venue}
-                        </p>
-
-                        <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-                          <MiniStat
-                            label="Total"
-                            value={tournamentStats?.total_registrations ?? 0}
-                          />
-                          <MiniStat
-                            label="Approved"
-                            value={tournamentStats?.approved_registrations ?? 0}
-                            valueClass="text-green-300"
-                          />
-                          <MiniStat
-                            label="Paid"
-                            value={tournamentStats?.paid_registrations ?? 0}
-                            valueClass="text-blue-300"
-                          />
-                        </div>
-
-                        <p className="mt-5 text-sm font-semibold text-red-300">
-                          Open tournament dashboard →
-                        </p>
-                      </Link>
-                    );
-                  })}
-
-                  {tournaments.length === 0 && (
-                    <div className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-                      No tournaments found.
-                    </div>
-                  )}
+                <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-zinc-900">
+                  <table className="w-full min-w-[780px] text-left text-sm">
+                    <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
+                      <tr>
+                        <th className="p-4">Tournament</th>
+                        <th className="p-4">Date</th>
+                        <th className="p-4">Status</th>
+                        <th className="p-4">Entries</th>
+                        <th className="p-4">Paid</th>
+                        <th className="p-4">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {nextTournaments.map((tournament) => {
+                        const tournamentStats = getStats(tournament.id);
+                        return (
+                          <tr key={tournament.id} className="border-t border-white/10">
+                            <td className="p-4">
+                              <p className="font-black text-white">{tournament.tournament_name}</p>
+                              <p className="mt-1 text-xs text-zinc-500">{tournament.venue}</p>
+                            </td>
+                            <td className="p-4 text-zinc-300">{formatDate(tournament.start_date)}</td>
+                            <td className="p-4">
+                              <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass(tournament.registration_status)}`}>
+                                {tournament.registration_status ?? "TBA"}
+                              </span>
+                            </td>
+                            <td className="p-4 text-zinc-300">
+                              {tournamentStats?.total_registrations ?? 0}
+                            </td>
+                            <td className="p-4 text-zinc-300">
+                              {tournamentStats?.paid_registrations ?? 0}
+                            </td>
+                            <td className="p-4">
+                              <Link
+                                href={`/admin/tournaments/${tournament.id}`}
+                                className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500"
+                              >
+                                Open
+                              </Link>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
 
             <aside className="space-y-6">
-              <section className="rounded-3xl border border-white/10 bg-zinc-900 p-6">
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                  Recent Newsroom
-                </p>
-                <h2 className="mt-3 text-2xl font-black">Latest Activity</h2>
+              <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+                <h2 className="text-xl font-black">Keep</h2>
+                <div className="mt-4 space-y-3">
+                  <QuickLink href="/admin/organiser-access" label="Organiser access" />
+                  <QuickLink href="/admin/players/sync" label="Chess SA sync" />
+                  <QuickLink href="/admin/players/duplicates" label="Duplicate checks" />
+                  <QuickLink href="/admin/import-tournament" label="Archive import" />
+                  <QuickLink href="/admin/news" label="News publishing" />
+                </div>
+              </section>
 
-                <div className="mt-5 space-y-3">
-                  {newsPosts.length === 0 ? (
-                    <p className="text-sm text-gray-400">No newsroom posts yet.</p>
+              <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-xl font-black">Organiser access</h2>
+                  <Link
+                    href="/admin/organiser-access"
+                    className="text-sm font-semibold text-red-300 transition hover:text-red-200"
+                  >
+                    Manage
+                  </Link>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {organiserAccess.length === 0 ? (
+                    <p className="text-sm text-zinc-400">No organiser access recorded.</p>
                   ) : (
-                    newsPosts.map((post) => (
+                    organiserAccess.map((item) => (
                       <Link
-                        key={post.id}
-                        href="/admin/news"
-                        className="block rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500/60"
+                        key={item.id}
+                        href="/admin/organiser-access"
+                        className="block rounded-lg border border-white/10 bg-zinc-950 p-3 transition hover:border-red-500"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <p className="font-bold leading-6 text-white">
-                            {post.title}
-                          </p>
-
-                          <span
-                            className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${
-                              post.published
-                                ? "bg-green-500/10 text-green-300"
-                                : "bg-yellow-500/10 text-yellow-300"
-                            }`}
-                          >
-                            {post.published ? "Live" : "Draft"}
-                          </span>
-                        </div>
-
-                        <p className="mt-2 text-xs text-gray-500">
-                          {post.category ?? "News"} •{" "}
-                          {formatTimeAgo(post.published_at ?? post.created_at)}
+                        <p className="font-bold text-white">
+                          {item.players?.full_name || item.organiser_name || item.organiser_email}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Chess SA: {item.chess_sa_id ?? item.players?.chess_sa_id ?? "Not linked"}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {item.tournaments?.tournament_name ?? "Tournament"} - {item.access_status ?? "Active"}
                         </p>
                       </Link>
                     ))
@@ -381,17 +520,49 @@ export default function AdminDashboardPage() {
                 </div>
               </section>
 
-              <section className="rounded-3xl border border-white/10 bg-zinc-900 p-6">
-                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                  System
-                </p>
-                <h2 className="mt-3 text-2xl font-black">Status</h2>
+              <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+                <h2 className="text-xl font-black">Recent imports</h2>
+                <div className="mt-4 space-y-3">
+                  {imports.length === 0 ? (
+                    <p className="text-sm text-zinc-400">No imports recorded.</p>
+                  ) : (
+                    imports.map((item) => (
+                      <Link
+                        key={item.id}
+                        href="/admin/imports"
+                        className="block rounded-lg border border-white/10 bg-zinc-950 p-3 transition hover:border-red-500"
+                      >
+                        <p className="font-bold text-white">{item.import_type}</p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {item.updated_rows} updated, {item.skipped_rows} skipped - {formatTimeAgo(item.created_at)}
+                        </p>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              </section>
 
-                <div className="mt-5 space-y-3">
-                  <StatusRow label="Website" value="Online" />
-                  <StatusRow label="Database" value="Connected" />
-                  <StatusRow label="Newsroom" value="Ready" />
-                  <StatusRow label="Registrations" value="Active" />
+              <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+                <h2 className="text-xl font-black">Newsroom</h2>
+                <div className="mt-4 space-y-3">
+                  {newsPosts.length === 0 ? (
+                    <p className="text-sm text-zinc-400">No news posts yet.</p>
+                  ) : (
+                    newsPosts.map((post) => (
+                      <Link
+                        key={post.id}
+                        href="/admin/news"
+                        className="block rounded-lg border border-white/10 bg-zinc-950 p-3 transition hover:border-red-500"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-bold text-white">{post.title}</p>
+                          <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ${post.published ? "bg-green-500/10 text-green-300" : "bg-yellow-500/10 text-yellow-300"}`}>
+                            {post.published ? "Live" : "Draft"}
+                          </span>
+                        </div>
+                      </Link>
+                    ))
+                  )}
                 </div>
               </section>
             </aside>
@@ -402,37 +573,100 @@ export default function AdminDashboardPage() {
   );
 }
 
-function CommandStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-white/10 bg-black/35 p-4 text-center backdrop-blur-md">
-      <p className="text-2xl font-black text-white">{value}</p>
-      <p className="mt-1 text-xs text-gray-400">{label}</p>
-    </div>
-  );
-}
-
-function MiniStat({
+function CommandStat({
   label,
   value,
-  valueClass = "text-white",
+  tone = "default",
 }: {
   label: string;
   value: number;
-  valueClass?: string;
+  tone?: "default" | "warn";
 }) {
   return (
-    <div className="rounded-xl bg-zinc-950 p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={`mt-1 text-xl font-black ${valueClass}`}>{value}</p>
+    <div className="rounded-xl border border-white/10 bg-zinc-900 p-3 text-center">
+      <p className={`text-2xl font-black ${tone === "warn" ? "text-yellow-300" : "text-white"}`}>
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-zinc-500">{label}</p>
     </div>
   );
 }
 
-function StatusRow({ label, value }: { label: string; value: string }) {
+function WorkflowLink({
+  href,
+  title,
+  metric,
+  description,
+  primary = false,
+}: {
+  href: string;
+  title: string;
+  metric: string;
+  description: string;
+  primary?: boolean;
+}) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-white/10 bg-zinc-950 p-4">
-      <span className="text-sm text-gray-400">{label}</span>
-      <span className="text-sm font-bold text-green-300">● {value}</span>
+    <Link
+      href={href}
+      className={`rounded-xl border p-5 transition ${
+        primary
+          ? "border-red-500/50 bg-red-600 text-white hover:bg-red-700"
+          : "border-white/10 bg-zinc-900 text-white hover:border-red-500"
+      }`}
+    >
+      <p className="text-lg font-black">{title}</p>
+      <p className={`mt-2 text-sm font-bold ${primary ? "text-red-50" : "text-red-300"}`}>
+        {metric}
+      </p>
+      <p className={`mt-3 text-sm leading-6 ${primary ? "text-red-50/80" : "text-zinc-400"}`}>
+        {description}
+      </p>
+    </Link>
+  );
+}
+
+function QuickLink({ href, label }: { href: string; label: string }) {
+  return (
+    <Link
+      href={href}
+      className="block rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
+    >
+      {label}
+    </Link>
+  );
+}
+
+function KeepItem({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-zinc-950 p-4">
+      <p className="font-black text-white">{title}</p>
+      <p className="mt-2 text-xs leading-5 text-zinc-500">{text}</p>
+    </div>
+  );
+}
+
+function AdminDirectoryGroup({
+  group,
+  links,
+}: {
+  group: string;
+  links: { href: string; label: string; text: string }[];
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-950 p-4">
+      <p className="text-sm font-black text-white">{group}</p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        {links.map((link) => (
+          <Link
+            key={link.href}
+            href={link.href}
+            className="rounded-lg border border-white/10 bg-zinc-900 p-3 transition hover:border-red-500"
+          >
+            <p className="text-sm font-black text-white">{link.label}</p>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">{link.text}</p>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -9,6 +9,17 @@ const whatsappJoinLink =
 
 export default function Navbar() {
   const [open, setOpen] = useState(false);
+  const links = [
+    { href: "/", label: "Home" },
+    { href: "/#tournaments", label: "Tournaments" },
+    { href: "/players", label: "Players" },
+    { href: "/players/rankings", label: "LCA Rankings" },
+    { href: "/organisers", label: "Organisers" },
+    { href: "/hall-of-fame", label: "Hall of Fame" },
+    { href: "/news", label: "News" },
+    { href: "/#contact", label: "Contact" },
+    { href: "/admin", label: "Admin" },
+  ];
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/70 backdrop-blur-md">
@@ -23,83 +34,56 @@ export default function Navbar() {
           />
         </Link>
 
-        <nav className="hidden items-center gap-8 text-sm text-white md:flex">
-          <Link href="/" className="transition hover:text-red-500">
-            Home
-          </Link>
-
-          <Link href="/#about" className="transition hover:text-red-500">
-            About
-          </Link>
-
-          <Link href="/#tournaments" className="transition hover:text-red-500">
-            Tournaments
-          </Link>
-
-          <Link href="/register" className="transition hover:text-red-500">
-            Register
-          </Link>
-
-          <Link href="/#contact" className="transition hover:text-red-500">
-            Contact
-          </Link>
-
-          <Link href="/admin/login" className="transition hover:text-red-500">
-            Admin Login
-          </Link>
+        <nav className="hidden items-center gap-5 text-sm text-white lg:flex">
+          {links.map((link) => (
+            <Link key={link.href} href={link.href} className="transition hover:text-red-500">
+              {link.label}
+            </Link>
+          ))}
         </nav>
 
-        <a
-          href={whatsappJoinLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hidden rounded bg-green-600 px-4 py-2 text-white transition hover:bg-green-700 md:block"
-        >
-          Become a Member
-        </a>
+        <div className="hidden items-center gap-2 lg:flex">
+          <Link
+            href="/register"
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+          >
+            Register
+          </Link>
+          <a
+            href={whatsappJoinLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700"
+          >
+            Join
+          </a>
+        </div>
 
         <button
           type="button"
-          className="text-2xl text-white md:hidden"
+          className="rounded-lg border border-white/10 px-3 py-2 text-sm font-bold text-white lg:hidden"
           onClick={() => setOpen(!open)}
           aria-label="Toggle navigation menu"
         >
-          ☰
+          Menu
         </button>
       </div>
 
       {open && (
-        <div className="space-y-4 border-t border-white/10 bg-black px-6 py-4 text-white md:hidden">
-          <Link href="/" onClick={() => setOpen(false)} className="block">
-            Home
-          </Link>
-
-          <Link href="/#about" onClick={() => setOpen(false)} className="block">
-            About
-          </Link>
-
-          <Link
-            href="/#tournaments"
-            onClick={() => setOpen(false)}
-            className="block"
-          >
-            Tournaments
-          </Link>
+        <div className="space-y-4 border-t border-white/10 bg-black px-6 py-4 text-white lg:hidden">
+          {links.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setOpen(false)}
+              className="block"
+            >
+              {link.label}
+            </Link>
+          ))}
 
           <Link href="/register" onClick={() => setOpen(false)} className="block">
             Register
-          </Link>
-
-          <Link href="/#contact" onClick={() => setOpen(false)} className="block">
-            Contact
-          </Link>
-
-          <Link
-            href="/admin/login"
-            onClick={() => setOpen(false)}
-            className="block"
-          >
-            Admin Login
           </Link>
 
           <a
@@ -116,3 +100,4 @@ export default function Navbar() {
     </header>
   );
 }
+

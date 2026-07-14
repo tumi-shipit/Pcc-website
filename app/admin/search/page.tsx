@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -134,7 +134,7 @@ function AdminGlobalSearchContent() {
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <Link href="/admin/home" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
-            ← Back to Admin Home
+             Back to Admin Home
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -182,10 +182,10 @@ function AdminGlobalSearchContent() {
                 <Link key={player.id} href={`/admin/players/${player.id}`} className="block rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500">
                   <p className="font-black text-white">{player.full_name}</p>
                   <p className="mt-1 text-xs text-gray-500">
-                    Chess SA: {player.chess_sa_id ?? "-"} • FIDE: {player.fide_id ?? "-"}
+                    Chess SA: {player.chess_sa_id ?? "-"}  -  FIDE: {player.fide_id ?? "-"}
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
-                    {player.club ?? "-"} • {player.province ?? "-"}
+                    {player.club ?? "-"}  -  {player.province ?? "-"}
                   </p>
                 </Link>
               ))}
@@ -196,7 +196,7 @@ function AdminGlobalSearchContent() {
                 <Link key={tournament.id} href={`/admin/tournaments/${tournament.id}`} className="block rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500">
                   <p className="font-black text-white">{tournament.tournament_name}</p>
                   <p className="mt-1 text-xs text-gray-500">
-                    {tournament.start_date} • {tournament.venue ?? "-"}
+                    {tournament.start_date}  -  {tournament.venue ?? "-"}
                   </p>
                   <p className="mt-1 text-xs text-gray-500">
                     {tournament.registration_status ?? "Status TBA"}
@@ -211,7 +211,7 @@ function AdminGlobalSearchContent() {
                   <p className="font-black text-white">{post.title}</p>
                   <p className="mt-1 line-clamp-2 text-xs text-gray-500">{post.excerpt}</p>
                   <p className="mt-2 text-xs text-gray-500">
-                    {post.category ?? "News"} • {post.published ? "Published" : "Draft"}
+                    {post.category ?? "News"}  -  {post.published ? "Published" : "Draft"}
                   </p>
                 </Link>
               ))}
@@ -251,3 +251,4 @@ function ResultPanel({
     </section>
   );
 }
+

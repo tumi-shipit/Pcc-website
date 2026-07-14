@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -204,7 +204,7 @@ export default function AdminOperationsPage() {
             href="/admin/home"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Admin Home
+             Back to Admin Home
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -325,7 +325,7 @@ export default function AdminOperationsPage() {
                               {tournament.tournament_name}
                             </p>
                             <p className="mt-1 text-xs text-gray-500">
-                              {tournament.start_date} • {tournament.venue ?? "Venue TBA"}
+                              {tournament.start_date}  -  {tournament.venue ?? "Venue TBA"}
                             </p>
                           </div>
 
@@ -392,7 +392,7 @@ export default function AdminOperationsPage() {
                               {session.import_type}
                             </p>
                             <p className="mt-1 text-xs text-gray-500">
-                              {session.file_name ?? "No filename"} •{" "}
+                              {session.file_name ?? "No filename"}  - {" "}
                               {formatDateTime(session.created_at)}
                             </p>
                           </div>
@@ -413,6 +413,23 @@ export default function AdminOperationsPage() {
 
             <aside className="space-y-8">
               <OperationsQuickActions />
+
+              <Panel title="Daily Review">
+                <div className="space-y-3">
+                  <ReviewStep
+                    title="Payments"
+                    text="Clear uploaded proofs before approving tournament lists."
+                  />
+                  <ReviewStep
+                    title="Player records"
+                    text="Run Chess SA sync, then review unverified and duplicate players."
+                  />
+                  <ReviewStep
+                    title="Public pages"
+                    text="Before publishing, check registrations, tournament status and news visibility."
+                  />
+                </div>
+              </Panel>
 
               <Panel title="System Health">
                 <div className="space-y-3">
@@ -436,7 +453,7 @@ export default function AdminOperationsPage() {
                       >
                         <p className="font-bold text-white">{post.title}</p>
                         <p className="mt-1 text-xs text-gray-500">
-                          {post.category ?? "News"} • {formatDateTime(post.created_at)}
+                          {post.category ?? "News"}  -  {formatDateTime(post.created_at)}
                         </p>
                       </Link>
                     ))}
@@ -469,7 +486,7 @@ function Panel({
             href={href}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            View all →
+            View all 
           </Link>
         )}
       </div>
@@ -506,7 +523,17 @@ function HealthRow({
   return (
     <div className="flex items-center justify-between rounded-xl border border-white/10 bg-zinc-950 p-4">
       <span className="text-sm text-gray-400">{label}</span>
-      <span className={`text-sm font-bold ${dot}`}>● {value}</span>
+      <span className={`text-sm font-bold ${dot}`}>{value}</span>
     </div>
   );
 }
+
+function ReviewStep({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-950 p-4">
+      <p className="text-sm font-black text-white">{title}</p>
+      <p className="mt-2 text-xs leading-5 text-gray-500">{text}</p>
+    </div>
+  );
+}
+

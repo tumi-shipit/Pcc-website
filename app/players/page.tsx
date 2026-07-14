@@ -20,16 +20,22 @@ type Player = {
 };
 
 type ResultRow = {
+  tournament_id: string | null;
   player_id: string | null;
   final_position: number | null;
 };
 
 type OfficialRow = {
+  tournament_id: string | null;
   player_id: string | null;
 };
 
 const inputClass =
-  "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+  "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
+
+const partnerRankingsUrl =
+  process.env.NEXT_PUBLIC_PARTNER_RANKINGS_URL ||
+  "/players/rankings";
 
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
@@ -53,7 +59,7 @@ export default function PublicPlayersDirectoryPage() {
   const [provinceFilter, setProvinceFilter] = useState("All");
   const [clubFilter, setClubFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [sortBy, setSortBy] = useState("rating");
+  const [sortBy, setSortBy] = useState("name");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -72,13 +78,13 @@ export default function PublicPlayersDirectoryPage() {
 
       const { data: resultData } = await supabase
         .from("tournament_results")
-        .select("player_id, final_position")
+        .select("tournament_id, player_id, final_position")
         .not("player_id", "is", null)
         .limit(50000);
 
       const { data: officialData } = await supabase
         .from("tournament_officials")
-        .select("player_id")
+        .select("tournament_id, player_id")
         .not("player_id", "is", null)
         .limit(50000);
 
@@ -100,46 +106,51 @@ export default function PublicPlayersDirectoryPage() {
     const stats = new Map<
       string,
       {
-        events: number;
+        events: Set<string>;
         wins: number;
         podiums: number;
-        officialRoles: number;
+        officialRoles: Set<string>;
       }
     >();
 
+    const ensure = (playerId: string) => {
+      const current =
+        stats.get(playerId) ??
+        {
+          events: new Set<string>(),
+          wins: 0,
+          podiums: 0,
+          officialRoles: new Set<string>(),
+        };
+      stats.set(playerId, current);
+      return current;
+    };
+
     results.forEach((result) => {
       if (!result.player_id) return;
-
-      const current = stats.get(result.player_id) ?? {
-        events: 0,
-        wins: 0,
-        podiums: 0,
-        officialRoles: 0,
-      };
-
-      current.events += 1;
-
+      const current = ensure(result.player_id);
+      if (result.tournament_id) current.events.add(result.tournament_id);
       if (result.final_position === 1) current.wins += 1;
       if ([1, 2, 3].includes(result.final_position ?? 0)) current.podiums += 1;
-
-      stats.set(result.player_id, current);
     });
 
     officials.forEach((official) => {
       if (!official.player_id) return;
-
-      const current = stats.get(official.player_id) ?? {
-        events: 0,
-        wins: 0,
-        podiums: 0,
-        officialRoles: 0,
-      };
-
-      current.officialRoles += 1;
-      stats.set(official.player_id, current);
+      const current = ensure(official.player_id);
+      if (official.tournament_id) current.officialRoles.add(official.tournament_id);
     });
 
-    return stats;
+    return new Map(
+      [...stats.entries()].map(([playerId, value]) => [
+        playerId,
+        {
+          events: value.events.size,
+          wins: value.wins,
+          podiums: value.podiums,
+          officialRoles: value.officialRoles.size,
+        },
+      ])
+    );
   }, [results, officials]);
 
   const provinces = useMemo(() => {
@@ -165,6 +176,7 @@ export default function PublicPlayersDirectoryPage() {
 
     return players
       .filter((player) => {
+        const stats = playerStats.get(player.id);
         const matchesSearch =
           !text ||
           player.full_name.toLowerCase().includes(text) ||
@@ -176,17 +188,14 @@ export default function PublicPlayersDirectoryPage() {
 
         const matchesProvince =
           provinceFilter === "All" || player.province === provinceFilter;
-
         const matchesClub = clubFilter === "All" || player.club === clubFilter;
-
         const matchesStatus =
           statusFilter === "All" ||
           (statusFilter === "Verified" &&
             player.verification_status === "Verified") ||
-          (statusFilter === "Has Rating" && Boolean(player.rating)) ||
-          (statusFilter === "Has FIDE ID" && Boolean(player.fide_id)) ||
-          (statusFilter === "Officials" &&
-            (playerStats.get(player.id)?.officialRoles ?? 0) > 0);
+          (statusFilter === "Rated" && Boolean(player.rating)) ||
+          (statusFilter === "FIDE" && Boolean(player.fide_id)) ||
+          (statusFilter === "Officials" && (stats?.officialRoles ?? 0) > 0);
 
         return matchesSearch && matchesProvince && matchesClub && matchesStatus;
       })
@@ -210,82 +219,87 @@ export default function PublicPlayersDirectoryPage() {
       });
   }, [
     players,
+    playerStats,
     search,
     provinceFilter,
     clubFilter,
     statusFilter,
     sortBy,
-    playerStats,
   ]);
 
   const platformStats = useMemo(() => {
+    const active = players.filter(
+      (player) => (playerStats.get(player.id)?.events ?? 0) > 0
+    ).length;
+
     return {
       players: players.length,
-      verified: players.filter((player) => player.verification_status === "Verified")
-        .length,
+      active,
       rated: players.filter((player) => Boolean(player.rating)).length,
       fide: players.filter((player) => Boolean(player.fide_id)).length,
     };
-  }, [players]);
+  }, [players, playerStats]);
 
   return (
     <main className="min-h-screen bg-zinc-950 pt-24 text-white">
-      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%)]">
-        <div className="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-16">
+      <section className="border-b border-white/10 bg-zinc-950">
+        <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
           <Link
             href="/"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back Home
+            Back home
           </Link>
 
-          <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="mt-6 grid gap-8 lg:grid-cols-[1fr_420px] lg:items-end">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.3em] text-red-400">
+              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
                 Player Centre
               </p>
-
               <h1 className="mt-3 text-4xl font-black leading-tight md:text-6xl">
-                PCC Player Directory
+                Find PCC players fast
               </h1>
-
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-                Search player profiles, ratings, clubs, Chess SA IDs, FIDE IDs,
-                tournament history and official roles connected to the PCC
-                tournament archive.
+              <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
+                Search verified club profiles by name, club, Chess SA ID,
+                FIDE ID, province, tournament activity and official roles.
+                Rankings are handled by Limpopo Chess Academy.
+              </p>
+              <p className="mt-3 max-w-3xl text-xs leading-6 text-zinc-500">
+                Some profiles may still be awaiting photos, biographies or
+                source confirmation. PCC keeps improving these records as
+                tournament and Chess SA data is verified.
               </p>
             </div>
 
-            <Link
-              href="/players/rankings"
-              className="rounded-xl bg-red-600 px-6 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
-            >
-              View Rankings
-            </Link>
+            <div className="grid grid-cols-2 gap-3">
+              <StatCard label="Players" value={platformStats.players} />
+              <StatCard label="Active" value={platformStats.active} />
+              <StatCard label="Rated" value={platformStats.rated} />
+              <StatCard label="FIDE linked" value={platformStats.fide} />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
-        <div className="grid gap-4 md:grid-cols-4">
-          <StatCard label="Players" value={platformStats.players} />
-          <StatCard label="Verified" value={platformStats.verified} tone="green" />
-          <StatCard label="Rated" value={platformStats.rated} tone="yellow" />
-          <StatCard label="FIDE Linked" value={platformStats.fide} tone="red" />
-        </div>
+      <section className="mx-auto grid max-w-7xl gap-6 px-4 py-8 md:px-6 lg:grid-cols-[300px_1fr]">
+        <aside className="h-fit rounded-xl border border-white/10 bg-zinc-900 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-black">Search</h2>
+            <Link
+              href={partnerRankingsUrl}
+              target={partnerRankingsUrl.startsWith("http") ? "_blank" : undefined}
+              rel={partnerRankingsUrl.startsWith("http") ? "noopener noreferrer" : undefined}
+              className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700"
+            >
+              Partner rankings
+            </Link>
+          </div>
 
-        {message && (
-          <p className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
-            {message}
-          </p>
-        )}
-
-        <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
-          <div className="grid gap-4 lg:grid-cols-[1fr_220px_220px_220px_220px]">
+          <div className="mt-4 space-y-3">
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, Chess SA ID, FIDE ID, club..."
+              placeholder="Name, ID, club..."
               className={inputClass}
             />
 
@@ -319,9 +333,9 @@ export default function PublicPlayersDirectoryPage() {
               className={inputClass}
             >
               <option value="All">All players</option>
-              <option value="Verified">Verified</option>
-              <option value="Has Rating">Has rating</option>
-              <option value="Has FIDE ID">Has FIDE ID</option>
+              <option value="Verified">Verified only</option>
+              <option value="Rated">Rated only</option>
+              <option value="FIDE">FIDE linked</option>
               <option value="Officials">Officials</option>
             </select>
 
@@ -330,139 +344,199 @@ export default function PublicPlayersDirectoryPage() {
               onChange={(event) => setSortBy(event.target.value)}
               className={inputClass}
             >
-              <option value="rating">Sort by rating</option>
-              <option value="name">Sort by name</option>
-              <option value="wins">Sort by wins</option>
-              <option value="podiums">Sort by podiums</option>
-              <option value="events">Sort by events</option>
-              <option value="officials">Sort by official roles</option>
+              <option value="name">Name A-Z</option>
+              <option value="rating">Rating high-low</option>
+              <option value="wins">Most wins</option>
+              <option value="podiums">Most podiums</option>
+              <option value="events">Most events</option>
+              <option value="officials">Official roles</option>
             </select>
           </div>
-        </section>
 
-        {loading ? (
-          <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
-            Loading players...
-          </p>
-        ) : filteredPlayers.length === 0 ? (
-          <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
-            No players found.
-          </p>
-        ) : (
-          <section className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {filteredPlayers.map((player) => {
-              const stats = playerStats.get(player.id) ?? {
-                events: 0,
-                wins: 0,
-                podiums: 0,
-                officialRoles: 0,
-              };
+          <div className="mt-5 rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-zinc-400">
+            Showing{" "}
+            <span className="font-black text-white">{filteredPlayers.length}</span>{" "}
+            of <span className="font-black text-white">{players.length}</span>{" "}
+            players.
+          </div>
 
-              return (
-                <Link
-                  key={player.id}
-                  href={`/players/${player.id}`}
-                  className="group overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 p-5 transition hover:-translate-y-1 hover:border-red-500/60"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-xl font-black text-red-200">
-                      {player.profile_photo_url ? (
-                        <Image
-                          src={player.profile_photo_url}
-                          alt={player.full_name}
-                          fill
-                          sizes="80px"
-                          className="object-cover"
-                        />
-                      ) : (
-                        initials(player.full_name)
-                      )}
-                    </div>
+          <div className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm leading-6 text-red-50/80">
+            Official ranking information is provided by Limpopo Chess Academy.
+            PCC keeps the player profiles and tournament records here.
+          </div>
+        </aside>
 
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap gap-2">
-                        {player.verification_status === "Verified" && (
-                          <span className="rounded-full bg-green-500/10 px-2 py-1 text-[10px] font-bold text-green-300">
-                            Verified
-                          </span>
-                        )}
+        <div>
+          {message && (
+            <p className="mb-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+              {message}
+            </p>
+          )}
 
-                        {player.title && (
-                          <span className="rounded-full bg-red-500/10 px-2 py-1 text-[10px] font-bold text-red-200">
-                            {player.title}
-                          </span>
-                        )}
-                      </div>
+          {loading ? (
+            <p className="rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
+              Loading players...
+            </p>
+          ) : filteredPlayers.length === 0 ? (
+            <p className="rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
+              No players found.
+            </p>
+          ) : (
+            <>
+              <section className="hidden overflow-hidden rounded-xl border border-white/10 bg-zinc-900 lg:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
+                    <tr>
+                      <th className="p-4">Player</th>
+                      <th className="p-4">Rating</th>
+                      <th className="p-4">Club</th>
+                      <th className="p-4">Events</th>
+                      <th className="p-4">Record</th>
+                      <th className="p-4">IDs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPlayers.map((player) => {
+                      const stats = playerStats.get(player.id);
 
-                      <h2 className="mt-2 truncate text-xl font-black text-white transition group-hover:text-red-300">
-                        {player.full_name}
-                      </h2>
+                      return (
+                        <tr key={player.id} className="border-t border-white/10">
+                          <td className="p-4">
+                            <Link
+                              href={`/players/${player.id}`}
+                              className="flex items-center gap-3 font-bold text-white transition hover:text-red-300"
+                            >
+                              <PlayerAvatar player={player} size="sm" />
+                              <span>
+                                {player.full_name}
+                                <span className="mt-1 block text-xs font-normal text-zinc-500">
+                                  {player.title ? `${player.title} - ` : ""}
+                                  {player.verification_status ?? "Profile"}
+                                </span>
+                              </span>
+                            </Link>
+                          </td>
+                          <td className="p-4 font-black text-white">
+                            {valueOrDash(player.rating)}
+                          </td>
+                          <td className="p-4 text-zinc-300">
+                            {valueOrDash(player.club)}
+                            <span className="block text-xs text-zinc-500">
+                              {valueOrDash(player.province)}
+                            </span>
+                          </td>
+                          <td className="p-4 text-zinc-300">
+                            {stats?.events ?? 0}
+                          </td>
+                          <td className="p-4 text-zinc-300">
+                            {stats?.wins ?? 0} wins
+                            <span className="block text-xs text-zinc-500">
+                              {stats?.podiums ?? 0} podiums
+                            </span>
+                          </td>
+                          <td className="p-4 text-xs text-zinc-500">
+                            Chess SA: {valueOrDash(player.chess_sa_id)}
+                            <br />
+                            FIDE: {valueOrDash(player.fide_id)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </section>
 
-                      <p className="mt-1 truncate text-sm text-gray-400">
-                        {valueOrDash(player.club)} • {valueOrDash(player.province)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 grid grid-cols-3 gap-3">
-                    <MiniStat label="Rating" value={valueOrDash(player.rating)} />
-                    <MiniStat label="Wins" value={stats.wins} />
-                    <MiniStat label="Podiums" value={stats.podiums} />
-                  </div>
-
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-xs text-gray-500">
-                    <p>Chess SA: {valueOrDash(player.chess_sa_id)}</p>
-                    <p>FIDE: {valueOrDash(player.fide_id)}</p>
-                    <p>Events: {stats.events}</p>
-                    <p>Official roles: {stats.officialRoles}</p>
-                  </div>
-                </Link>
-              );
-            })}
-          </section>
-        )}
+              <section className="grid gap-4 lg:hidden">
+                {filteredPlayers.map((player) => (
+                  <PlayerMobileCard
+                    key={player.id}
+                    player={player}
+                    stats={playerStats.get(player.id)}
+                  />
+                ))}
+              </section>
+            </>
+          )}
+        </div>
       </section>
     </main>
   );
 }
 
-function StatCard({
-  label,
-  value,
-  tone = "default",
+function PlayerAvatar({
+  player,
+  size = "md",
 }: {
-  label: string;
-  value: string | number;
-  tone?: "default" | "green" | "yellow" | "red";
+  player: Player;
+  size?: "sm" | "md";
 }) {
-  const valueClass =
-    tone === "green"
-      ? "text-green-300"
-      : tone === "yellow"
-      ? "text-yellow-300"
-      : tone === "red"
-      ? "text-red-300"
-      : "text-white";
+  const className =
+    size === "sm"
+      ? "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-red-600/10 text-xs font-black text-red-200"
+      : "relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-red-600/10 text-base font-black text-red-200";
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
-      <p className="text-sm text-gray-400">{label}</p>
-      <p className={`mt-2 text-3xl font-black ${valueClass}`}>{value}</p>
+    <div className={className}>
+      {player.profile_photo_url ? (
+        <Image
+          src={player.profile_photo_url}
+          alt={player.full_name}
+          fill
+          sizes={size === "sm" ? "40px" : "56px"}
+          className="object-cover"
+        />
+      ) : (
+        initials(player.full_name)
+      )}
     </div>
   );
 }
 
-function MiniStat({
-  label,
-  value,
+function PlayerMobileCard({
+  player,
+  stats,
 }: {
-  label: string;
-  value: string | number;
+  player: Player;
+  stats?: { events: number; wins: number; podiums: number; officialRoles: number };
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-zinc-950 p-3">
-      <p className="text-[10px] uppercase tracking-wide text-gray-500">{label}</p>
-      <p className="mt-1 text-lg font-black text-white">{value}</p>
+    <Link
+      href={`/players/${player.id}`}
+      className="rounded-xl border border-white/10 bg-zinc-900 p-4 transition hover:border-red-500"
+    >
+      <div className="flex items-center gap-3">
+        <PlayerAvatar player={player} />
+        <div className="min-w-0">
+          <p className="truncate font-black text-white">{player.full_name}</p>
+          <p className="mt-1 truncate text-sm text-zinc-400">
+            {valueOrDash(player.club)} - {valueOrDash(player.province)}
+          </p>
+        </div>
+      </div>
+      <div className="mt-4 grid grid-cols-4 gap-2 text-center">
+        <MiniStat label="Rating" value={valueOrDash(player.rating)} />
+        <MiniStat label="Events" value={stats?.events ?? 0} />
+        <MiniStat label="Wins" value={stats?.wins ?? 0} />
+        <MiniStat label="Podiums" value={stats?.podiums ?? 0} />
+      </div>
+    </Link>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+      <p className="text-xs uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-2 text-2xl font-black text-white">{value}</p>
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-lg bg-zinc-950 px-2 py-2">
+      <p className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</p>
+      <p className="mt-1 text-sm font-black text-white">{value}</p>
     </div>
   );
 }

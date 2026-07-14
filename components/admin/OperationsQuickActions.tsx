@@ -1,35 +1,35 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 
 const actions = [
   {
     title: "New Tournament",
     href: "/admin/tournaments/new",
-    icon: "🏆",
+    label: "Event",
   },
   {
     title: "Review Payments",
     href: "/admin/registrations",
-    icon: "💳",
+    label: "Pay",
   },
   {
     title: "Verify Players",
     href: "/admin/players/verify",
-    icon: "✅",
+    label: "Verify",
   },
   {
     title: "Check Duplicates",
     href: "/admin/players/duplicates",
-    icon: "🔍",
+    label: "Match",
   },
   {
     title: "Import Centre",
     href: "/admin/imports",
-    icon: "📥",
+    label: "Import",
   },
   {
     title: "Media Centre",
     href: "/admin/news",
-    icon: "📰",
+    label: "News",
   },
 ];
 
@@ -49,7 +49,9 @@ export default function OperationsQuickActions() {
             href={action.href}
             className="rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:-translate-y-1 hover:border-red-500"
           >
-            <p className="text-2xl">{action.icon}</p>
+            <p className="text-xs font-black uppercase tracking-[0.18em] text-red-300">
+              {action.label}
+            </p>
             <p className="mt-2 text-sm font-black text-white">{action.title}</p>
           </Link>
         ))}
@@ -57,3 +59,4 @@ export default function OperationsQuickActions() {
     </section>
   );
 }
+

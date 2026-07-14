@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 
 type ServiceArea = {
@@ -168,7 +168,7 @@ export default function JoeMahomoleLegacyPage() {
               href="/hall-of-fame"
               className="text-sm font-semibold text-yellow-300 transition hover:text-yellow-200"
             >
-              ← Back to Hall of Fame
+               Back to Hall of Fame
             </Link>
 
             <p className="mt-8 text-xs font-black uppercase tracking-[0.35em] text-yellow-400">
@@ -180,14 +180,14 @@ export default function JoeMahomoleLegacyPage() {
             </h1>
 
             <p className="mt-5 max-w-4xl text-lg font-semibold leading-8 text-yellow-100 md:text-2xl md:leading-10">
-              Chess Administrator • FIDE Arbiter • Coach • Mentor • Development
+              Chess Administrator  -  FIDE Arbiter  -  Coach  -  Mentor  -  Development
               Leader
             </p>
 
             <p className="mt-6 max-w-4xl border-l-4 border-yellow-500 pl-5 text-base italic leading-8 text-gray-200 md:text-xl md:leading-10">
-              “For decades, Joe Mahomole has devoted his life to building chess
+              DoneFor decades, Joe Mahomole has devoted his life to building chess
               not for personal recognition, but to create opportunities for
-              future generations.”
+              future generations."
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -197,7 +197,7 @@ export default function JoeMahomoleLegacyPage() {
                 rel="noopener noreferrer"
                 className="rounded-xl bg-yellow-500 px-5 py-3 text-sm font-black text-black transition hover:bg-yellow-400"
               >
-                View FIDE Profile →
+                View FIDE Profile 
               </a>
 
               <a
@@ -206,7 +206,7 @@ export default function JoeMahomoleLegacyPage() {
                 rel="noopener noreferrer"
                 className="rounded-xl border border-yellow-500/30 px-5 py-3 text-sm font-black text-white transition hover:border-yellow-400 hover:bg-yellow-500/10"
               >
-                Chess SA History →
+                Chess SA History 
               </a>
             </div>
           </div>
@@ -333,7 +333,7 @@ export default function JoeMahomoleLegacyPage() {
                   key={pillar.title}
                   className="rounded-xl border border-white/10 bg-black p-4"
                 >
-                  <p className="font-bold text-white">♟ {pillar.title}</p>
+                  <p className="font-bold text-white"> {pillar.title}</p>
                   <p className="mt-2 text-sm leading-6 text-gray-400">
                     {pillar.description}
                   </p>
@@ -368,7 +368,7 @@ export default function JoeMahomoleLegacyPage() {
                 className="rounded-2xl border border-white/10 bg-black p-5 transition hover:-translate-y-1 hover:border-yellow-500/70"
               >
                 <p className="text-lg font-black text-white">
-                  ✓ {reference.title}
+                   {reference.title}
                 </p>
 
                 <p className="mt-2 text-sm leading-6 text-gray-400">
@@ -376,7 +376,7 @@ export default function JoeMahomoleLegacyPage() {
                 </p>
 
                 <p className="mt-4 text-sm font-bold text-yellow-300">
-                  Open source →
+                  Open source 
                 </p>
               </a>
             ))}
@@ -404,4 +404,7 @@ export default function JoeMahomoleLegacyPage() {
     </main>
   );
 }
+
+
+
 

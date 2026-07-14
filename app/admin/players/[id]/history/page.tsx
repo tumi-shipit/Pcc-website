@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -78,10 +78,10 @@ function valueOrDash(value: string | number | null | undefined) {
 }
 
 function medal(position: number | null) {
-  if (position === 1) return "🥇";
-  if (position === 2) return "🥈";
-  if (position === 3) return "🥉";
-  return "♟";
+  if (position === 1) return "1st";
+  if (position === 2) return "2nd";
+  if (position === 3) return "3rd";
+  return "";
 }
 
 export default function AdminPlayerHistoryPage({
@@ -243,7 +243,7 @@ export default function AdminPlayerHistoryPage({
             href={`/admin/players/${playerId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Player Profile
+             Back to Player Profile
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
@@ -419,7 +419,7 @@ export default function AdminPlayerHistoryPage({
                         "Unknown tournament"}
                     </p>
                     <p className="mt-1 text-sm text-gray-400">
-                      {formatDate(registration.tournaments?.start_date ?? null)} •{" "}
+                      {formatDate(registration.tournaments?.start_date ?? null)}  - {" "}
                       {registration.tournament_sections?.section_name ?? "Overall"}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -466,3 +466,4 @@ function StatCard({
     </div>
   );
 }
+

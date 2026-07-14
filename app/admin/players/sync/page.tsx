@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
@@ -49,11 +49,12 @@ export default function AdminPlayersSyncPage() {
     }
 
     setRows(parsed);
-    setMessage(`${parsed.length} Chess SA row(s) loaded. Click Analyse to preview matches.`);
+    setMessage(`${parsed.length} Chess SA row(s) loaded. Checking Player Centre matches...`);
+    await analyseParsedRows(parsed);
   }
 
-  async function analyseRows() {
-    if (rows.length === 0) {
+  async function analyseParsedRows(rowsToAnalyse: ChessSaSyncRow[]) {
+    if (rowsToAnalyse.length === 0) {
       setMessage("Upload a file first.");
       return;
     }
@@ -64,7 +65,7 @@ export default function AdminPlayersSyncPage() {
     const { data, error } = await supabase
       .from("players")
       .select(
-        "id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating"
+        "id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, gender"
       )
       .limit(20000);
 
@@ -75,11 +76,15 @@ export default function AdminPlayersSyncPage() {
     }
 
     const existingPlayers = (data ?? []) as IdentityPlayer[];
-    const analysed = analyseChessSaRows(rows, existingPlayers);
+    const analysed = analyseChessSaRows(rowsToAnalyse, existingPlayers);
 
     setDecisions(analysed);
-    setMessage("Analysis complete. Review the preview before starting sync.");
+    setMessage("Chess SA check complete. Verified matches are ready to apply; review rows are separated below.");
     setAnalysing(false);
+  }
+
+  async function analyseRows() {
+    await analyseParsedRows(rows);
   }
 
   const stats = useMemo(() => {
@@ -87,8 +92,8 @@ export default function AdminPlayersSyncPage() {
       total: rows.length,
       withChessSa: rows.filter((row) => row.chess_sa_id).length,
       updateExisting: decisions.filter((d) => d.action === "update_existing").length,
-      createNew: decisions.filter((d) => d.action === "create_new").length,
       review: decisions.filter((d) => d.action === "review").length,
+      skipped: decisions.filter((d) => d.action === "skip").length,
     };
   }, [rows, decisions]);
 
@@ -105,12 +110,16 @@ export default function AdminPlayersSyncPage() {
 
     let updatedRows = 0;
     let createdRows = 0;
-    let skippedRows = 0;
+    const ignoredRows = decisions.filter((decision) => decision.action === "skip").length;
+    let skippedRows = ignoredRows;
     let failedRows = 0;
 
     const historyRows: any[] = [];
+    const actionableDecisions = decisions.filter(
+      (decision) => decision.action !== "skip"
+    );
 
-    for (const decision of decisions) {
+    for (const decision of actionableDecisions) {
       try {
         const row = decision.row;
 
@@ -130,15 +139,17 @@ export default function AdminPlayersSyncPage() {
         }
 
         if (decision.action === "update_existing" && decision.matched_player_id) {
+          const current = decision.matched_player;
           const { error } = await supabase
             .from("players")
             .update({
-              chess_sa_id: row.chess_sa_id,
-              fide_id: row.fide_id,
-              club: row.club,
-              province: row.province,
-              rating: row.rating,
-              date_of_birth: row.date_of_birth,
+              chess_sa_id: row.chess_sa_id ?? current?.chess_sa_id ?? null,
+              fide_id: row.fide_id || current?.fide_id || null,
+              club: current?.club || row.club || null,
+              province: current?.province || row.province || null,
+              rating: row.rating ?? current?.rating ?? null,
+              date_of_birth: current?.date_of_birth || row.date_of_birth || null,
+              gender: current?.gender || row.gender || null,
               title: row.title,
               verification_status: "Verified",
               updated_at: new Date().toISOString(),
@@ -161,39 +172,6 @@ export default function AdminPlayersSyncPage() {
           });
 
           continue;
-        }
-
-        if (decision.action === "create_new") {
-          const { data, error } = await supabase
-            .from("players")
-            .insert({
-              full_name: row.full_name,
-              chess_sa_id: row.chess_sa_id,
-              fide_id: row.fide_id,
-              club: row.club,
-              province: row.province,
-              rating: row.rating,
-              date_of_birth: row.date_of_birth,
-              title: row.title,
-              verification_status: "Verified",
-            })
-            .select("id, full_name")
-            .single();
-
-          if (error || !data) throw error ?? new Error("Could not create player");
-
-          createdRows += 1;
-
-          historyRows.push({
-            row_number: row.row_number,
-            imported_name: row.full_name,
-            matched_player_id: data.id,
-            matched_player_name: data.full_name,
-            confidence_score: decision.confidence_score,
-            status: "Created",
-            message: "Created new verified player from Chess SA file.",
-            row_data: row.raw,
-          });
         }
       } catch (error: any) {
         failedRows += 1;
@@ -222,6 +200,9 @@ export default function AdminPlayersSyncPage() {
       summary: {
         version: "PCC v2.1",
         purpose: "Master Chess SA player database synchronization",
+        ignored_rows: ignoredRows,
+        applied_rows: actionableDecisions.length,
+        note: "Ignored rows were not written to import history because they are not in the Player Centre.",
       },
     });
 
@@ -248,12 +229,12 @@ export default function AdminPlayersSyncPage() {
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <Link href="/admin/players" className="text-sm font-semibold text-red-300 transition hover:text-red-200">
-            ← Back to Player Centre
+             Back to Player Centre
           </Link>
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-              PCC v2 — National Player Database
+              PCC v2  -  National Player Database
             </p>
 
             <h1 className="mt-3 text-4xl font-black md:text-6xl">
@@ -261,9 +242,9 @@ export default function AdminPlayersSyncPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-              Upload the latest Chess SA ratings file. PCC will match existing
-              players, update ratings and IDs, create missing profiles, verify
-              players and save a full import report.
+              Upload the latest Chess SA ratings file. PCC checks Chess SA IDs
+              against the Player Centre, fills missing profile details, verifies
+              safe matches and separates review rows.
             </p>
           </section>
 
@@ -276,9 +257,9 @@ export default function AdminPlayersSyncPage() {
           <section className="mt-8 grid gap-4 md:grid-cols-5">
             <StatCard label="Rows" value={stats.total} />
             <StatCard label="With Chess SA" value={stats.withChessSa} tone="green" />
-            <StatCard label="Update Existing" value={stats.updateExisting} tone="green" />
-            <StatCard label="Create New" value={stats.createNew} tone="blue" />
-            <StatCard label="Review" value={stats.review} tone="yellow" />
+            <StatCard label="Ready to Verify" value={stats.updateExisting} tone="green" />
+            <StatCard label="Needs Review" value={stats.review} tone="yellow" />
+            <StatCard label="Ignored" value={stats.skipped} />
           </section>
 
           <AdminImportSummaryPanel summary={summary} />
@@ -291,7 +272,7 @@ export default function AdminPlayersSyncPage() {
 
             <p className="mt-3 text-sm leading-6 text-gray-400">
               Recommended columns: full_name, chess_sa_id, fide_id, rating,
-              province, club, date_of_birth and title.
+              province, club, date_of_birth, gender and title.
             </p>
 
             <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_160px_160px]">
@@ -355,3 +336,4 @@ function StatCard({
     </div>
   );
 }
+

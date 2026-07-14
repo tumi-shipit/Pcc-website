@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -73,7 +73,7 @@ export default function AdminTournamentsPage() {
             href="/admin/home"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Admin Dashboard
+             Back to Admin Dashboard
           </Link>
 
           <div className="mt-6 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
@@ -161,7 +161,7 @@ export default function AdminTournamentsPage() {
                     href={`/tournaments/${tournament.id}`}
                     className="mt-3 block rounded-lg bg-zinc-950 px-4 py-3 text-center text-sm font-semibold text-gray-300 transition hover:text-white"
                   >
-                    View Public Page →
+                    View Public Page 
                   </Link>
                 </article>
               ))}
@@ -178,3 +178,4 @@ export default function AdminTournamentsPage() {
     </AdminGuard>
   );
 }
+

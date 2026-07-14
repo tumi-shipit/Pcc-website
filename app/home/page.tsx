@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import AdminGuard from "@/components/AdminGuard";
 import { useEffect, useState } from "react";
@@ -161,7 +161,7 @@ export default function AdminDashboardPage() {
                     </div>
 
                     <p className="mt-5 text-sm font-semibold text-red-300">
-                      Open tournament dashboard →
+                      Open tournament dashboard 
                     </p>
                   </div>
                 </Link>
@@ -179,3 +179,4 @@ export default function AdminDashboardPage() {
     </main>
   );
 }
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -30,6 +30,13 @@ type TournamentStats = {
 type SectionStat = {
   section_name: string;
   total: number;
+};
+
+type SectionArchiveStatus = {
+  id: string;
+  section_name: string;
+  player_count: number;
+  result_count: number;
 };
 
 type RegistrationSectionRow = {
@@ -101,6 +108,9 @@ export default function AdminTournamentDashboardPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [sectionStats, setSectionStats] = useState<SectionStat[]>([]);
+  const [sectionArchiveStatus, setSectionArchiveStatus] = useState<
+    SectionArchiveStatus[]
+  >([]);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [galleryCaption, setGalleryCaption] = useState("");
@@ -232,6 +242,69 @@ export default function AdminTournamentDashboardPage() {
         groups[section] = (groups[section] ?? 0) + 1;
         return groups;
       }, {});
+
+      const { data: archiveSectionsData, error: archiveSectionsError } =
+        await supabase
+          .from("tournament_sections")
+          .select("id, section_name")
+          .eq("tournament_id", tournamentId)
+          .order("section_name", { ascending: true });
+
+      const { data: archiveRegistrationsData, error: archiveRegistrationsError } =
+        await supabase
+          .from("registrations")
+          .select("section_id")
+          .eq("tournament_id", tournamentId)
+          .limit(10000);
+
+      const { data: archiveResultsData, error: archiveResultsError } =
+        await supabase
+          .from("tournament_results")
+          .select("section_id")
+          .eq("tournament_id", tournamentId)
+          .limit(10000);
+
+      if (
+        archiveSectionsError ||
+        archiveRegistrationsError ||
+        archiveResultsError
+      ) {
+        console.error(
+          archiveSectionsError ||
+            archiveRegistrationsError ||
+            archiveResultsError
+        );
+      }
+
+      const registrationCounts = (
+        (archiveRegistrationsData ?? []) as { section_id: string | null }[]
+      ).reduce<Record<string, number>>((counts, row) => {
+        if (!row.section_id) return counts;
+        counts[row.section_id] = (counts[row.section_id] ?? 0) + 1;
+        return counts;
+      }, {});
+
+      const resultCounts = (
+        (archiveResultsData ?? []) as { section_id: string | null }[]
+      ).reduce<Record<string, number>>((counts, row) => {
+        if (!row.section_id) return counts;
+        counts[row.section_id] = (counts[row.section_id] ?? 0) + 1;
+        return counts;
+      }, {});
+
+      setSectionArchiveStatus(
+        (
+          (archiveSectionsData ?? []) as {
+            id: string;
+            section_name: string;
+          }[]
+        ).map((section) => ({
+          id: section.id,
+          section_name: section.section_name,
+          player_count: registrationCounts[section.id] ?? 0,
+          result_count: resultCounts[section.id] ?? 0,
+        }))
+      );
 
       setTournament(tournamentData as Tournament);
       setStats((statsData ?? null) as TournamentStats | null);
@@ -418,7 +491,7 @@ export default function AdminTournamentDashboardPage() {
           href="/admin"
           className="text-sm font-semibold text-red-300 transition hover:text-red-200"
         >
-          ← Back to Admin Dashboard
+           Back to Admin Dashboard
         </Link>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
@@ -507,7 +580,14 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/results`}
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >
-                🏆 Results Centre
+                Results Results Centre
+              </Link>
+
+              <Link
+                href={`/admin/tournaments/${tournamentId}/archive`}
+                className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-center text-sm font-bold text-red-100 transition hover:bg-red-500/20"
+              >
+                Continue Archive Import
               </Link>
 
               <Link
@@ -612,26 +692,112 @@ export default function AdminTournamentDashboardPage() {
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
           <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
-            <h2 className="text-2xl font-bold">Section Breakdown</h2>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                  Archive Manager
+                </p>
+                <h2 className="mt-2 text-2xl font-bold">Section import progress</h2>
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  Each section keeps its own players and final rankings.
+                </p>
+              </div>
 
-            {sectionStats.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-400">
-                No registrations have been submitted yet.
+              <Link
+                href={`/admin/tournaments/${tournamentId}/archive`}
+                className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                Continue Archive Import
+              </Link>
+            </div>
+
+            {sectionArchiveStatus.length === 0 ? (
+              <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+                No tournament sections were found.
               </p>
             ) : (
-              <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3">
-                {sectionStats.map((section) => (
-                  <div
-                    key={section.section_name}
-                    className="rounded-xl border border-white/10 bg-zinc-950 p-4"
-                  >
-                    <p className="font-bold">{section.section_name}</p>
-                    <p className="mt-2 text-2xl font-bold text-red-300">
-                      {section.total}
-                    </p>
-                    <p className="text-xs text-gray-500">entries</p>
-                  </div>
-                ))}
+              <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {sectionArchiveStatus.map((section) => {
+                  const playersDone = section.player_count > 0;
+                  const resultsDone = section.result_count > 0;
+                  const complete = playersDone && resultsDone;
+
+                  return (
+                    <div
+                      key={section.id}
+                      className={`rounded-2xl border p-5 ${
+                        complete
+                          ? "border-green-500/30 bg-green-500/10"
+                          : playersDone
+                          ? "border-yellow-500/30 bg-yellow-500/10"
+                          : "border-white/10 bg-zinc-950"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <h3 className="text-lg font-black text-white">
+                            {section.section_name}
+                          </h3>
+                          <p className="mt-1 text-xs text-gray-400">
+                            {complete
+                              ? "Archive complete"
+                              : playersDone
+                              ? "Final ranking still required"
+                              : "Player import not started"}
+                          </p>
+                        </div>
+
+                        <span
+                          className={`rounded-full px-3 py-1 text-xs font-black ${
+                            complete
+                              ? "bg-green-500/20 text-green-200"
+                              : playersDone
+                              ? "bg-yellow-500/20 text-yellow-200"
+                              : "bg-zinc-800 text-gray-400"
+                          }`}
+                        >
+                          {complete
+                            ? "Complete"
+                            : playersDone
+                            ? "In progress"
+                            : "Not started"}
+                        </span>
+                      </div>
+
+                      <div className="mt-5 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl bg-black/30 p-3">
+                          <p className="text-xs text-gray-500">Players</p>
+                          <p className="mt-1 text-2xl font-black text-white">
+                            {section.player_count}
+                          </p>
+                        </div>
+
+                        <div className="rounded-xl bg-black/30 p-3">
+                          <p className="text-xs text-gray-500">Results</p>
+                          <p className="mt-1 text-2xl font-black text-white">
+                            {section.result_count}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 space-y-2 text-sm">
+                        <p className={playersDone ? "text-green-300" : "text-gray-500"}>
+                          {playersDone ? "Done: " : ""} Starting Rank players
+                        </p>
+                        <p className={resultsDone ? "text-green-300" : "text-gray-500"}>
+                          {resultsDone ? "Done: " : ""} Final ranking results
+                        </p>
+                      </div>
+
+                      <Link
+                        href={`/admin/tournaments/${tournamentId}/archive?section=${section.id}`}
+                        className="mt-5 block rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+                      >
+                        {complete ? "Review / Re-import" : playersDone ? "Import Results" : "Start Section"}
+                      </Link>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
@@ -644,23 +810,36 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/results`}
                 className="block rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm font-semibold text-red-100 transition hover:bg-red-500/20"
               >
-                🏆 Results Centre
+                Results Results Centre
               </Link>
 
-              {[
-                "Upload Pairings",
-                "Upload Standings",
-                "Post Tournament News",
-                "Close Registration",
-                "Set Tournament Live",
-              ].map((tool) => (
-                <div
-                  key={tool}
-                  className="rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-400"
-                >
-                  {tool} — coming soon
-                </div>
-              ))}
+              <Link
+                href={`/admin/tournaments/${tournamentId}/archive`}
+                className="block rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm font-semibold text-white transition hover:border-red-500"
+              >
+                Continue Archive Import
+              </Link>
+
+              <Link
+                href={`/admin/tournaments/${tournamentId}/edit`}
+                className="block rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm font-semibold text-white transition hover:border-red-500"
+              >
+                Edit Tournament Details
+              </Link>
+
+              <Link
+                href={`/tournaments/${tournamentId}`}
+                className="block rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm font-semibold text-white transition hover:border-red-500"
+              >
+                Open Public Archive
+              </Link>
+
+              <Link
+                href="/admin/imports"
+                className="block rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm font-semibold text-white transition hover:border-red-500"
+              >
+                View Import History
+              </Link>
             </div>
           </section>
         </div>

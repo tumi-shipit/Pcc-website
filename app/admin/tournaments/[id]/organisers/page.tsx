@@ -1,4 +1,4 @@
-// Path: app/admin/tournaments/[id]/organisers/page.tsx
+﻿// Path: app/admin/tournaments/[id]/organisers/page.tsx
 
 "use client";
 
@@ -7,20 +7,20 @@ Tournament Organisers Management
 
 Features
 --------
-✓ Assign Main Organiser
-✓ Assistant Organisers
-✓ Tournament Director
-✓ Media Officer
-✓ Volunteers
-✓ Search Player Centre
-✓ Link directly to Player Profile
-✓ Profile photos
-✓ Chess SA / FIDE IDs
-✓ Verification badges
-✓ Public organiser cards
-✓ Edit & Remove organisers
-✓ One-click "Set Main Organiser"
-✓ Uses:
+- Assign Main Organiser
+- Assistant Organisers
+- Tournament Director
+- Media Officer
+- Volunteers
+- Search Player Centre
+- Link directly to Player Profile
+- Profile photos
+- Chess SA / FIDE IDs
+- Verification badges
+- Public organiser cards
+- Edit & Remove organisers
+- One-click "Set Main Organiser"
+- Uses:
    tournaments.organiser_player_id
    tournament_officials
    players
@@ -101,7 +101,7 @@ export default function TournamentOrganisersPage() {
           href="../"
           className="text-red-300 font-semibold"
         >
-          ← Back to Tournament
+           Back to Tournament
         </Link>
 
         <AdminTournamentTabs id={tournamentId} />
@@ -157,7 +157,7 @@ export default function TournamentOrganisersPage() {
                     </p>
 
                     <p className="text-xs text-zinc-500">
-                      {player.club || "-"} • {player.province || "-"}
+                      {player.club || "-"}  -  {player.province || "-"}
                     </p>
                   </div>
 
@@ -227,3 +227,4 @@ export default function TournamentOrganisersPage() {
     </AdminGuard>
   );
 }
+

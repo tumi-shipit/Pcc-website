@@ -11,6 +11,7 @@ export type IdentityPlayer = {
   club?: string | null;
   province?: string | null;
   rating?: number | null;
+  gender?: string | null;
 };
 
 export type IdentityMatch = {

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -76,10 +76,10 @@ function formatDate(value: string | null) {
 }
 
 function getMedal(position: number | null) {
-  if (position === 1) return "🥇";
-  if (position === 2) return "🥈";
-  if (position === 3) return "🥉";
-  return "♟";
+  if (position === 1) return "1st";
+  if (position === 2) return "2nd";
+  if (position === 3) return "3rd";
+  return "";
 }
 
 export default function TournamentResultsPage() {
@@ -186,12 +186,29 @@ export default function TournamentResultsPage() {
     });
   }, [playerSearch, players]);
 
-  const filteredResults = useMemo(() => {
-    return results.filter((result) => {
-      if (sectionFilter === "All") return true;
-      return result.section_id === sectionFilter;
-    });
-  }, [results, sectionFilter]);
+  const topTenBySection = useMemo(() => {
+    const visibleSections =
+      sectionFilter === "All"
+        ? sections
+        : sections.filter((section) => section.id === sectionFilter);
+
+    return visibleSections.map((section) => ({
+      section,
+      rows: results
+        .filter((result) => result.section_id === section.id)
+        .sort((left, right) => {
+          const leftPosition = left.final_position ?? Number.MAX_SAFE_INTEGER;
+          const rightPosition = right.final_position ?? Number.MAX_SAFE_INTEGER;
+
+          if (leftPosition !== rightPosition) {
+            return leftPosition - rightPosition;
+          }
+
+          return (right.points ?? 0) - (left.points ?? 0);
+        })
+        .slice(0, 10),
+    }));
+  }, [results, sectionFilter, sections]);
 
   const stats = useMemo(() => {
     return {
@@ -330,7 +347,7 @@ export default function TournamentResultsPage() {
             href={`/admin/tournaments/${tournamentId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Tournament Dashboard
+             Back to Tournament Dashboard
           </Link>
 
           <AdminTournamentTabs id={tournamentId} />
@@ -354,7 +371,7 @@ export default function TournamentResultsPage() {
 
                 {tournament && (
                   <p className="mt-3 text-sm text-gray-500">
-                    {formatDate(tournament.start_date)} • {tournament.venue}
+                    {formatDate(tournament.start_date)}  -  {tournament.venue}
                   </p>
                 )}
               </div>
@@ -373,7 +390,7 @@ export default function TournamentResultsPage() {
               href={`/admin/tournaments/${tournamentId}/import-results`}
               className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
             >
-              📥 Import Swiss Results
+              Import Swiss Results
             </Link>
 
             <Link
@@ -586,95 +603,85 @@ export default function TournamentResultsPage() {
                 </div>
               </div>
 
-              {filteredResults.length === 0 ? (
+              {topTenBySection.every((group) => group.rows.length === 0) ? (
                 <p className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
                   No results recorded yet.
                 </p>
               ) : (
-                <div className="mt-6 space-y-4">
-                  {filteredResults.map((result) => {
-                    const player = getPlayer(result.player_id);
-                    const section = getSection(result.section_id);
-
-                    return (
-                      <article
-                        key={result.id}
-                        className="rounded-3xl border border-white/10 bg-zinc-900 p-5 transition hover:border-red-500/60"
+                <div className="mt-6 overflow-x-auto pb-3">
+                  <div
+                    className="grid min-w-max gap-4"
+                    style={{
+                      gridTemplateColumns: `repeat(${Math.max(
+                        topTenBySection.length,
+                        1
+                      )}, minmax(280px, 1fr))`,
+                    }}
+                  >
+                    {topTenBySection.map(({ section, rows }) => (
+                      <section
+                        key={section.id}
+                        className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900"
                       >
-                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                          <div>
-                            <div className="flex flex-wrap gap-2">
-                              <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-gray-300">
-                                {getMedal(result.final_position)}{" "}
-                                {result.final_position
-                                  ? `Position ${result.final_position}`
-                                  : "Position TBA"}
-                              </span>
-
-                              {section && (
-                                <span className="rounded-full bg-blue-500/10 px-3 py-1 text-xs font-bold text-blue-200">
-                                  {section.section_name}
-                                </span>
-                              )}
-
-                              {result.award_title && (
-                                <span className="rounded-full bg-yellow-500/10 px-3 py-1 text-xs font-bold text-yellow-200">
-                                  {result.award_title}
-                                </span>
-                              )}
-                            </div>
-
-                            <h3 className="mt-4 text-xl font-black text-white">
-                              {player?.full_name ?? "Player not found"}
-                            </h3>
-
-                            <p className="mt-2 text-sm leading-6 text-gray-400">
-                              Points:{" "}
-                              <span className="font-bold text-white">
-                                {result.points ?? "TBA"}
-                              </span>
-                              {result.tie_break
-                                ? ` • Tie-break: ${result.tie_break}`
-                                : ""}
-                            </p>
-
-                            {result.notes && (
-                              <p className="mt-2 text-sm leading-6 text-gray-500">
-                                {result.notes}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap gap-2">
-                            {player && (
-                              <Link
-                                href={`/admin/players/${player.id}`}
-                                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
-                              >
-                                Player
-                              </Link>
-                            )}
-
-                            <button
-                              type="button"
-                              onClick={() => editResult(result)}
-                              className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => deleteResult(result)}
-                              className="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-500/10"
-                            >
-                              Delete
-                            </button>
-                          </div>
+                        <div className="border-b border-white/10 bg-zinc-950 p-5">
+                          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                            Final Ranking
+                          </p>
+                          <h3 className="mt-2 text-xl font-black text-white">
+                            {section.section_name}
+                          </h3>
                         </div>
-                      </article>
-                    );
-                  })}
+
+                        <div className="divide-y divide-white/10">
+                          {Array.from({ length: 10 }, (_, index) => {
+                            const result = rows[index];
+                            const player = result
+                              ? getPlayer(result.player_id)
+                              : null;
+                            const position =
+                              result?.final_position ?? index + 1;
+
+                            return (
+                              <div
+                                key={`${section.id}-${index}`}
+                                className="grid grid-cols-[38px_1fr_auto] items-center gap-3 px-4 py-3"
+                              >
+                                <span className="text-center text-sm font-black text-red-300">
+                                  {position}.
+                                </span>
+
+                                {result ? (
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-bold text-white">
+                                      {player?.full_name ?? "Player not found"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                      {result.points ?? "-"} pts
+                                      {result.tie_break
+                                        ? `  -  ${result.tie_break}`
+                                        : ""}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-700"> - </p>
+                                )}
+
+                                {result && (
+                                  <button
+                                    type="button"
+                                    onClick={() => editResult(result)}
+                                    className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-gray-300 transition hover:border-red-500 hover:text-white"
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
                 </div>
               )}
             </section>
@@ -693,3 +700,4 @@ function CommandStat({ label, value }: { label: string; value: number }) {
     </div>
   );
 }
+

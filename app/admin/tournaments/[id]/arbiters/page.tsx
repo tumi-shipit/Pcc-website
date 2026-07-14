@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { use, FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -379,7 +379,7 @@ export default function TournamentArbitersPage({
             href={`/admin/tournaments/${tournamentId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Tournament Dashboard
+             Back to Tournament Dashboard
           </Link>
 
           <AdminTournamentTabs id={tournamentId} />
@@ -459,8 +459,8 @@ export default function TournamentArbitersPage({
                       {filteredPlayers.slice(0, 300).map((player) => (
                         <option key={player.id} value={player.id}>
                           {player.full_name}
-                          {player.title ? ` — ${player.title}` : ""}
-                          {player.chess_sa_id ? ` — ${player.chess_sa_id}` : ""}
+                          {player.title ? `  -  ${player.title}` : ""}
+                          {player.chess_sa_id ? `  -  ${player.chess_sa_id}` : ""}
                         </option>
                       ))}
                     </select>
@@ -488,7 +488,7 @@ export default function TournamentArbitersPage({
                             {selectedPlayer.full_name}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
-                            {valueOrDash(selectedPlayer.title)} • Chess SA:{" "}
+                            {valueOrDash(selectedPlayer.title)}  -  Chess SA:{" "}
                             {valueOrDash(selectedPlayer.chess_sa_id)}
                           </p>
                         </div>
@@ -628,8 +628,8 @@ export default function TournamentArbitersPage({
                               </Link>
 
                               <p className="mt-1 text-sm text-gray-400">
-                                {valueOrDash(player?.title)} • Chess SA:{" "}
-                                {valueOrDash(player?.chess_sa_id)} • FIDE:{" "}
+                                {valueOrDash(player?.title)}  -  Chess SA:{" "}
+                                {valueOrDash(player?.chess_sa_id)}  -  FIDE:{" "}
                                 {valueOrDash(player?.fide_id)}
                               </p>
 
@@ -722,3 +722,4 @@ function StatCard({
     </div>
   );
 }
+

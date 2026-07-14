@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { use, ChangeEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -269,7 +269,7 @@ export default function TournamentGalleryPage({
             href={`/admin/tournaments/${tournamentId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Tournament Dashboard
+             Back to Tournament Dashboard
           </Link>
 
           <AdminTournamentTabs id={tournamentId} />
@@ -389,7 +389,7 @@ export default function TournamentGalleryPage({
                         disabled={index === 0}
                         className="rounded-lg border border-white/10 px-2 py-2 text-xs font-bold text-white disabled:opacity-30"
                       >
-                        ↑
+                        Up
                       </button>
 
                       <button
@@ -398,7 +398,7 @@ export default function TournamentGalleryPage({
                         disabled={index === gallery.length - 1}
                         className="rounded-lg border border-white/10 px-2 py-2 text-xs font-bold text-white disabled:opacity-30"
                       >
-                        ↓
+                        Down
                       </button>
 
                       <button
@@ -471,3 +471,4 @@ function StatCard({
     </div>
   );
 }
+

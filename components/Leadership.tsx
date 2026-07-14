@@ -1,4 +1,4 @@
-import Image from "next/image";
+﻿import Image from "next/image";
 import Link from "next/link";
 
 type Leader = {
@@ -103,7 +103,7 @@ export default function Leadership() {
             href="/hall-of-fame"
             className="mt-6 inline-flex rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500 hover:bg-red-600"
           >
-            Visit PCC Hall of Fame →
+            Visit PCC Hall of Fame 
           </Link>
         </div>
       </div>
@@ -127,7 +127,7 @@ function LeaderCard({ leader }: { leader: Leader }) {
 
         {leader.legacyBadge && (
           <span className="absolute left-4 top-4 rounded-full border border-yellow-300/40 bg-yellow-500/20 px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-yellow-100 backdrop-blur-md">
-            ⭐ {leader.legacyBadge}
+            Featured {leader.legacyBadge}
           </span>
         )}
 
@@ -147,7 +147,7 @@ function LeaderCard({ leader }: { leader: Leader }) {
               <div className="space-y-2 border-t border-white/10 pt-4">
                 {leader.highlights.map((item) => (
                   <p key={item} className="text-sm text-gray-200">
-                    ♟ {item}
+                     {item}
                   </p>
                 ))}
 
@@ -156,7 +156,7 @@ function LeaderCard({ leader }: { leader: Leader }) {
                     href={leader.legacyHref}
                     className="mt-4 inline-flex rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white transition hover:bg-red-700"
                   >
-                    View Legacy →
+                    View Legacy 
                   </Link>
                 )}
               </div>
@@ -173,10 +173,13 @@ function LeaderCard({ leader }: { leader: Leader }) {
             href={leader.legacyHref}
             className="mt-5 inline-flex text-sm font-bold text-red-300 transition hover:text-red-200"
           >
-            View Hall of Fame profile →
+            View Hall of Fame profile 
           </Link>
         )}
       </div>
     </article>
   );
 }
+
+
+

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 type ImportSummary = {
   total_rows: number;
@@ -66,7 +66,7 @@ export default function AdminImportSummaryPanel({
       <div className="mt-5 rounded-2xl border border-white/10 bg-zinc-950 p-4">
         <div className="flex items-center justify-between text-xs text-gray-400">
           <span>Successful / resolved rows</span>
-          <span>{successRows} resolved • {problemRows} need attention</span>
+          <span>{successRows} resolved  -  {problemRows} need attention</span>
         </div>
 
         <div className="mt-3 h-3 overflow-hidden rounded-full bg-zinc-800">
@@ -112,3 +112,4 @@ function SummaryStat({
     </div>
   );
 }
+

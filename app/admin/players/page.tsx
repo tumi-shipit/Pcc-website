@@ -22,13 +22,6 @@ type Player = {
   updated_at: string | null;
 };
 
-<Link
-  href="/admin/players/sync"
-  className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
->
-  Chess SA Master Sync
-</Link>
-
 type Registration = {
   player_id: string | null;
   tournament_id: string | null;
@@ -45,17 +38,17 @@ type PlayerWithStats = Player & {
   approved_entries: number;
   paid_entries: number;
   latest_registration: string | null;
+  profile_health: "Ready" | "Review" | "Missing IDs";
 };
 
 const inputClass =
-  "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+  "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
 
 function calculateAge(dateOfBirth: string | null) {
   if (!dateOfBirth) return null;
 
   const birthDate = new Date(dateOfBirth);
   const today = new Date();
-
   let age = today.getFullYear() - birthDate.getFullYear();
   const monthDifference = today.getMonth() - birthDate.getMonth();
 
@@ -70,7 +63,7 @@ function calculateAge(dateOfBirth: string | null) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return "No activity yet";
+  if (!value) return "No activity";
 
   return new Date(value).toLocaleDateString("en-ZA", {
     day: "numeric",
@@ -79,12 +72,33 @@ function formatDate(value: string | null) {
   });
 }
 
+function valueOrDash(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+}
+
+function profileHealth(player: Player): PlayerWithStats["profile_health"] {
+  if (!player.chess_sa_id && !player.fide_id) return "Missing IDs";
+  if (
+    player.verification_status !== "Verified" ||
+    !player.gender ||
+    !player.date_of_birth ||
+    !player.club ||
+    !player.province
+  ) {
+    return "Review";
+  }
+  return "Ready";
+}
+
 export default function AdminPlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [search, setSearch] = useState("");
   const [genderFilter, setGenderFilter] = useState("All");
   const [ratingFilter, setRatingFilter] = useState("All");
+  const [healthFilter, setHealthFilter] = useState("All");
+  const [verificationView, setVerificationView] = useState("Unverified");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -127,12 +141,11 @@ export default function AdminPlayersPage() {
     loadPlayers();
   }, []);
 
-  const playerRows = useMemo(() => {
+  const playerRows = useMemo<PlayerWithStats[]>(() => {
     const registrationMap = new Map<string, Registration[]>();
 
     registrations.forEach((registration) => {
       if (!registration.player_id) return;
-
       const current = registrationMap.get(registration.player_id) ?? [];
       current.push(registration);
       registrationMap.set(registration.player_id, current);
@@ -140,6 +153,11 @@ export default function AdminPlayersPage() {
 
     return players.map((player) => {
       const playerRegistrations = registrationMap.get(player.id) ?? [];
+      const enteredTournaments = new Set(
+        playerRegistrations
+          .map((item) => item.tournament_id)
+          .filter((value): value is string => Boolean(value))
+      );
 
       const latestRegistration =
         playerRegistrations
@@ -150,7 +168,7 @@ export default function AdminPlayersPage() {
 
       return {
         ...player,
-        tournaments_entered: playerRegistrations.length,
+        tournaments_entered: enteredTournaments.size,
         approved_entries: playerRegistrations.filter(
           (item) => item.registration_status === "Approved"
         ).length,
@@ -158,6 +176,7 @@ export default function AdminPlayersPage() {
           (item) => item.payment_status === "Paid"
         ).length,
         latest_registration: latestRegistration,
+        profile_health: profileHealth(player),
       };
     });
   }, [players, registrations]);
@@ -171,12 +190,20 @@ export default function AdminPlayersPage() {
       const age = calculateAge(player.date_of_birth);
       return age !== null && age < 20;
     }).length;
+    const needsReview = playerRows.filter(
+      (player) => player.profile_health !== "Ready"
+    ).length;
+    const verified = playerRows.filter(
+      (player) => player.verification_status === "Verified"
+    ).length;
 
     return {
       total: playerRows.length,
+      verified,
       ratedPlayers,
       activePlayers,
       juniors,
+      needsReview,
     };
   }, [playerRows]);
 
@@ -203,9 +230,18 @@ export default function AdminPlayersPage() {
         (ratingFilter === "Unrated" && player.rating === null) ||
         (ratingFilter === "Active" && player.tournaments_entered > 0);
 
-      return searchMatch && genderMatch && ratingMatch;
+      const healthMatch =
+        healthFilter === "All" || player.profile_health === healthFilter;
+      const verificationMatch =
+        verificationView === "All" ||
+        (verificationView === "Verified" &&
+          player.verification_status === "Verified") ||
+        (verificationView === "Unverified" &&
+          player.verification_status !== "Verified");
+
+      return searchMatch && genderMatch && ratingMatch && healthMatch && verificationMatch;
     });
-  }, [genderFilter, playerRows, ratingFilter, search]);
+  }, [genderFilter, healthFilter, playerRows, ratingFilter, search, verificationView]);
 
   return (
     <AdminGuard>
@@ -215,77 +251,98 @@ export default function AdminPlayersPage() {
             href="/admin/home"
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
-            ← Back to Command Centre
+            Back to Command Centre
           </Link>
 
-          <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-              Player Centre
-            </p>
-
-            <div className="mt-4 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <section className="mt-6 border-b border-white/10 pb-6">
+            <div className="grid gap-6 lg:grid-cols-[1fr_520px] lg:items-end">
               <div>
-                <h1 className="text-4xl font-black md:text-6xl">
-                  Player Management
+                <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
+                  Player Centre
+                </p>
+                <h1 className="mt-3 text-4xl font-black md:text-6xl">
+                  Player operations
                 </h1>
-
-                <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-                  Search and manage the player database, ratings, clubs,
-                  provinces, contact details and event activity from one place.
+                <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
+                  Manage player identity, verification, ratings, contact
+                  details and event activity from one searchable workspace.
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                 <CommandStat label="Players" value={stats.total} />
-                <CommandStat label="Rated" value={stats.ratedPlayers} />
+                <CommandStat label="Verified" value={stats.verified} />
                 <CommandStat label="Active" value={stats.activePlayers} />
-                <CommandStat label="Juniors" value={stats.juniors} />
+                <CommandStat label="Rated" value={stats.ratedPlayers} />
+                <CommandStat label="Review" value={stats.needsReview} tone="warn" />
               </div>
             </div>
           </section>
 
-          <section className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Link
+          <section className="mt-6 grid gap-3 md:grid-cols-4">
+            <ActionLink
               href="/admin/players/link-chessa"
-              className="rounded-xl border border-red-500 bg-zinc-950 px-5 py-3 text-center text-sm font-bold text-red-300 transition hover:bg-red-600 hover:text-white"
-            >
-              Link Existing to Chess SA
-            </Link>
-
-            <Link
+              title="Link Chess SA IDs"
+              description="Update existing players without creating duplicates."
+              primary
+            />
+            <ActionLink
               href="/admin/players/sync"
-              className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
-            >
-              Chess SA Master Sync
-            </Link>
-
-            <Link
+              title="Chess SA Sync"
+              description="Import ratings, IDs and missing profile data."
+            />
+            <ActionLink
               href="/admin/players/verify"
-              className="rounded-xl border border-white/10 bg-zinc-900 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
-            >
-              Verification Queue
-            </Link>
-
-            <Link
+              title="Verification Queue"
+              description="Review incomplete or unverified profiles."
+            />
+            <ActionLink
               href="/admin/players/duplicates"
-              className="rounded-xl border border-white/10 bg-zinc-900 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
-            >
-              Duplicate Centre
-            </Link>
+              title="Duplicate Centre"
+              description="Find and merge likely duplicate players."
+            />
+          </section>
+
+          <section className="mt-6 rounded-xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+            <p className="text-sm font-black text-yellow-100">
+              Player Centre rule
+            </p>
+            <p className="mt-2 text-sm leading-6 text-yellow-50/80">
+              Verify only records that match safely by Chess SA ID or confirmed
+              identity. Rows from national files that are not already in the
+              Player Centre should not create review noise.
+            </p>
           </section>
 
           {message && (
-            <p className="mt-6 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
+            <p className="mt-6 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
               {message}
             </p>
           )}
 
-          <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
-            <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px]">
+          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-4">
+            <div className="mb-4 grid gap-2 sm:grid-cols-3">
+              {["Unverified", "Verified", "All"].map((view) => (
+                <button
+                  key={view}
+                  type="button"
+                  onClick={() => setVerificationView(view)}
+                  className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                    verificationView === view
+                      ? "bg-red-600 text-white"
+                      : "border border-white/10 bg-zinc-950 text-zinc-300 hover:border-red-500"
+                  }`}
+                >
+                  {view}
+                </button>
+              ))}
+            </div>
+
+            <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_160px]">
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name, Chess SA ID, FIDE ID, club, province, email or phone..."
+                placeholder="Search name, ID, club, province, email or phone..."
                 className={inputClass}
               />
 
@@ -311,103 +368,113 @@ export default function AdminPlayersPage() {
                 <option value="Unrated">Unrated</option>
                 <option value="Active">Active in events</option>
               </select>
+
+              <select
+                value={healthFilter}
+                onChange={(event) => setHealthFilter(event.target.value)}
+                className={inputClass}
+              >
+                <option value="All">All statuses</option>
+                <option value="Ready">Ready</option>
+                <option value="Review">Needs review</option>
+                <option value="Missing IDs">Missing IDs</option>
+              </select>
             </div>
+
+            <p className="mt-3 text-xs text-zinc-500">
+              Showing {filteredPlayers.length} of {playerRows.length} player
+              records.
+            </p>
           </section>
 
           {loading ? (
-            <p className="mt-8 text-gray-400">Loading players...</p>
+            <p className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
+              Loading players...
+            </p>
           ) : filteredPlayers.length === 0 ? (
-            <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
+            <p className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
               No players found.
             </p>
           ) : (
-            <section className="mt-8 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-              {filteredPlayers.slice(0, 300).map((player) => {
-                const age = calculateAge(player.date_of_birth);
+            <section className="mt-8 overflow-hidden rounded-xl border border-white/10 bg-zinc-900">
+              <table className="w-full min-w-[1100px] text-left text-sm">
+                <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
+                  <tr>
+                    <th className="p-4">Player</th>
+                    <th className="p-4">Identity</th>
+                    <th className="p-4">Rating</th>
+                    <th className="p-4">Club / Province</th>
+                    <th className="p-4">Activity</th>
+                    <th className="p-4">Contact</th>
+                    <th className="p-4">Status</th>
+                    <th className="p-4">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredPlayers.slice(0, 500).map((player) => {
+                    const age = calculateAge(player.date_of_birth);
 
-                return (
-                  <article
-                    key={player.id}
-                    className="rounded-3xl border border-white/10 bg-zinc-900 p-5 transition hover:-translate-y-1 hover:border-red-500/60"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-red-400">
-                          Chess SA ID: {player.chess_sa_id ?? "Not set"}
-                        </p>
-
-                        <h2 className="mt-2 text-xl font-black leading-7 text-white">
-                          {player.full_name}
-                        </h2>
-
-                        <p className="mt-1 text-sm text-gray-500">
-                          FIDE ID: {player.fide_id ?? "Not set"}
-                        </p>
-                      </div>
-
-                      <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-gray-300">
-                        {player.rating ?? "Unrated"}
-                      </span>
-                    </div>
-
-                    <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-                      <MiniStat label="Rating" value={player.rating ?? "-"} />
-                      <MiniStat label="Events" value={player.tournaments_entered} />
-                      <MiniStat
-                        label="Paid"
-                        value={player.paid_entries}
-                        valueClass="text-blue-300"
-                      />
-                    </div>
-
-                    <div className="mt-5 grid gap-2 text-sm text-gray-400">
-                      <p>
-                        <span className="font-semibold text-white">Age:</span>{" "}
-                        {age ?? "Unknown"}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-white">Gender:</span>{" "}
-                        {player.gender ?? "Not set"}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-white">Club:</span>{" "}
-                        {player.club ?? "Not linked yet"}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-white">
-                          Province:
-                        </span>{" "}
-                        {player.province ?? "Not linked yet"}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-white">
-                          Verification:
-                        </span>{" "}
-                        {player.verification_status ?? "Not set"}
-                      </p>
-                      <p>
-                        <span className="font-semibold text-white">
-                          Latest activity:
-                        </span>{" "}
-                        {formatDate(player.latest_registration)}
-                      </p>
-                    </div>
-
-                    <Link
-                      href={`/admin/players/${player.id}`}
-                      className="mt-5 block w-full rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
-                    >
-                      View player profile →
-                    </Link>
-                  </article>
-                );
-              })}
+                    return (
+                      <tr key={player.id} className="border-t border-white/10">
+                        <td className="p-4">
+                          <p className="font-black text-white">{player.full_name}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {player.gender ?? "Gender not set"}
+                            {age !== null ? ` - ${age} yrs` : ""}
+                          </p>
+                        </td>
+                        <td className="p-4 text-xs text-zinc-400">
+                          Chess SA: {valueOrDash(player.chess_sa_id)}
+                          <br />
+                          FIDE: {valueOrDash(player.fide_id)}
+                        </td>
+                        <td className="p-4 font-black text-white">
+                          {valueOrDash(player.rating)}
+                        </td>
+                        <td className="p-4 text-zinc-300">
+                          {valueOrDash(player.club)}
+                          <span className="block text-xs text-zinc-500">
+                            {valueOrDash(player.province)}
+                          </span>
+                        </td>
+                        <td className="p-4 text-zinc-300">
+                          {player.tournaments_entered} events
+                          <span className="block text-xs text-zinc-500">
+                            {player.paid_entries} paid, latest{" "}
+                            {formatDate(player.latest_registration)}
+                          </span>
+                        </td>
+                        <td className="p-4 text-xs text-zinc-400">
+                          {valueOrDash(player.email)}
+                          <br />
+                          {valueOrDash(player.phone)}
+                        </td>
+                        <td className="p-4">
+                          <HealthBadge health={player.profile_health} />
+                          <p className="mt-2 text-xs text-zinc-500">
+                            {player.verification_status ?? "Not set"}
+                          </p>
+                        </td>
+                        <td className="p-4">
+                          <Link
+                            href={`/admin/players/${player.id}`}
+                            className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500"
+                          >
+                            Open
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </section>
           )}
 
-          {!loading && filteredPlayers.length > 300 && (
-            <p className="mt-6 rounded-xl border border-white/10 bg-zinc-900 p-4 text-sm text-gray-400">
-              Showing first 300 matching players. Use search to narrow results.
+          {!loading && filteredPlayers.length > 500 && (
+            <p className="mt-6 rounded-lg border border-white/10 bg-zinc-900 p-4 text-sm text-zinc-400">
+              Showing first 500 matching players. Use search or filters to narrow
+              the list.
             </p>
           )}
         </div>
@@ -416,28 +483,72 @@ export default function AdminPlayersPage() {
   );
 }
 
-function CommandStat({ label, value }: { label: string; value: number }) {
+function CommandStat({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: number;
+  tone?: "default" | "warn";
+}) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/35 p-4 text-center backdrop-blur-md">
-      <p className="text-2xl font-black text-white">{value}</p>
-      <p className="mt-1 text-xs text-gray-400">{label}</p>
+    <div className="rounded-xl border border-white/10 bg-zinc-900 p-3 text-center">
+      <p
+        className={`text-2xl font-black ${
+          tone === "warn" ? "text-yellow-300" : "text-white"
+        }`}
+      >
+        {value}
+      </p>
+      <p className="mt-1 text-xs text-zinc-500">{label}</p>
     </div>
   );
 }
 
-function MiniStat({
-  label,
-  value,
-  valueClass = "text-white",
+function ActionLink({
+  href,
+  title,
+  description,
+  primary = false,
 }: {
-  label: string;
-  value: number | string;
-  valueClass?: string;
+  href: string;
+  title: string;
+  description: string;
+  primary?: boolean;
 }) {
   return (
-    <div className="rounded-xl bg-zinc-950 p-3">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className={`mt-1 text-xl font-black ${valueClass}`}>{value}</p>
-    </div>
+    <Link
+      href={href}
+      className={`rounded-xl border p-4 transition ${
+        primary
+          ? "border-red-500/60 bg-red-600 text-white hover:bg-red-700"
+          : "border-white/10 bg-zinc-900 text-white hover:border-red-500"
+      }`}
+    >
+      <p className="font-black">{title}</p>
+      <p
+        className={`mt-2 text-xs leading-5 ${
+          primary ? "text-red-50/80" : "text-zinc-400"
+        }`}
+      >
+        {description}
+      </p>
+    </Link>
+  );
+}
+
+function HealthBadge({ health }: { health: PlayerWithStats["profile_health"] }) {
+  const className =
+    health === "Ready"
+      ? "bg-green-500/15 text-green-300"
+      : health === "Review"
+      ? "bg-yellow-500/15 text-yellow-300"
+      : "bg-red-500/15 text-red-300";
+
+  return (
+    <span className={`rounded-full px-3 py-1 text-xs font-black ${className}`}>
+      {health}
+    </span>
   );
 }
