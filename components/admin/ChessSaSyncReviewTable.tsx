@@ -16,7 +16,7 @@ function sectionTitle(action: "update_existing" | "review") {
 function sectionDescription(action: "update_existing" | "review") {
   return action === "update_existing"
     ? "These rows have a safe Chess SA ID match in the Player Centre and will be marked Verified."
-    : "These rows are missing a Chess SA ID, have duplicate IDs, or have a name conflict.";
+    : "These rows have duplicate Chess SA IDs or a name conflict with an existing Player Centre profile.";
 }
 
 export default function ChessSaSyncReviewTable({
@@ -42,13 +42,24 @@ export default function ChessSaSyncReviewTable({
       rows: decisions.filter((decision) => decision.action === "review"),
     },
   ];
-  const skippedCount = decisions.filter((decision) => decision.action === "skip").length;
+  const alreadySyncedCount = decisions.filter((decision) =>
+    decision.reasons.includes("Already synced")
+  ).length;
+  const skippedCount = decisions.filter(
+    (decision) => decision.action === "skip" && !decision.reasons.includes("Already synced")
+  ).length;
 
   return (
     <div className="space-y-8">
+      {alreadySyncedCount > 0 && (
+        <p className="rounded-2xl border border-blue-500/20 bg-blue-500/10 p-4 text-sm text-blue-200">
+          {alreadySyncedCount} Player Centre record{alreadySyncedCount === 1 ? " is" : "s are"} already up to date.
+        </p>
+      )}
+
       {skippedCount > 0 && (
         <p className="rounded-2xl border border-white/10 bg-zinc-900 p-4 text-sm text-gray-400">
-          Ignored {skippedCount} Chess SA row{skippedCount === 1 ? "" : "s"} that are not in the Player Centre.
+          Ignored {skippedCount} Chess SA row{skippedCount === 1 ? "" : "s"} without a safe Player Centre match.
         </p>
       )}
 

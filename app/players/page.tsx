@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 type Player = {
@@ -153,30 +154,75 @@ export default function PublicPlayersDirectoryPage() {
     );
   }, [results, officials]);
 
+  const duplicateOwnerMap = useMemo(() => {
+    const map = new Map<string, string>();
+
+    players.forEach((player) => {
+      if (player.verification_status === "Verified" || player.chess_sa_id) return;
+
+      const owner = players.find((candidate) => {
+        if (candidate.id === player.id) return false;
+        if (candidate.verification_status !== "Verified" && !candidate.chess_sa_id) return false;
+        return tokenSimilarity(player.full_name, candidate.full_name) >= 50;
+      });
+
+      if (owner) map.set(player.id, owner.id);
+    });
+
+    return map;
+  }, [players]);
+
+  const displayPlayerStats = useMemo(() => {
+    const stats = new Map<string, { events: number; wins: number; podiums: number; officialRoles: number }>();
+
+    playerStats.forEach((value, playerId) => {
+      const ownerId = duplicateOwnerMap.get(playerId) ?? playerId;
+      const current = stats.get(ownerId) ?? {
+        events: 0,
+        wins: 0,
+        podiums: 0,
+        officialRoles: 0,
+      };
+
+      stats.set(ownerId, {
+        events: current.events + value.events,
+        wins: current.wins + value.wins,
+        podiums: current.podiums + value.podiums,
+        officialRoles: current.officialRoles + value.officialRoles,
+      });
+    });
+
+    return stats;
+  }, [playerStats, duplicateOwnerMap]);
+
+  const publicPlayers = useMemo(() => {
+    return players.filter((player) => !duplicateOwnerMap.has(player.id));
+  }, [players, duplicateOwnerMap]);
+
   const provinces = useMemo(() => {
-    const values = players
+    const values = publicPlayers
       .map((player) => player.province)
       .filter((value): value is string => Boolean(value))
       .sort();
 
     return ["All", ...Array.from(new Set(values))];
-  }, [players]);
+  }, [publicPlayers]);
 
   const clubs = useMemo(() => {
-    const values = players
+    const values = publicPlayers
       .map((player) => player.club)
       .filter((value): value is string => Boolean(value))
       .sort();
 
     return ["All", ...Array.from(new Set(values))];
-  }, [players]);
+  }, [publicPlayers]);
 
   const filteredPlayers = useMemo(() => {
     const text = search.trim().toLowerCase();
 
-    return players
+    return publicPlayers
       .filter((player) => {
-        const stats = playerStats.get(player.id);
+        const stats = displayPlayerStats.get(player.id);
         const matchesSearch =
           !text ||
           player.full_name.toLowerCase().includes(text) ||
@@ -200,8 +246,8 @@ export default function PublicPlayersDirectoryPage() {
         return matchesSearch && matchesProvince && matchesClub && matchesStatus;
       })
       .sort((a, b) => {
-        const aStats = playerStats.get(a.id);
-        const bStats = playerStats.get(b.id);
+        const aStats = displayPlayerStats.get(a.id);
+        const bStats = displayPlayerStats.get(b.id);
 
         if (sortBy === "rating") return (b.rating ?? 0) - (a.rating ?? 0);
         if (sortBy === "wins") return (bStats?.wins ?? 0) - (aStats?.wins ?? 0);
@@ -218,8 +264,8 @@ export default function PublicPlayersDirectoryPage() {
         return a.full_name.localeCompare(b.full_name);
       });
   }, [
-    players,
-    playerStats,
+    publicPlayers,
+    displayPlayerStats,
     search,
     provinceFilter,
     clubFilter,
@@ -228,17 +274,17 @@ export default function PublicPlayersDirectoryPage() {
   ]);
 
   const platformStats = useMemo(() => {
-    const active = players.filter(
-      (player) => (playerStats.get(player.id)?.events ?? 0) > 0
+    const active = publicPlayers.filter(
+      (player) => (displayPlayerStats.get(player.id)?.events ?? 0) > 0
     ).length;
 
     return {
-      players: players.length,
+      players: publicPlayers.length,
       active,
-      rated: players.filter((player) => Boolean(player.rating)).length,
-      fide: players.filter((player) => Boolean(player.fide_id)).length,
+      rated: publicPlayers.filter((player) => Boolean(player.rating)).length,
+      fide: publicPlayers.filter((player) => Boolean(player.fide_id)).length,
     };
-  }, [players, playerStats]);
+  }, [publicPlayers, displayPlayerStats]);
 
   return (
     <main className="min-h-screen bg-zinc-950 pt-24 text-white">
@@ -356,7 +402,7 @@ export default function PublicPlayersDirectoryPage() {
           <div className="mt-5 rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-zinc-400">
             Showing{" "}
             <span className="font-black text-white">{filteredPlayers.length}</span>{" "}
-            of <span className="font-black text-white">{players.length}</span>{" "}
+            of <span className="font-black text-white">{publicPlayers.length}</span>{" "}
             players.
           </div>
 

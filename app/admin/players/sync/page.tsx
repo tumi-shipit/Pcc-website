@@ -15,11 +15,111 @@ import {
   createImportSession,
   createImportSessionRows,
 } from "@/lib/importSummary";
-import type { IdentityPlayer } from "@/lib/identityResolver";
+import { normalizeId, normalizeText, tokenSimilarity, type IdentityPlayer } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+
+function nameVariants(...names: Array<string | null | undefined>) {
+  const variants = new Set<string>();
+
+  names.forEach((name) => {
+    const cleanName = String(name ?? "").trim().replace(/\s+/g, " ");
+    if (!cleanName) return;
+
+    variants.add(cleanName);
+    const parts = cleanName.split(" ");
+    if (parts.length > 1) variants.add(`${parts.slice(1).join(" ")} ${parts[0]}`);
+  });
+
+  return Array.from(variants);
+}
+
+function nameTokens(name: string | null | undefined) {
+  return normalizeText(name)
+    .split(" ")
+    .filter((token) => token.length > 1);
+}
+
+function sharedNameTokenCount(left: string | null | undefined, right: string | null | undefined) {
+  const leftTokens = new Set(nameTokens(left));
+  const rightTokens = new Set(nameTokens(right));
+  return [...leftTokens].filter((token) => rightTokens.has(token)).length;
+}
+
+function sameOptionalValue(left: string | null | undefined, right: string | null | undefined) {
+  const cleanLeft = String(left ?? "").trim().toLowerCase();
+  const cleanRight = String(right ?? "").trim().toLowerCase();
+  if (!cleanLeft || !cleanRight) return true;
+  return cleanLeft === cleanRight;
+}
+
+async function relinkImportedTournamentHistory(
+  row: ChessSaSyncRow,
+  playerId: string,
+  matchedPlayerName: string | null
+) {
+  const variants = nameVariants(row.full_name, matchedPlayerName);
+  if (variants.length === 0) return 0;
+
+  const { data, error } = await supabase
+    .from("tournament_results")
+    .update({ player_id: playerId })
+    .is("player_id", null)
+    .in("imported_name", variants)
+    .select("id");
+
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+async function mergeSafeImportedDuplicateProfiles(
+  row: ChessSaSyncRow,
+  primaryPlayerId: string,
+  matchedPlayerName: string | null
+) {
+  const { data, error } = await supabase
+    .from("players")
+    .select("id, full_name, chess_sa_id, fide_id, date_of_birth, verification_status")
+    .or("chess_sa_id.is.null,chess_sa_id.eq.")
+    .neq("id", primaryPlayerId)
+    .limit(10000);
+
+  if (error) throw error;
+
+  const candidates = ((data ?? []) as IdentityPlayer[]).filter((candidate) => {
+    if (candidate.verification_status === "Verified") return false;
+    if (!sameOptionalValue(candidate.fide_id, row.fide_id)) return false;
+    if (!sameOptionalValue(candidate.date_of_birth, row.date_of_birth)) return false;
+
+    const score = Math.max(
+      tokenSimilarity(candidate.full_name, row.full_name),
+      tokenSimilarity(candidate.full_name, matchedPlayerName ?? "")
+    );
+    const sharedTokens = Math.max(
+      sharedNameTokenCount(candidate.full_name, row.full_name),
+      sharedNameTokenCount(candidate.full_name, matchedPlayerName)
+    );
+
+    return score >= 50 && sharedTokens >= 2;
+  });
+
+  let merged = 0;
+
+  for (const candidate of candidates) {
+    const { error: mergeError } = await supabase.rpc("merge_players", {
+      primary_player_id: primaryPlayerId,
+      duplicate_player_id: candidate.id,
+      reason: `Chess SA Sync merged imported duplicate after verified identity match. Chess SA ID: ${normalizeId(row.chess_sa_id)}.`,
+    });
+
+    if (mergeError) throw mergeError;
+    merged += 1;
+  }
+
+  return merged;
+}
 
 export default function AdminPlayersSyncPage() {
   const [fileName, setFileName] = useState("");
@@ -65,7 +165,7 @@ export default function AdminPlayersSyncPage() {
     const { data, error } = await supabase
       .from("players")
       .select(
-        "id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, gender"
+        "id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, gender, verification_status, title"
       )
       .limit(20000);
 
@@ -93,7 +193,10 @@ export default function AdminPlayersSyncPage() {
       withChessSa: rows.filter((row) => row.chess_sa_id).length,
       updateExisting: decisions.filter((d) => d.action === "update_existing").length,
       review: decisions.filter((d) => d.action === "review").length,
-      skipped: decisions.filter((d) => d.action === "skip").length,
+      alreadySynced: decisions.filter((d) => d.reasons.includes("Already synced")).length,
+      skipped: decisions.filter(
+        (d) => d.action === "skip" && !d.reasons.includes("Already synced")
+      ).length,
     };
   }, [rows, decisions]);
 
@@ -113,8 +216,11 @@ export default function AdminPlayersSyncPage() {
     const ignoredRows = decisions.filter((decision) => decision.action === "skip").length;
     let skippedRows = ignoredRows;
     let failedRows = 0;
+    let relinkedTournamentRows = 0;
+    let mergedImportedProfiles = 0;
 
     const historyRows: any[] = [];
+    const failureMessages: string[] = [];
     const actionableDecisions = decisions.filter(
       (decision) => decision.action !== "skip"
     );
@@ -144,19 +250,30 @@ export default function AdminPlayersSyncPage() {
             .from("players")
             .update({
               chess_sa_id: row.chess_sa_id ?? current?.chess_sa_id ?? null,
-              fide_id: row.fide_id || current?.fide_id || null,
+              fide_id: row.fide_id ?? current?.fide_id ?? null,
               club: current?.club || row.club || null,
               province: current?.province || row.province || null,
               rating: row.rating ?? current?.rating ?? null,
-              date_of_birth: current?.date_of_birth || row.date_of_birth || null,
-              gender: current?.gender || row.gender || null,
-              title: row.title,
+              date_of_birth: row.date_of_birth ?? current?.date_of_birth ?? null,
+              gender: row.gender ?? current?.gender ?? null,
+              title: row.title ?? current?.title ?? null,
               verification_status: "Verified",
               updated_at: new Date().toISOString(),
             })
             .eq("id", decision.matched_player_id);
 
           if (error) throw error;
+
+          relinkedTournamentRows += await relinkImportedTournamentHistory(
+            row,
+            decision.matched_player_id,
+            decision.matched_player_name
+          );
+          mergedImportedProfiles += await mergeSafeImportedDuplicateProfiles(
+            row,
+            decision.matched_player_id,
+            decision.matched_player_name
+          );
 
           updatedRows += 1;
 
@@ -175,6 +292,9 @@ export default function AdminPlayersSyncPage() {
         }
       } catch (error: any) {
         failedRows += 1;
+        failureMessages.push(
+          `Row ${decision.row.row_number}: ${error?.message ?? "Unknown error"}`
+        );
         historyRows.push({
           row_number: decision.row.row_number,
           imported_name: decision.row.full_name,
@@ -203,6 +323,8 @@ export default function AdminPlayersSyncPage() {
         ignored_rows: ignoredRows,
         applied_rows: actionableDecisions.length,
         note: "Ignored rows were not written to import history because they are not in the Player Centre.",
+        relinked_tournament_rows: relinkedTournamentRows,
+        merged_imported_profiles: mergedImportedProfiles,
       },
     });
 
@@ -216,12 +338,25 @@ export default function AdminPlayersSyncPage() {
       updated_rows: updatedRows,
       skipped_rows: skippedRows,
       failed_rows: failedRows,
+      relinked_tournament_rows: relinkedTournamentRows,
+      merged_imported_profiles: mergedImportedProfiles,
       file_name: fileName,
       status: failedRows > 0 ? "Completed with errors" : "Completed",
     });
 
-    setMessage("Chess SA synchronization complete.");
+    await analyseParsedRows(rows);
     setSyncing(false);
+    setMessage(
+      failedRows > 0
+        ? `Chess SA sync finished with ${failedRows} failed row${
+            failedRows === 1 ? "" : "s"
+          }. ${failureMessages.slice(0, 3).join(" ")}`
+        : `Chess SA synchronization complete. ${relinkedTournamentRows} imported tournament ranking row${
+            relinkedTournamentRows === 1 ? "" : "s"
+          } relinked and ${mergedImportedProfiles} imported duplicate profile${
+            mergedImportedProfiles === 1 ? "" : "s"
+          } merged.`
+    );
   }
 
   return (
@@ -254,11 +389,12 @@ export default function AdminPlayersSyncPage() {
             </p>
           )}
 
-          <section className="mt-8 grid gap-4 md:grid-cols-5">
+          <section className="mt-8 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
             <StatCard label="Rows" value={stats.total} />
             <StatCard label="With Chess SA" value={stats.withChessSa} tone="green" />
             <StatCard label="Ready to Verify" value={stats.updateExisting} tone="green" />
             <StatCard label="Needs Review" value={stats.review} tone="yellow" />
+            <StatCard label="Already Synced" value={stats.alreadySynced} tone="blue" />
             <StatCard label="Ignored" value={stats.skipped} />
           </section>
 

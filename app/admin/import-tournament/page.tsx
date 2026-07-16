@@ -42,6 +42,7 @@ type ImportedStanding = {
   rank: number | null;
   name: string;
   rating: number | null;
+  federation: string | null;
   points: number | null;
   tieBreak: string | null;
   player_id: string | null;
@@ -71,9 +72,46 @@ const inputClass =
 function normalizeName(value: string) {
   return value
     .toLowerCase()
-    .replace(/[^a-z\s]/g, "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function nameAliases(value: string) {
+  const raw = String(value ?? "").trim();
+  const aliases = new Set<string>();
+
+  const add = (name: string) => {
+    const normalized = normalizeName(name);
+    if (normalized) aliases.add(normalized);
+  };
+
+  add(raw);
+
+  if (raw.includes(",")) {
+    const [surname, remainder = ""] = raw.split(",", 2);
+    const cleanRemainder = remainder.replace(/\([^)]*\)/g, " ").trim();
+
+    add(`${surname} ${cleanRemainder}`);
+    add(`${cleanRemainder} ${surname}`);
+  }
+
+  return Array.from(aliases);
+}
+
+function buildImportedPlayerNameMap(players: ImportedPlayer[]) {
+  const map = new Map<string, ImportedPlayer>();
+
+  for (const player of players) {
+    if (!player.player_id) continue;
+
+    for (const alias of nameAliases(player.name)) {
+      if (!map.has(alias)) map.set(alias, player);
+    }
+  }
+
+  return map;
 }
 
 function toNumber(value: unknown) {
@@ -109,10 +147,10 @@ function cleanImportedId(value: unknown) {
 }
 
 function getColumnIndex(headers: string[], possibleNames: string[]) {
-  const lowerHeaders = headers.map((header) => header.toLowerCase().trim());
+  const lowerHeaders = headers.map(normalizeHeaderName);
 
   return lowerHeaders.findIndex((header) =>
-    possibleNames.some((name) => header === name.toLowerCase())
+    possibleNames.some((name) => header === normalizeHeaderName(name))
   );
 }
 
@@ -136,8 +174,8 @@ function findTieBreakIndex(headers: string[]) {
 
 function findHeaderRow(rows: unknown[][], required: string[]) {
   return rows.findIndex((row) => {
-    const values = row.map((cell) => String(cell ?? "").trim().toLowerCase());
-    return required.every((item) => values.includes(item.toLowerCase()));
+    const values = row.map((cell) => normalizeHeaderName(String(cell ?? "")));
+    return required.every((item) => values.includes(normalizeHeaderName(item)));
   });
 }
 
@@ -159,7 +197,8 @@ function detectFileType(rows: unknown[][]): DetectedFileType {
   if (
     searchableText.includes("ranking") ||
     searchableText.includes("final ranking") ||
-    findHeaderRow(rows, ["rank", "name", "pts"]) !== -1
+    findHeaderRow(rows, ["rank", "name", "pts"]) !== -1 ||
+    findHeaderRow(rows, ["rk", "name", "pts"]) !== -1
   ) {
     return "final_ranking";
   }
@@ -288,27 +327,28 @@ function parseFinalRankingRows(
   rows: unknown[][],
   currentImportedPlayers: ImportedPlayer[]
 ) {
-  const headerRowIndex = findHeaderRow(rows, ["Rank", "Name", "Pts"]);
+  let headerRowIndex = findHeaderRow(rows, ["Rk", "Name", "Pts"]);
+
+  if (headerRowIndex === -1) {
+    headerRowIndex = findHeaderRow(rows, ["Rank", "Name", "Pts"]);
+  }
 
   if (headerRowIndex === -1) {
     throw new Error(
-      "Could not find ranking list header. Expected Rank, Name and Pts columns."
+      "Could not find ranking list header. Expected Rk, Name and Pts columns."
     );
   }
 
   const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
 
-  const rankIndex = getColumnIndex(headers, ["Rank"]);
+  const rankIndex = getColumnIndex(headers, ["Rank", "Rk"]);
   const nameIndex = getColumnIndex(headers, ["Name"]);
   const ratingIndex = getColumnIndex(headers, ["NRtg", "Rtg", "Rating"]);
+  const federationIndex = getColumnIndex(headers, ["Fed", "Federation"]);
   const pointsIndex = getColumnIndex(headers, ["Pts", "Points"]);
   const tieBreakIndex = findTieBreakIndex(headers);
 
-  const currentPlayerMap = new Map(
-    currentImportedPlayers
-      .filter((row) => row.player_id)
-      .map((row) => [normalizeName(row.name), row])
-  );
+  const currentPlayerMap = buildImportedPlayerNameMap(currentImportedPlayers);
 
   return rows
     .slice(headerRowIndex + 1)
@@ -316,12 +356,18 @@ function parseFinalRankingRows(
       const name = String(row[nameIndex] ?? "").trim();
       if (!name) return null;
 
-      const matchedPlayer = currentPlayerMap.get(normalizeName(name));
+      const matchedPlayer = nameAliases(name)
+        .map((alias) => currentPlayerMap.get(alias) ?? null)
+        .find(Boolean);
 
       return {
         rank: toNumber(row[rankIndex]),
         name,
         rating: ratingIndex >= 0 ? toNumber(row[ratingIndex]) : null,
+        federation:
+          federationIndex >= 0 && row[federationIndex] !== ""
+            ? String(row[federationIndex]).trim()
+            : null,
         points: toNumber(row[pointsIndex]),
         tieBreak:
           tieBreakIndex >= 0 && row[tieBreakIndex] !== ""
@@ -846,6 +892,9 @@ export default function ImportOldTournamentPage() {
           player_id: row.player_id,
           section_id: defaultSectionId,
           final_position: row.rank,
+          imported_name: row.name,
+          imported_rating: row.rating,
+          federation: row.federation,
           points: row.points,
           tie_break: row.tieBreak,
           award_title:

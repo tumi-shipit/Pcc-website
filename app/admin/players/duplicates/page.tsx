@@ -103,21 +103,26 @@ export default function PlayerDuplicatesPage() {
   }
 
   async function ignorePair(match: IdentityMatch) {
-    const confirmed = window.confirm("Ignore this duplicate suggestion?");
-    if (!confirmed) return;
+    const reason = window.prompt(
+      `Why should "${match.playerA.full_name}" and "${match.playerB.full_name}" not be merged?`,
+      "Not the same person"
+    );
+    if (reason === null) return;
+
+    const cleanReason = reason.trim() || "Not the same person";
 
     const { error } = await supabase.from("player_duplicate_ignores").insert({
       player_a: match.playerA.id,
       player_b: match.playerB.id,
-      reason: `Ignored from Duplicate Centre. Score: ${match.score}.`,
+      reason: `${cleanReason}. Score: ${match.score}. Reasons: ${match.reasons.join(", ")}`,
     });
 
     if (error) {
-      setMessage(`Could not ignore pair: ${error.message}`);
+      setMessage(`Could not mark players as separate: ${error.message}`);
       return;
     }
 
-    setMessage("Duplicate suggestion ignored.");
+    setMessage("Marked as not the same person. This pair will not be suggested again.");
     await loadData();
   }
 
@@ -177,7 +182,7 @@ export default function PlayerDuplicatesPage() {
                         </div>
                         <p className="mt-4 text-sm text-gray-400">{match.reasons.join("  -  ")}</p>
                       </div>
-                      <button type="button" onClick={() => ignorePair(match)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500">Ignore</button>
+                      <button type="button" onClick={() => ignorePair(match)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500">Not same person</button>
                     </div>
 
                     <div className="mt-6 grid gap-4 lg:grid-cols-2">

@@ -16,10 +16,10 @@ export const metadata: Metadata = {
     siteName: "Polokwane Chess Club",
     images: [
       {
-        url: "/og-image",
-        width: 1200,
-        height: 630,
-        alt: "Polokwane Chess Club social preview",
+        url: "/images/organisations/polokwane-chess-club.png",
+        width: 500,
+        height: 500,
+        alt: "Polokwane Chess Club logo",
       },
     ],
     type: "website",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     title: "Polokwane Chess Club",
     description:
       "Official website of Polokwane Chess Club. Established in 1958.",
-    images: ["/og-image"],
+    images: ["/images/organisations/polokwane-chess-club.png"],
   },
 };
 

@@ -12,6 +12,8 @@ export type IdentityPlayer = {
   province?: string | null;
   rating?: number | null;
   gender?: string | null;
+  verification_status?: string | null;
+  title?: string | null;
 };
 
 export type IdentityMatch = {
@@ -85,13 +87,13 @@ export function calculateIdentityScore(
   }
 
   if (emailA && emailB && emailA === emailB) {
-    score += 95;
-    reasons.push("Exact email match");
+    score += 20;
+    reasons.push("Same contact email");
   }
 
   if (phoneA && phoneB && phoneA === phoneB) {
-    score += 90;
-    reasons.push("Exact phone match");
+    score += 20;
+    reasons.push("Same contact phone");
   }
 
   if (
@@ -100,7 +102,7 @@ export function calculateIdentityScore(
     playerA.date_of_birth === playerB.date_of_birth &&
     nameScore >= 60
   ) {
-    score += 85;
+    score += 100;
     reasons.push("Name and date of birth match");
   }
 
@@ -131,7 +133,16 @@ export function calculateIdentityScore(
     reasons.push("Same club");
   }
 
-  const finalScore = Math.min(score, 100);
+  const hasExactPlayerId =
+    (chessA && chessB && chessA === chessB) || (fideA && fideB && fideA === fideB);
+  const hasPlayerSpecificBiographicalMatch =
+    playerA.date_of_birth &&
+    playerB.date_of_birth &&
+    playerA.date_of_birth === playerB.date_of_birth &&
+    nameScore >= 60;
+  const maximumScore =
+    hasExactPlayerId || hasPlayerSpecificBiographicalMatch ? 100 : 85;
+  const finalScore = Math.min(score, maximumScore);
 
   return {
     playerA,

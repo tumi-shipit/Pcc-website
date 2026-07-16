@@ -260,7 +260,7 @@ export default function AdminPlayersPage() {
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
                   Player Centre
                 </p>
-                <h1 className="mt-3 text-4xl font-black md:text-6xl">
+                <h1 className="mt-3 text-3xl font-black md:text-6xl">
                   Player operations
                 </h1>
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
@@ -274,7 +274,7 @@ export default function AdminPlayersPage() {
                 <CommandStat label="Verified" value={stats.verified} />
                 <CommandStat label="Active" value={stats.activePlayers} />
                 <CommandStat label="Rated" value={stats.ratedPlayers} />
-                <CommandStat label="Review" value={stats.needsReview} tone="warn" />
+                <CommandStat label="Requires review" value={stats.needsReview} tone="warn" />
               </div>
             </div>
           </section>
@@ -396,7 +396,55 @@ export default function AdminPlayersPage() {
               No players found.
             </p>
           ) : (
-            <section className="mt-8 overflow-hidden rounded-xl border border-white/10 bg-zinc-900">
+            <>
+            <section className="mt-8 space-y-3 lg:hidden">
+              {filteredPlayers.slice(0, 500).map((player) => {
+                const age = calculateAge(player.date_of_birth);
+
+                return (
+                  <article
+                    key={player.id}
+                    className="rounded-xl border border-white/10 bg-zinc-900 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-lg font-black text-white">
+                          {player.full_name}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {player.gender ?? "Gender not recorded"}
+                          {age !== null ? ` | ${age} yrs` : ""}
+                        </p>
+                      </div>
+                      <HealthBadge health={player.profile_health} />
+                    </div>
+
+                    <div className="mt-4 grid gap-2 text-sm text-zinc-400">
+                      <p>Chess SA: {valueOrDash(player.chess_sa_id)}</p>
+                      <p>Rating: {valueOrDash(player.rating)}</p>
+                      <p>
+                        Club: {valueOrDash(player.club)} | Province:{" "}
+                        {valueOrDash(player.province)}
+                      </p>
+                      <p>
+                        Events: {player.tournaments_entered} | Paid entries:{" "}
+                        {player.paid_entries}
+                      </p>
+                      <p className="break-all">{valueOrDash(player.email)}</p>
+                    </div>
+
+                    <Link
+                      href={`/admin/players/${player.id}`}
+                      className="mt-4 block rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+                    >
+                      Open Player
+                    </Link>
+                  </article>
+                );
+              })}
+            </section>
+
+            <section className="mt-8 hidden overflow-hidden rounded-xl border border-white/10 bg-zinc-900 lg:block">
               <table className="w-full min-w-[1100px] text-left text-sm">
                 <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
                   <tr>
@@ -469,6 +517,7 @@ export default function AdminPlayersPage() {
                 </tbody>
               </table>
             </section>
+            </>
           )}
 
           {!loading && filteredPlayers.length > 500 && (

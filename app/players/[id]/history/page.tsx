@@ -22,6 +22,7 @@ Features
 
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 export default function PlayerHistoryPage({
@@ -46,6 +47,21 @@ export default function PlayerHistoryPage({
         .eq("id", playerId)
         .single();
 
+      const { data: relatedPlayers } = await supabase
+        .from("players")
+        .select("id, full_name, chess_sa_id, verification_status")
+        .neq("id", playerId)
+        .limit(10000);
+
+      const relatedPlayerIds = (relatedPlayers ?? [])
+        .filter((candidate) => {
+          if (!p?.full_name) return false;
+          if (candidate.chess_sa_id) return false;
+          if (candidate.verification_status === "Verified") return false;
+          return tokenSimilarity(p.full_name, candidate.full_name) >= 50;
+        })
+        .map((candidate) => candidate.id);
+
       const { data: r } = await supabase
         .from("tournament_results")
         .select(`
@@ -53,7 +69,7 @@ export default function PlayerHistoryPage({
           tournaments(id,tournament_name,start_date,venue),
           tournament_sections(section_name)
         `)
-        .eq("player_id", playerId)
+        .in("player_id", [playerId, ...relatedPlayerIds])
         .order("created_at",{ascending:false});
 
       setPlayer(p);

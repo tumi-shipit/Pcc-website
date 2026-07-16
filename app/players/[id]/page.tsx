@@ -3,6 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 type Player = {
@@ -126,12 +127,30 @@ export default function PublicPlayerProfilePage({
         return;
       }
 
+      const loadedPlayer = playerData as Player;
+
+      const { data: relatedPlayerData } = await supabase
+        .from("players")
+        .select("id, full_name, chess_sa_id, verification_status")
+        .neq("id", playerId)
+        .limit(10000);
+
+      const relatedPlayerIds = (relatedPlayerData ?? [])
+        .filter((candidate) => {
+          if (candidate.chess_sa_id) return false;
+          if (candidate.verification_status === "Verified") return false;
+          return tokenSimilarity(loadedPlayer.full_name, candidate.full_name) >= 50;
+        })
+        .map((candidate) => candidate.id);
+
+      const profilePlayerIds = [playerId, ...relatedPlayerIds];
+
       const { data: resultData } = await supabase
         .from("tournament_results")
         .select(
           "id, tournament_id, section_id, final_position, points, tie_break, award_title, tournaments(id, tournament_name, start_date, venue, registration_status), tournament_sections(id, section_name)"
         )
-        .eq("player_id", playerId)
+        .in("player_id", profilePlayerIds)
         .order("created_at", { ascending: false })
         .limit(12);
 
@@ -152,11 +171,11 @@ export default function PublicPlayerProfilePage({
       const { data: officialData } = await supabase
         .from("tournament_officials")
         .select("id, role, tournaments(id, tournament_name, start_date, venue)")
-        .eq("player_id", playerId)
+        .in("player_id", profilePlayerIds)
         .order("created_at", { ascending: false })
         .limit(6);
 
-      setPlayer(playerData as Player);
+      setPlayer(loadedPlayer);
       setResults((resultData ?? []) as unknown as TournamentResult[]);
       setRatings((ratingData ?? []) as unknown as RatingHistory[]);
       setAchievements((achievementData ?? []) as unknown as Achievement[]);

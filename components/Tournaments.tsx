@@ -51,7 +51,7 @@ function formatDate(date: string) {
 }
 
 function formatMoney(amount: number) {
-  if (amount === 0) return "Free / TBA";
+  if (amount === 0) return "Free";
 
   return new Intl.NumberFormat("en-ZA", {
     style: "currency",

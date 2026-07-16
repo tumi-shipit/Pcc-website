@@ -62,6 +62,9 @@ type TournamentResult = {
   player_id: string | null;
   section_id: string | null;
   final_position: number | null;
+  imported_name: string | null;
+  imported_rating: number | null;
+  federation: string | null;
   points: number | null;
   tie_break: string | null;
   award_title: string | null;
@@ -71,6 +74,24 @@ type TournamentResult = {
 type ResultWithPlayer = TournamentResult & {
   player: Player | null;
   section: TournamentSection | null;
+};
+
+type TournamentOfficialRow = {
+  id: string;
+  tournament_id: string;
+  player_id: string;
+  role: string;
+  notes: string | null;
+  players: Player | Player[] | null;
+};
+
+type PublicOfficial = {
+  id: string;
+  tournament_id: string;
+  player_id: string;
+  role: string;
+  notes: string | null;
+  player: Player | null;
 };
 
 function formatDate(date: string | null) {
@@ -126,6 +147,18 @@ function initials(name: string) {
     .toUpperCase();
 }
 
+function publicResultName(result: ResultWithPlayer) {
+  return result.imported_name?.trim() || result.player?.full_name || "Player";
+}
+
+function publicResultRating(result: ResultWithPlayer) {
+  return result.imported_rating ?? result.player?.rating ?? null;
+}
+
+function publicResultFederation(result: ResultWithPlayer) {
+  return result.federation?.trim() || "-";
+}
+
 export default function TournamentHubPage() {
   const params = useParams();
   const tournamentId = String(params.id);
@@ -136,6 +169,8 @@ export default function TournamentHubPage() {
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
   const [arbiter, setArbiter] = useState<Player | null>(null);
+  const [officials, setOfficials] = useState<PublicOfficial[]>([]);
+  const [showAllGallery, setShowAllGallery] = useState(false);
   const [selectedGalleryImage, setSelectedGalleryImage] =
     useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -195,7 +230,7 @@ export default function TournamentHubPage() {
       const { data: resultData } = await supabase
         .from("tournament_results")
         .select(
-          "id, tournament_id, player_id, section_id, final_position, points, tie_break, award_title, notes"
+          "id, tournament_id, player_id, section_id, final_position, imported_name, imported_rating, federation, points, tie_break, award_title, notes"
         )
         .eq("tournament_id", tournamentId)
         .order("section_id", { ascending: true, nullsFirst: true })
@@ -204,11 +239,32 @@ export default function TournamentHubPage() {
 
       const resultRows = (resultData ?? []) as TournamentResult[];
 
+      const { data: officialData } = await supabase
+        .from("tournament_officials")
+        .select(
+          "id, tournament_id, player_id, role, notes, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url)"
+        )
+        .eq("tournament_id", tournamentId)
+        .order("created_at", { ascending: true });
+
+      const officialRows = (officialData ?? []) as unknown as TournamentOfficialRow[];
+      const loadedOfficials = officialRows.map((official) => ({
+        id: official.id,
+        tournament_id: official.tournament_id,
+        player_id: official.player_id,
+        role: official.role,
+        notes: official.notes,
+        player: Array.isArray(official.players)
+          ? official.players[0] ?? null
+          : official.players,
+      }));
+
       const playerIds = [
         ...new Set(
           [
             ...resultRows.map((row) => row.player_id),
             loadedTournament.arbiter_player_id,
+            ...loadedOfficials.map((official) => official.player_id),
           ].filter(Boolean) as string[]
         ),
       ];
@@ -244,6 +300,16 @@ export default function TournamentHubPage() {
         players.find((player) => player.id === loadedTournament.arbiter_player_id) ??
           null
       );
+      setOfficials(
+        loadedOfficials.map((official) => ({
+          ...official,
+          player:
+            official.player ??
+            players.find((player) => player.id === official.player_id) ??
+            null,
+        }))
+      );
+      setShowAllGallery(false);
       setLoading(false);
     }
 
@@ -276,6 +342,8 @@ export default function TournamentHubPage() {
       </main>
     );
   }
+
+  const visibleGallery = showAllGallery ? gallery : gallery.slice(0, 3);
 
   return (
     <main className="min-h-screen bg-zinc-950 pt-24 text-white">
@@ -429,12 +497,13 @@ export default function TournamentHubPage() {
           </div>
         </div>
 
-        {arbiter && <ArbiterCard arbiter={arbiter} />}
+        <TournamentTeam officials={officials} fallbackArbiter={arbiter} />
 
         {isCompleted && (
           <ArchiveContent
             tournament={tournament}
             isShere={isShere}
+            sections={sections}
             results={results}
           />
         )}
@@ -533,7 +602,7 @@ export default function TournamentHubPage() {
               </p>
             ) : (
               <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {gallery.map((image) => (
+                {visibleGallery.map((image) => (
                   <button
                     key={image.id}
                     type="button"
@@ -557,6 +626,18 @@ export default function TournamentHubPage() {
                     )}
                   </button>
                 ))}
+              </div>
+            )}
+
+            {gallery.length > 3 && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAllGallery((current) => !current)}
+                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                >
+                  {showAllGallery ? "Show fewer photos" : "View all photos"}
+                </button>
               </div>
             )}
           </section>
@@ -592,53 +673,154 @@ export default function TournamentHubPage() {
   );
 }
 
-function ArbiterCard({ arbiter }: { arbiter: Player }) {
+function TournamentTeam({
+  officials,
+  fallbackArbiter,
+}: {
+  officials: PublicOfficial[];
+  fallbackArbiter: Player | null;
+}) {
+  const team = [...officials];
+  const hasChiefArbiter = team.some(
+    (official) => official.role.toLowerCase() === "chief arbiter"
+  );
+
+  if (fallbackArbiter && !hasChiefArbiter) {
+    team.unshift({
+      id: `legacy-chief-arbiter-${fallbackArbiter.id}`,
+      tournament_id: "",
+      player_id: fallbackArbiter.id,
+      role: "Chief Arbiter",
+      notes: null,
+      player: fallbackArbiter,
+    });
+  }
+
+  const visibleTeam = team.filter((official) => official.player);
+
+  if (visibleTeam.length === 0) return null;
+
   return (
     <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <Link
-            href={`/players/${arbiter.id}`}
-            className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-xl font-black text-red-200"
-          >
-            {arbiter.profile_photo_url ? (
-              <Image
-                src={arbiter.profile_photo_url}
-                alt={arbiter.full_name}
-                fill
-                sizes="80px"
-                className="object-cover"
-              />
-            ) : (
-              initials(arbiter.full_name)
-            )}
-          </Link>
-
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-              Chief Arbiter
-            </p>
-            <Link
-              href={`/players/${arbiter.id}`}
-              className="mt-1 block text-2xl font-black text-white transition hover:text-red-300"
-            >
-              {arbiter.full_name}
-            </Link>
-            <p className="mt-1 text-sm text-gray-400">
-              {arbiter.club ?? "Chess official"}
-              {arbiter.province ? `  -  ${arbiter.province}` : ""}
-            </p>
-          </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Tournament Team
+          </p>
+          <h2 className="mt-2 text-2xl font-black md:text-3xl">
+            Officials and organisers
+          </h2>
         </div>
 
-        <Link
-          href={`/players/${arbiter.id}`}
-          className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
-        >
-          View Profile
-        </Link>
+        <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+          {visibleTeam.length} official{visibleTeam.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {visibleTeam.map((official) => {
+          const player = official.player as Player;
+
+          return (
+            <div
+              key={`${official.id}-${official.role}`}
+              className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
+            >
+              <div className="flex items-center gap-4">
+                <Link
+                  href={`/players/${player.id}`}
+                  className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-lg font-black text-red-200"
+                >
+                  {player.profile_photo_url ? (
+                    <Image
+                      src={player.profile_photo_url}
+                      alt={player.full_name}
+                      fill
+                      sizes="64px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    initials(player.full_name)
+                  )}
+                </Link>
+
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
+                    {official.role}
+                  </p>
+                  <Link
+                    href={`/players/${player.id}`}
+                    className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
+                  >
+                    {player.full_name}
+                  </Link>
+                  <p className="mt-1 truncate text-xs text-gray-400">
+                    {player.club ?? "Chess official"}
+                    {player.province ? `  -  ${player.province}` : ""}
+                  </p>
+                </div>
+              </div>
+
+              {official.notes && (
+                <p className="mt-3 text-xs leading-5 text-gray-500">
+                  {official.notes}
+                </p>
+              )}
+            </div>
+          );
+        })}
       </div>
     </section>
+  );
+}
+
+function PlayerMiniCard({
+  result,
+  label,
+}: {
+  result: ResultWithPlayer;
+  label: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
+      <div className="flex items-center gap-4">
+        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-lg font-black text-red-200">
+          {result.player?.profile_photo_url ? (
+            <Image
+              src={result.player.profile_photo_url}
+              alt={publicResultName(result)}
+              fill
+              sizes="64px"
+              className="object-cover"
+            />
+          ) : (
+            initials(publicResultName(result))
+          )}
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
+            {label}
+          </p>
+          {result.player ? (
+            <Link
+              href={`/players/${result.player.id}`}
+              className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
+            >
+              {publicResultName(result)}
+            </Link>
+          ) : (
+            <p className="mt-1 text-lg font-black text-gray-400">
+              {publicResultName(result)}
+            </p>
+          )}
+          <p className="mt-1 text-xs text-gray-400">
+            Rtg {publicResultRating(result) ?? "-"}  -  FED{" "}
+            {publicResultFederation(result)}  -  Pts {result.points ?? "-"}
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -656,77 +838,246 @@ function NextStep({ label, text }: { label: string; text: string }) {
 function ArchiveContent({
   tournament,
   isShere,
+  sections,
   results,
 }: {
   tournament: Tournament;
   isShere: boolean;
+  sections: TournamentSection[];
   results: ResultWithPlayer[];
 }) {
+  const upsets = results.filter((result) =>
+    `${result.award_title ?? ""} ${result.notes ?? ""}`
+      .toLowerCase()
+      .includes("upset")
+  );
+  const playerOfTournament =
+    results.find((result) =>
+      (result.award_title ?? "").toLowerCase().includes("player of the tournament")
+    ) ??
+    results.find((result) =>
+      (result.award_title ?? "").toLowerCase().includes("featured player")
+    ) ??
+    results.find((result) => result.final_position === 1) ??
+    null;
+
   return (
     <div className="mt-8 space-y-8">
-      {tournament.tournament_report ? (
-        <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-            Tournament Report
-          </p>
+      <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+        <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+          Tournament Report
+        </p>
 
-          <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            {tournament.tournament_name}
-          </h2>
+        <h2 className="mt-3 text-2xl font-black md:text-4xl">
+          {tournament.tournament_name}
+        </h2>
 
+        {tournament.tournament_report ? (
           <div className="mt-6 space-y-5 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
             {tournament.tournament_report.split("\n").map((paragraph, index) =>
               paragraph.trim() ? <p key={index}>{paragraph}</p> : null
             )}
           </div>
-        </section>
-      ) : isShere ? (
-        <ShereArchive />
-      ) : (
-        <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-            Tournament Archive
-          </p>
-
-          <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            Archive event
-          </h2>
-
+        ) : (
           <p className="mt-4 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-            This tournament is part of the PCC historical archive.
+            The tournament report will appear here once it has been confirmed.
           </p>
-        </section>
-      )}
+        )}
+      </section>
 
-      <FinalRankingTable results={results} />
+      <FinalStandingsSection results={results} sections={sections} />
+
+      <div className="grid gap-8 lg:grid-cols-2">
+        <UpsetsSection upsets={upsets} isShere={isShere} />
+        <PlayerOfTournamentSection result={playerOfTournament} />
+      </div>
+
+      <FinalRankingTable results={results} sections={sections} />
     </div>
   );
 }
 
-function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
-  const groupedResults = results.reduce<Record<string, ResultWithPlayer[]>>(
-    (groups, result) => {
-      const sectionName = result.section?.section_name ?? "Overall";
-      groups[sectionName] = groups[sectionName] ?? [];
-      groups[sectionName].push(result);
-      return groups;
+function FinalStandingsSection({
+  results,
+  sections,
+}: {
+  results: ResultWithPlayer[];
+  sections: TournamentSection[];
+}) {
+  const sectionEntries = groupResultsBySection(results, sections).map((section) => ({
+    ...section,
+    podium: section.results
+      .filter((result) => [1, 2, 3].includes(result.final_position ?? 0))
+      .slice(0, 3),
+  }));
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+        Final Standings
+      </p>
+      <h2 className="mt-3 text-2xl font-black md:text-4xl">
+        Top three by section
+      </h2>
+
+      {sectionEntries.length === 0 ? (
+        <p className="mt-4 text-sm leading-7 text-gray-400">
+          Final standings will appear here after results are imported.
+        </p>
+      ) : (
+        <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+          {sectionEntries.map((section) => (
+            <div
+              key={section.sectionName}
+              className="rounded-2xl border border-white/10 bg-zinc-950 p-5"
+            >
+              <h3 className="text-xl font-black text-white">
+                {section.sectionName}
+              </h3>
+
+              <div className="mt-4 space-y-3">
+                {[1, 2, 3].map((position) => {
+                  const result =
+                    section.podium.find(
+                      (item) => item.final_position === position
+                    ) ?? null;
+
+                  return result ? (
+                    <PlayerMiniCard
+                      key={`${section.sectionName}-${position}`}
+                      result={result}
+                      label={`${medal(position)} Place`}
+                    />
+                  ) : (
+                    <div
+                      key={`${section.sectionName}-${position}`}
+                      className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-500"
+                    >
+                      {medal(position)} Place will be confirmed.
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function UpsetsSection({
+  upsets,
+  isShere,
+}: {
+  upsets: ResultWithPlayer[];
+  isShere: boolean;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+        Upsets
+      </p>
+      <h2 className="mt-3 text-2xl font-black">Key results</h2>
+
+      {upsets.length > 0 ? (
+        <div className="mt-5 space-y-3">
+          {upsets.map((result) => (
+            <div
+              key={result.id}
+              className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
+            >
+              <p className="font-bold text-white">
+                {result.player?.full_name ?? result.award_title ?? "Upset"}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-gray-400">
+                {result.notes ?? result.award_title}
+              </p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm leading-7 text-gray-400">
+          {isShere
+            ? "Upset highlights can be added to the official report for this event."
+            : "Upset highlights will appear here once they have been confirmed."}
+        </p>
+      )}
+    </section>
+  );
+}
+
+function PlayerOfTournamentSection({
+  result,
+}: {
+  result: ResultWithPlayer | null;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+      <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+        Player of the Tournament
+      </p>
+      <h2 className="mt-3 text-2xl font-black">Featured performance</h2>
+
+      {result ? (
+        <div className="mt-5">
+          <PlayerMiniCard result={result} label={result.award_title ?? "Featured"} />
+          {result.notes && (
+            <p className="mt-4 text-sm leading-7 text-gray-400">
+              {result.notes}
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="mt-4 text-sm leading-7 text-gray-400">
+          Player of the tournament will appear here once selected.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function sortResults(sectionResults: ResultWithPlayer[]) {
+  return [...sectionResults].sort((a, b) => {
+      const aPosition = a.final_position ?? 999999;
+      const bPosition = b.final_position ?? 999999;
+
+      if (aPosition !== bPosition) return aPosition - bPosition;
+      return (b.points ?? 0) - (a.points ?? 0);
+    });
+}
+
+function groupResultsBySection(
+  results: ResultWithPlayer[],
+  sections: TournamentSection[]
+) {
+  if (sections.length > 0) {
+    return sections.map((section) => ({
+      sectionId: section.id,
+      sectionName: section.section_name,
+      results: sortResults(
+        results.filter((result) => result.section_id === section.id)
+      ),
+    }));
+  }
+
+  return [
+    {
+      sectionId: "overall",
+      sectionName: "Overall",
+      results: sortResults(results.filter((result) => !result.section_id)),
     },
-    {}
-  );
+  ];
+}
 
-  const sectionEntries = Object.entries(groupedResults).map(
-    ([sectionName, sectionResults]) => ({
-      sectionName,
-      results: [...sectionResults]
-        .sort((a, b) => {
-          const aPosition = a.final_position ?? 999999;
-          const bPosition = b.final_position ?? 999999;
-
-          if (aPosition !== bPosition) return aPosition - bPosition;
-          return (b.points ?? 0) - (a.points ?? 0);
-        })
-    })
-  );
+function FinalRankingTable({
+  results,
+  sections,
+}: {
+  results: ResultWithPlayer[];
+  sections: TournamentSection[];
+}) {
+  const sectionEntries = groupResultsBySection(results, sections);
 
   if (results.length === 0) {
     return (
@@ -762,8 +1113,8 @@ function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
             Full standings by section
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Every imported player is shown in section order for the public
-            tournament archive.
+            Public rankings show only Rk, Name, Rtg, FED and Pts from the
+            imported final ranking file.
           </p>
         </div>
 
@@ -773,82 +1124,73 @@ function FinalRankingTable({ results }: { results: ResultWithPlayer[] }) {
         </span>
       </div>
 
-      <div className="mt-8 overflow-x-auto pb-3">
-        <div
-          className="grid min-w-max gap-4"
-          style={{
-            gridTemplateColumns: `repeat(${Math.max(
-              sectionEntries.length,
-              1
-            )}, minmax(280px, 1fr))`,
-          }}
-        >
-          {sectionEntries.map((section) => (
-            <div
-              key={section.sectionName}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
-            >
-              <div className="border-b border-white/10 bg-black/40 p-5">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
-                  Section
-                </p>
-                <h3 className="mt-2 text-xl font-black text-white">
-                  {section.sectionName}
-                </h3>
-              </div>
+      <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        {sectionEntries.map((section) => (
+          <div
+            key={section.sectionName}
+            className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
+          >
+            <div className="border-b border-white/10 bg-black/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                Section
+              </p>
+              <h3 className="mt-2 text-lg font-black text-white">
+                {section.sectionName}
+              </h3>
+            </div>
 
-              <div className="divide-y divide-white/10">
-                {Array.from({ length: 10 }, (_, index) => {
-                  const result = section.results[index];
-                  const position = result?.final_position ?? index + 1;
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[360px] text-left text-xs">
+                <thead className="bg-black/25 text-[10px] uppercase tracking-[0.14em] text-gray-500">
+                  <tr>
+                    <th className="px-3 py-3">Rk</th>
+                    <th className="px-3 py-3">Name</th>
+                    <th className="px-3 py-3">Rtg</th>
+                    <th className="px-3 py-3">FED</th>
+                    <th className="px-3 py-3">Pts</th>
+                  </tr>
+                </thead>
 
-                  return (
-                    <div
-                      key={`${section.sectionName}-${index}`}
-                      className="grid min-h-[78px] grid-cols-[38px_1fr_auto] items-center gap-3 px-4 py-3"
-                    >
-                      <span className="text-center text-sm font-black text-red-300">
-                        {position}.
-                      </span>
+                <tbody className="divide-y divide-white/10">
+                  {section.results.map((result, index) => {
+                    const position = result.final_position ?? index + 1;
 
-                      {result ? (
-                        <div className="min-w-0">
+                    return (
+                      <tr key={result.id}>
+                        <td className="px-3 py-3 font-black text-red-300">
+                          {position}
+                        </td>
+                        <td className="px-3 py-3 font-bold text-white">
                           {result.player ? (
                             <Link
                               href={`/players/${result.player.id}`}
-                              className="block truncate text-sm font-bold text-white transition hover:text-red-300"
+                              className="line-clamp-2 transition hover:text-red-300"
                             >
-                              {result.player.full_name}
+                              {publicResultName(result)}
                             </Link>
                           ) : (
-                            <p className="truncate text-sm font-bold text-gray-400">
-                              Player not linked
-                            </p>
+                            <span className="line-clamp-2">
+                              {publicResultName(result)}
+                            </span>
                           )}
-
-                          <p className="mt-1 text-xs text-gray-500">
-                            {result.points ?? "-"} pts
-                            {result.player?.rating
-                              ? `  -  ${result.player.rating}`
-                              : ""}
-                          </p>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-700"> - </p>
-                      )}
-
-                      {result && [1, 2, 3].includes(result.final_position ?? 0) && (
-                        <span className="text-lg">
-                          {medal(result.final_position)}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                        </td>
+                        <td className="px-3 py-3 text-gray-300">
+                          {publicResultRating(result) ?? "-"}
+                        </td>
+                        <td className="px-3 py-3 text-gray-300">
+                          {publicResultFederation(result)}
+                        </td>
+                        <td className="px-3 py-3 text-gray-300">
+                          {result.points ?? "-"}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     </section>
   );

@@ -14,6 +14,7 @@ type ParsedStanding = {
   rank: number | null;
   name: string;
   rating: number | null;
+  federation: string | null;
   points: number | null;
   tieBreak: string | null;
   matchedPlayerId: string | null;
@@ -31,9 +32,44 @@ type Player = {
 function normalizeName(value: string) {
   return value
     .toLowerCase()
-    .replace(/[^a-z\s]/g, "")
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function nameAliases(value: string) {
+  const raw = String(value ?? "").trim();
+  const aliases = new Set<string>();
+
+  const add = (name: string) => {
+    const normalized = normalizeName(name);
+    if (normalized) aliases.add(normalized);
+  };
+
+  add(raw);
+
+  if (raw.includes(",")) {
+    const [surname, remainder = ""] = raw.split(",", 2);
+    const cleanRemainder = remainder.replace(/\([^)]*\)/g, " ").trim();
+
+    add(`${surname} ${cleanRemainder}`);
+    add(`${cleanRemainder} ${surname}`);
+  }
+
+  return Array.from(aliases);
+}
+
+function buildPlayerNameMap(players: Player[]) {
+  const map = new Map<string, Player>();
+
+  for (const player of players) {
+    for (const alias of nameAliases(player.full_name)) {
+      if (!map.has(alias)) map.set(alias, player);
+    }
+  }
+
+  return map;
 }
 
 function toNumber(value: unknown) {
@@ -43,18 +79,26 @@ function toNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
+function normalizeHeaderName(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function findHeaderRow(rows: unknown[][]) {
   return rows.findIndex((row) => {
-    const values = row.map((cell) => String(cell ?? "").trim().toLowerCase());
-    return values.includes("rank") && values.includes("name") && values.includes("pts");
+    const values = row.map((cell) => normalizeHeaderName(String(cell ?? "")));
+    return (
+      (values.includes("rank") || values.includes("rk")) &&
+      values.includes("name") &&
+      (values.includes("pts") || values.includes("points"))
+    );
   });
 }
 
 function getColumnIndex(headers: string[], possibleNames: string[]) {
-  const lowerHeaders = headers.map((header) => header.toLowerCase().trim());
+  const lowerHeaders = headers.map((header) => normalizeHeaderName(header));
 
   return lowerHeaders.findIndex((header) =>
-    possibleNames.some((name) => header === name.toLowerCase())
+    possibleNames.some((name) => header === normalizeHeaderName(name))
   );
 }
 
@@ -159,30 +203,29 @@ export default function ImportTournamentResultsPage() {
     const headerRowIndex = findHeaderRow(rows);
 
     if (headerRowIndex === -1) {
-      setMessage("Could not find the standings header row. Expected Rank, Name and Pts columns.");
+      setMessage("Could not find the standings header row. Expected Rk, Name and Pts columns.");
       event.target.value = "";
       return;
     }
 
     const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
 
-    const rankIndex = getColumnIndex(headers, ["Rank"]);
+    const rankIndex = getColumnIndex(headers, ["Rank", "Rk"]);
     const nameIndex = getColumnIndex(headers, ["Name"]);
     const ratingIndex = getColumnIndex(headers, ["Rtg", "Rating"]);
+    const federationIndex = getColumnIndex(headers, ["Fed", "Federation"]);
     const pointsIndex = getColumnIndex(headers, ["Pts", "Points"]);
     const tieBreakIndex = headers.findIndex((header) =>
       header.toLowerCase().includes("bh")
     );
 
     if (rankIndex === -1 || nameIndex === -1 || pointsIndex === -1) {
-      setMessage("Missing required columns. The file must include Rank, Name and Pts.");
+      setMessage("Missing required columns. The file must include Rk, Name and Pts.");
       event.target.value = "";
       return;
     }
 
-    const playerMap = new Map(
-      tournamentPlayers.map((player) => [normalizeName(player.full_name), player])
-    );
+    const playerMap = buildPlayerNameMap(tournamentPlayers);
 
     const parsed = rows
       .slice(headerRowIndex + 1)
@@ -190,12 +233,19 @@ export default function ImportTournamentResultsPage() {
         const name = String(row[nameIndex] ?? "").trim();
         if (!name) return null;
 
-        const matchedPlayer = playerMap.get(normalizeName(name)) ?? null;
+        const matchedPlayer =
+          nameAliases(name)
+            .map((alias) => playerMap.get(alias) ?? null)
+            .find(Boolean) ?? null;
 
         return {
           rank: toNumber(row[rankIndex]),
           name,
           rating: ratingIndex >= 0 ? toNumber(row[ratingIndex]) : null,
+          federation:
+            federationIndex >= 0 && row[federationIndex] !== ""
+              ? String(row[federationIndex]).trim()
+              : null,
           points: toNumber(row[pointsIndex]),
           tieBreak:
             tieBreakIndex >= 0 && row[tieBreakIndex] !== ""
@@ -249,6 +299,9 @@ export default function ImportTournamentResultsPage() {
       player_id: row.matchedPlayerId,
       section_id: null,
       final_position: row.rank,
+      imported_name: row.name,
+      imported_rating: row.rating,
+      federation: row.federation,
       points: row.points,
       tie_break: row.tieBreak,
       award_title:
@@ -306,7 +359,9 @@ export default function ImportTournamentResultsPage() {
             : "Skipped because no matching registered player was found",
           row_data: {
             rank: row.rank,
+            name: row.name,
             rating: row.rating,
+            federation: row.federation,
             points: row.points,
             tieBreak: row.tieBreak,
           },
@@ -355,9 +410,9 @@ export default function ImportTournamentResultsPage() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-              Upload a Swiss Manager ranking list. The system reads Rank, Name,
-              Points and Tie-breaks, matches players to tournament registrations
-              and imports final standings into Tournament Results.
+              Upload a Chess-Results final ranking list. The public archive uses
+              Rk, Name, Rtg, FED and Pts, while admin can still review tie-breaks
+              and matching details.
             </p>
           </section>
 
@@ -430,11 +485,13 @@ export default function ImportTournamentResultsPage() {
                 </p>
               ) : (
                 <div className="mt-6 max-h-[650px] overflow-auto rounded-2xl border border-white/10">
-                  <table className="w-full min-w-[780px] text-left text-sm">
+                  <table className="w-full min-w-[900px] text-left text-sm">
                     <thead className="sticky top-0 bg-zinc-950 text-xs uppercase tracking-wide text-gray-500">
                       <tr>
                         <th className="p-3">Rank</th>
                         <th className="p-3">Name</th>
+                        <th className="p-3">Rtg</th>
+                        <th className="p-3">FED</th>
                         <th className="p-3">Points</th>
                         <th className="p-3">Tie-break</th>
                         <th className="p-3">Matched Player</th>
@@ -452,6 +509,8 @@ export default function ImportTournamentResultsPage() {
                             {row.rank ?? "-"}
                           </td>
                           <td className="p-3 text-gray-300">{row.name}</td>
+                          <td className="p-3 text-gray-300">{row.rating ?? "-"}</td>
+                          <td className="p-3 text-gray-300">{row.federation ?? "-"}</td>
                           <td className="p-3 text-gray-300">{row.points ?? "-"}</td>
                           <td className="p-3 text-gray-300">{row.tieBreak ?? "-"}</td>
                           <td className="p-3 text-gray-300">

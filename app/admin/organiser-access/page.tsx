@@ -170,15 +170,67 @@ export default function AdminOrganiserAccessPage() {
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
                 Scoped Access
               </p>
-              <h1 className="mt-3 text-4xl font-black md:text-6xl">
+              <h1 className="mt-3 text-3xl font-black md:text-6xl">
                 Organiser access
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300">
-                Give an organiser access to entries for one tournament only.
-                They use `/organiser/login`, not the admin dashboard.
+                Grant tournament-specific entry access. Organisers use the
+                organiser portal and cannot access the admin dashboard.
               </p>
 
-              <section className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
+              <section className="mt-8 space-y-3 lg:hidden">
+                {accessRows.map((row) => (
+                  <article
+                    key={row.id}
+                    className="rounded-2xl border border-white/10 bg-zinc-900 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-lg font-black text-white">
+                          {row.organiser_name || row.organiser_email}
+                        </p>
+                        <p className="mt-1 break-all text-xs text-zinc-500">
+                          {row.organiser_email}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
+                        {row.access_status ?? "Active"}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 space-y-2 text-sm text-zinc-400">
+                      <p>
+                        Player link: {row.players?.full_name ?? "Not linked"}
+                      </p>
+                      <p>
+                        Chess SA:{" "}
+                        {row.chess_sa_id ?? row.players?.chess_sa_id ?? "Not recorded"}
+                      </p>
+                      <p>
+                        Tournament:{" "}
+                        {row.tournaments?.tournament_name ?? row.tournament_id}
+                      </p>
+                      <p>Role: {row.role ?? "Organiser"}</p>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={saving || row.access_status === "Revoked"}
+                      onClick={() => revokeAccess(row)}
+                      className="mt-4 w-full rounded-lg border border-red-500/40 px-4 py-3 text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
+                    >
+                      Revoke Access
+                    </button>
+                  </article>
+                ))}
+                {!loading && accessRows.length === 0 && (
+                  <p className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center text-sm text-zinc-400">
+                    No organiser access has been granted yet.
+                  </p>
+                )}
+              </section>
+
+              <section className="mt-8 hidden overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 lg:block">
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[900px] text-left text-sm">
                     <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">

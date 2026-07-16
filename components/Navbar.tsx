@@ -14,6 +14,7 @@ export default function Navbar() {
     { href: "/#tournaments", label: "Tournaments" },
     { href: "/players", label: "Players" },
     { href: "/players/rankings", label: "LCA Rankings" },
+    { href: "/members", label: "Members" },
     { href: "/organisers", label: "Organisers" },
     { href: "/hall-of-fame", label: "Hall of Fame" },
     { href: "/news", label: "News" },

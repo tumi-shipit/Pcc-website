@@ -71,6 +71,7 @@ const adminDirectory = [
     group: "Players",
     links: [
       { href: "/admin/players", label: "Player Centre", text: "Search, filter and open player records." },
+      { href: "/admin/members", label: "Membership Register", text: "Record paid memberships and renewal dates." },
       { href: "/admin/players/link-chessa", label: "Link Chess SA IDs", text: "Connect existing players to Chess SA IDs." },
       { href: "/admin/players/sync", label: "Chess SA Sync", text: "Import ratings and complete missing details." },
       { href: "/admin/players/verify", label: "Verification Queue", text: "Review and approve player records." },

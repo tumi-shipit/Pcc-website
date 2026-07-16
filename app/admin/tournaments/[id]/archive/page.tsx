@@ -40,6 +40,7 @@ type ImportedStanding = {
   starting_number: number | null;
   name: string;
   rating: number | null;
+  federation: string | null;
   points: number | null;
   tieBreak: string | null;
   player_id: string | null;
@@ -440,6 +441,11 @@ function parseFinalRankingRows(
     "Rating",
   ]);
 
+  const federationIndex = getFlexibleColumnIndex(headers, [
+    "FED",
+    "Federation",
+  ]);
+
   const pointsIndex = getFlexibleColumnIndex(headers, [
     "Pts",
     "Pts.",
@@ -476,6 +482,10 @@ function parseFinalRankingRows(
         starting_number: startingNumber,
         name,
         rating: ratingIndex >= 0 ? toNumber(row[ratingIndex]) : null,
+        federation:
+          federationIndex >= 0 && row[federationIndex] !== ""
+            ? String(row[federationIndex]).trim()
+            : null,
         points: toNumber(row[pointsIndex]),
         tieBreak:
           tieBreakIndex >= 0 && row[tieBreakIndex] !== ""
@@ -1041,6 +1051,9 @@ export default function TournamentArchiveContinuationPage() {
           player_id: row.player_id,
           section_id: selectedSectionId,
           final_position: row.rank,
+          imported_name: row.name,
+          imported_rating: row.rating,
+          federation: row.federation,
           points: row.points,
           tie_break: row.tieBreak,
           award_title:
@@ -1116,7 +1129,9 @@ export default function TournamentArchiveContinuationPage() {
           row_data: {
             rank: row.rank,
             starting_number: row.starting_number,
+            name: row.name,
             rating: row.rating,
+            federation: row.federation,
             points: row.points,
             tieBreak: row.tieBreak,
             section_id: selectedSectionId,
@@ -1457,12 +1472,14 @@ function RankingReviewTable({
 
   return (
     <div className="mt-6 max-h-[520px] overflow-auto rounded-2xl border border-white/10">
-      <table className="w-full min-w-[1050px] text-left text-sm">
+      <table className="w-full min-w-[1150px] text-left text-sm">
         <thead className="sticky top-0 bg-zinc-950 text-xs uppercase tracking-wide text-gray-500">
           <tr>
             <th className="p-3">Rank</th>
             <th className="p-3">SNo</th>
             <th className="p-3">Imported name</th>
+            <th className="p-3">Rtg</th>
+            <th className="p-3">FED</th>
             <th className="p-3">Matched PCC player</th>
             <th className="p-3">Points</th>
             <th className="p-3">Tie-break</th>
@@ -1479,6 +1496,8 @@ function RankingReviewTable({
                 {row.starting_number ?? "-"}
               </td>
               <td className="p-3 font-semibold text-white">{row.name}</td>
+              <td className="p-3 text-gray-300">{row.rating ?? "-"}</td>
+              <td className="p-3 text-gray-300">{row.federation ?? "-"}</td>
               <td className="p-3">
                 <select
                   value={row.player_id ?? ""}
