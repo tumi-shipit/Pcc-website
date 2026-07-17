@@ -231,7 +231,11 @@ begin
   set player_id = primary_player_id,
       chess_sa_id = coalesce(chess_sa_id, duplicate_record.chess_sa_id),
       updated_at = now()
-  where player_id = duplicate_player_id;
+  where player_id = duplicate_player_id
+    or (
+      duplicate_record.chess_sa_id is not null
+      and chess_sa_id = duplicate_record.chess_sa_id
+    );
 
   if to_regclass('public.tournament_organiser_access') is not null then
     update public.tournament_organiser_access

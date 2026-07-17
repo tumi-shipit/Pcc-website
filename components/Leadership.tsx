@@ -21,35 +21,58 @@ const leaders: Leader[] = [
     legacyHref: "/hall-of-fame/joe-mahomole",
     legacyBadge: "Hall of Fame",
     highlights: [
+      "Qualified FIDE Arbiter",
+      "Level 3 Instructor & Coach",
+      "Current President of Capricorn District Chess",
       "Former Chess SA President",
-      "Former FIDE Zone 4.5 President",
-      "FIDE Arbiter",
-      "Mzansi Youth LOC Chair",
-      "University of Limpopo Coach",
+      "Former FIDE Zone 4.5 President (2018-2022)",
+      "Former FIDE Commonwealth Treasurer (2018-2022)",
+      "Coach at Limpopo Chess Academy and other institutions",
+      "Mzansi Youth Inter-Provincial Chess Championship 2024 LOC Chairperson",
+      "Player",
     ],
   },
   {
     name: "Tumelo Mmola",
-    role: "Club Captain",
+    role: "Club Captain & Head of Operations",
     description:
       "Organising tournaments, developing systems and supporting the growth of competitive chess players.",
     image: "/images/leaders/tumelo.jpeg",
     highlights: [
-      "Club Captain",
-      "Tournament Organiser",
-      "Chess Coach",
-      "Candidate Provincial Arbiter",
+      "Qualified Level 3 Chess Instructor & Coach (CHESSA)",
+      "Candidate Provincial Arbiter (CHESSA)",
+      "Recognised National Arbiter (FIDE)",
+      "Chess Coach at Mitchell House",
+      "Head Coach at Capricorn District Chess",
       "PCC Website Developer",
+      "Tournament Organiser",
+    ],
+  },
+  {
+    name: "Elias Mabotja",
+    role: "Operations & Administration Manager",
+    description:
+      "Supporting the club through operations management, administration, event coordination and member service.",
+    image: "/images/leaders/elias-mabotja.jpg",
+    highlights: [
+      "Qualified FIDE School Instructor",
+      "Recognised National Arbiter (FIDE)",
+      "Level 1 Chess Instructor & Coach",
+      "Chess Coach at Northern Academy Secondary",
+      "Candidate Provincial Arbiter (CHESSA)",
+      "Founder of Chess Clinic",
+      "General Secretary of Capricorn District Chess",
+      "Tournament Organiser",
     ],
   },
   {
     name: "Tebogo Mahomole",
-    role: "Club Official",
+    role: "Competitions & Events Coordinator",
     description:
       "Strengthening the club through administration, event support and player development.",
     image: "/images/leaders/tebogo.jpeg",
     highlights: [
-      "Club Official",
+      "Qualified Level 1 Chess Instructor & Coach",
       "Tournament Support",
       "Administration",
       "Player Development",
@@ -60,25 +83,25 @@ const leaders: Leader[] = [
 
 export default function Leadership() {
   return (
-    <section className="bg-zinc-950 py-20 text-white">
-      <div className="mx-auto max-w-7xl px-6">
-        <div className="text-center">
-          <p className="font-semibold uppercase tracking-[0.3em] text-red-500">
+    <section className="bg-zinc-950 py-16 text-white md:py-24">
+      <div className="mx-auto max-w-7xl px-4 md:px-6">
+        <div className="max-w-3xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-500 md:text-sm">
             Leadership
           </p>
 
-          <h2 className="mt-4 text-4xl font-black md:text-5xl">
-            Meet The Team
+          <h2 className="mt-4 text-3xl font-black md:text-5xl">
+            Club leadership and service
           </h2>
 
-          <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-gray-400">
-            Behind every successful chess club is a dedicated team committed to
-            growing the game, developing players and preserving the legacy of
-            chess in Limpopo.
+          <p className="mt-5 text-sm leading-7 text-gray-400 md:text-lg md:leading-8">
+            PCC is guided by people who serve the club through governance,
+            tournament delivery, player development and the preservation of
+            chess history in Limpopo.
           </p>
         </div>
 
-        <div className="mt-14 grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
           {leaders.map((leader) => (
             <LeaderCard key={leader.name} leader={leader} />
           ))}
@@ -113,7 +136,7 @@ export default function Leadership() {
 
 function LeaderCard({ leader }: { leader: Leader }) {
   return (
-    <article className="group overflow-hidden rounded-3xl border border-white/10 bg-zinc-900 shadow-xl transition-all duration-300 hover:-translate-y-2 hover:border-red-500/70 hover:shadow-[0_0_45px_rgba(220,38,38,0.38)]">
+    <article className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl transition duration-300 hover:-translate-y-1 hover:border-red-500/70">
       <div className="relative aspect-[4/5] overflow-hidden bg-zinc-950">
         <Image
           src={leader.image}
@@ -131,42 +154,30 @@ function LeaderCard({ leader }: { leader: Leader }) {
           </span>
         )}
 
-        <div className="absolute bottom-0 left-0 right-0 p-4">
-          <div className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-md transition-all duration-500 group-hover:border-red-500/50 group-hover:bg-black/55">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-300">
-              {leader.role}
-            </p>
+        <div className="absolute bottom-0 left-0 right-0 p-3 md:p-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-red-300 md:text-xs md:tracking-[0.24em]">
+            {leader.role}
+          </p>
 
-            <h3 className="mt-2 text-2xl font-black text-white transition-transform duration-500 group-hover:-translate-y-1">
-              {leader.name}
-            </h3>
-
-            <div className="mt-3 h-0.5 w-0 bg-red-500 transition-all duration-500 group-hover:w-20" />
-
-            <div className="mt-4 max-h-0 overflow-hidden opacity-0 transition-all duration-500 group-hover:max-h-56 group-hover:opacity-100">
-              <div className="space-y-2 border-t border-white/10 pt-4">
-                {leader.highlights.map((item) => (
-                  <p key={item} className="text-sm text-gray-200">
-                     {item}
-                  </p>
-                ))}
-
-                {leader.legacyHref && (
-                  <Link
-                    href={leader.legacyHref}
-                    className="mt-4 inline-flex rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white transition hover:bg-red-700"
-                  >
-                    View Legacy 
-                  </Link>
-                )}
-              </div>
-            </div>
-          </div>
+          <h3 className="mt-2 text-lg font-black leading-tight text-white md:text-2xl">
+            {leader.name}
+          </h3>
         </div>
       </div>
 
-      <div className="border-t border-white/10 p-6">
-        <p className="text-sm leading-7 text-gray-400">{leader.description}</p>
+      <div className="border-t border-white/10 p-4 md:p-5">
+        <p className="text-xs leading-6 text-gray-400 md:text-sm md:leading-7">{leader.description}</p>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {leader.highlights.map((item) => (
+            <span
+              key={item}
+              className="rounded-full border border-white/10 bg-zinc-950 px-2.5 py-1 text-[11px] font-semibold text-gray-300 md:text-xs"
+            >
+              {item}
+            </span>
+          ))}
+        </div>
 
         {leader.legacyHref && (
           <Link

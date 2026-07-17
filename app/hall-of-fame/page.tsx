@@ -17,20 +17,20 @@ const inductees: Inductee[] = [
     name: "Mahlodi Joe Mahomole",
     title: "Founding Inductee",
     subtitle:
-      "Former Chess South Africa President - Former FIDE Zone 4.5 President - FIDE Arbiter",
+      "Current Capricorn District Chess President - Former Chess South Africa President - FIDE Arbiter",
     image: "/images/leaders/joe.jpeg",
     href: "/hall-of-fame/joe-mahomole",
     badge: "Inductee No. 1",
     summary:
-      "Honoured for decades of leadership, administration, arbitration, coaching and youth chess development in Limpopo, South Africa and Southern Africa.",
-    pillars: ["Leadership", "Administration", "Arbitration", "Youth development"],
+      "Honoured for sustained service in leadership, administration, arbitration, coaching, youth development and the building of chess structures from club to regional level.",
+    pillars: ["Leadership", "Administration", "Arbitration", "Coaching", "Youth development"],
   },
 ];
 
 const principles = [
-  "Service that shaped chess beyond one event or season.",
-  "Leadership that strengthened clubs, districts, provinces or national chess.",
-  "Work that future players and organisers can learn from.",
+  "Sustained service that shaped chess beyond one event, season or office term.",
+  "Leadership that strengthened club, district, provincial, national or regional chess structures.",
+  "Work that future players, arbiters, coaches and organisers can learn from.",
 ];
 
 const legacyPath = [
@@ -58,10 +58,10 @@ export default function HallOfFamePage() {
               PCC Hall of Fame
             </p>
             <h1 className="mt-5 text-4xl font-black leading-tight md:text-7xl">
-              The people who built the game
+              Honouring the people who built the game
             </h1>
             <p className="mt-6 max-w-3xl text-sm leading-7 text-gray-300 md:text-lg md:leading-8">
-              A permanent record honouring people whose leadership, service and
+              A permanent PCC record honouring people whose leadership, service and
               sacrifice helped shape Polokwane Chess Club, Limpopo chess and the
               wider South African chess community.
             </p>
@@ -92,6 +92,10 @@ export default function HallOfFamePage() {
             <h2 className="mt-3 text-3xl font-black md:text-5xl">
               First Inductee
             </h2>
+            <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-400 md:text-base md:leading-8">
+              The Hall of Fame begins with its founding inductee and will expand
+              as PCC verifies further records of long-term service to the game.
+            </p>
           </div>
 
           <Link
@@ -174,10 +178,10 @@ export default function HallOfFamePage() {
             Not just achievement. Contribution.
           </h2>
           <p className="mt-4 max-w-4xl text-sm leading-7 text-gray-400 md:text-base md:leading-8">
-            The Hall of Fame is not a ranking table. It is a memory project for
-            the club: a way to preserve the stories of people who gave time,
-            structure, care and leadership to chess so the next generation could
-            inherit something stronger.
+            The Hall of Fame is not a ranking table or popularity list. It is a
+            permanent record of service: a way to preserve the stories of people
+            who gave time, structure, care and leadership to chess so the next
+            generation could inherit something stronger.
           </p>
         </section>
 

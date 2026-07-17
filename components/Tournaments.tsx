@@ -60,6 +60,16 @@ function formatMoney(amount: number) {
   }).format(amount);
 }
 
+function isUpcomingTournament(tournament: Tournament) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const tournamentDate = parseCalendarDate(tournament.start_date);
+  tournamentDate.setHours(0, 0, 0, 0);
+
+  return tournamentDate.getTime() >= today.getTime();
+}
+
 function getStatusLabel(status: Tournament["registration_status"]) {
   if (status === "Open") return "Open";
   if (status === "Live") return "Live";
@@ -135,7 +145,7 @@ function TournamentCard({
         </p>
 
         <p className="mt-1 text-xs font-semibold text-gray-300">
-          {archive ? "Results and gallery" : `Entry: ${formatMoney(tournament.entry_fee)}`}
+          {archive ? "Results and gallery" : `Entry fee: ${formatMoney(tournament.entry_fee)}`}
         </p>
 
         <div className="mt-4 grid gap-2">
@@ -152,7 +162,7 @@ function TournamentCard({
                 href="/register"
                 className="block rounded-lg bg-red-600 px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-red-700"
               >
-                Register
+                Enter Tournament
               </Link>
             ) : (
               <span className="block rounded-lg bg-zinc-800 px-3 py-2 text-center text-xs text-gray-400">
@@ -197,13 +207,13 @@ export default function Tournaments() {
     loadTournaments();
   }, []);
 
-  const upcomingTournaments = tournaments.filter(
-    (tournament) => tournament.registration_status !== "Completed"
-  );
+  const upcomingTournaments = tournaments
+    .filter(isUpcomingTournament)
+    .sort((left, right) => parseCalendarDate(left.start_date).getTime() - parseCalendarDate(right.start_date).getTime());
 
-  const pastTournaments = tournaments.filter(
-    (tournament) => tournament.registration_status === "Completed"
-  );
+  const pastTournaments = tournaments
+    .filter((tournament) => !isUpcomingTournament(tournament))
+    .sort((left, right) => parseCalendarDate(right.start_date).getTime() - parseCalendarDate(left.start_date).getTime());
 
   return (
     <section id="tournaments" className="bg-zinc-950 py-16 text-white md:py-24">
@@ -219,10 +229,9 @@ export default function Tournaments() {
           </h2>
 
           <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-            Find open registrations, live events and completed tournament
-            archives from one public hub. Each tournament page shows status,
-            dates, venue, sections, fees, results and archive material where
-            available.
+            Find upcoming events, open entries and completed tournament
+            archives from one public hub. Each tournament page shows dates,
+            venue, sections, fees, results and archive material where available.
           </p>
           </div>
 
@@ -262,7 +271,7 @@ export default function Tournaments() {
                   </p>
 
                   <h2 className="text-3xl font-bold md:text-5xl">
-                    Past Tournaments
+                    Tournament Archive
                   </h2>
 
                   <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">

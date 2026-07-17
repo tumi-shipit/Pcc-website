@@ -4,8 +4,8 @@ import Link from "next/link";
 const whatsappJoinLink =
   "https://wa.me/27728787894?text=Hi%20Polokwane%20Chess%20Club%20%F0%9F%91%8B%0A%0AI%20would%20like%20to%20become%20a%20member.%0A%0AMy%20details%20are%3A%0A%0A%E2%80%A2%20Full%20Name%3A%0A%E2%80%A2%20Age%3A%0A%E2%80%A2%20School%20%2F%20Club%3A%0A%E2%80%A2%20Chess%20SA%20ID%20(if%20available)%3A%0A%E2%80%A2%20Playing%20Strength%3A%0A%E2%80%A2%20Parent%2FGuardian%20Name%20(if%20junior)%3A%0A%E2%80%A2%20Contact%20Number%3A%0A%0AI%20would%20like%20more%20information%20about%20membership.";
 const quickLinks = [
-  { href: "/#tournaments", title: "Tournaments", text: "Register or view archives" },
-  { href: "/players", title: "Player Centre", text: "Search verified profiles" },
+  { href: "/#tournaments", title: "Tournaments", text: "Entries, results and archives" },
+  { href: "/players", title: "Player Centre", text: "Verified profiles and records" },
   {
     href: "/players/rankings",
     title: "LCA Rankings",
@@ -16,8 +16,8 @@ const quickLinks = [
 
 const proofPoints = [
   { label: "Established", value: "1958" },
-  { label: "Home", value: "Polokwane" },
-  { label: "Records", value: "Verified" },
+  { label: "Base", value: "Polokwane" },
+  { label: "Player Data", value: "Verified" },
 ];
 
 export default function Hero() {
@@ -45,8 +45,8 @@ export default function Hero() {
           </h1>
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-gray-200 md:text-xl md:leading-8">
-            Tournament registration, verified player records, archives and the
-            living history of chess in Polokwane.
+            Tournament registration, verified player records, member services
+            and the living archive of chess in Polokwane.
           </p>
 
           <div className="mt-6 grid max-w-2xl grid-cols-3 gap-2">
@@ -70,13 +70,19 @@ export default function Hero() {
               href="/register"
               className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
             >
-              Register for a Tournament
+              Enter a Tournament
             </Link>
             <Link
               href="/#tournaments"
               className="rounded-xl border border-white/20 bg-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-white hover:text-black"
             >
               View Tournaments
+            </Link>
+            <Link
+              href="/members/login"
+              className="rounded-xl border border-white/20 bg-black/30 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Member Centre
             </Link>
             <Link
               href="/players"

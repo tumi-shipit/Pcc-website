@@ -19,6 +19,11 @@ type Reference = {
   href: string;
 };
 
+type CareerHighlight = {
+  label: string;
+  text: string;
+};
+
 const serviceAreas: ServiceArea[] = [
   {
     organisation: "Chess South Africa",
@@ -31,14 +36,14 @@ const serviceAreas: ServiceArea[] = [
     organisation: "FIDE Zone 4.5",
     service: "Zonal Leadership & Southern African Chess",
     description:
-      "Contribution to chess leadership and development within the Southern African chess region.",
+      "Former FIDE Zone 4.5 President, with contribution to chess leadership and development within the Southern African chess region.",
     logo: "/images/organisations/fide-zone-45.png",
   },
   {
     organisation: "FIDE",
     service: "International Officiating",
     description:
-      "Recognition as a FIDE Arbiter, bringing international officiating standards and tournament experience to the chess community.",
+      "Qualified FIDE Arbiter and former FIDE Commonwealth Treasurer, bringing international standards and tournament experience to the chess community.",
     logo: "/images/organisations/fide.png",
   },
   {
@@ -52,21 +57,21 @@ const serviceAreas: ServiceArea[] = [
     organisation: "Capricorn District Chess",
     service: "District Leadership & Growth",
     description:
-      "Support for chess growth at district level through leadership, organising, development and community chess activity.",
+      "Current President of Capricorn District Chess, supporting district growth through leadership, organising, development and community chess activity.",
     logo: "/images/organisations/capricorn-district-chess.png",
   },
   {
-    organisation: "Mzansi Inter-Provincial Youth Chess Championships",
+    organisation: "Mzansi Youth Inter-Provincial Chess Championship",
     service: "National Youth Event Leadership",
     description:
-      "Chairperson of the Local Organising Committee for the 2024 Mzansi Inter-Provincial Youth Chess Championships, a national youth chess event.",
+      "Chairperson of the Local Organising Committee for the 2024 Mzansi Youth Inter-Provincial Chess Championship, a national youth chess event.",
     logo: "/images/organisations/mzansi-interprovincial-youth.png",
   },
   {
     organisation: "Limpopo Chess Academy",
     service: "Coaching & Player Development",
     description:
-      "Coaching and mentorship across hundreds of schools, numerous clubs and individual players, with continued development work through the Limpopo Chess Academy.",
+      "Level 3 Instructor and Coach, with coaching and mentorship work through Limpopo Chess Academy and other institutions.",
     logo: "/images/organisations/limpopo-chess-academy.png",
   },
   {
@@ -108,6 +113,41 @@ const legacyPillars: LegacyPillar[] = [
     title: "Legacy Building",
     description:
       "Leaving behind stronger players, stronger organisers, stronger officials and stronger chess communities.",
+  },
+];
+
+const careerHighlights: CareerHighlight[] = [
+  {
+    label: "Current service",
+    text: "Current President of Capricorn District Chess.",
+  },
+  {
+    label: "Instruction & coaching",
+    text: "Qualified Level 3 Instructor & Coach with coaching work through Limpopo Chess Academy and other institutions.",
+  },
+  {
+    label: "National leadership",
+    text: "Former Chess South Africa President.",
+  },
+  {
+    label: "Regional leadership",
+    text: "Former FIDE Zone 4.5 President (2018-2022).",
+  },
+  {
+    label: "International service",
+    text: "Former FIDE Commonwealth Treasurer (2018-2022).",
+  },
+  {
+    label: "Officiating",
+    text: "Qualified FIDE Arbiter.",
+  },
+  {
+    label: "Youth events",
+    text: "Chairperson of the Local Organising Committee for the 2024 Mzansi Youth Inter-Provincial Chess Championship.",
+  },
+  {
+    label: "Player legacy",
+    text: "Recognised as a player, mentor and long-serving contributor to chess development.",
   },
 ];
 
@@ -180,14 +220,14 @@ export default function JoeMahomoleLegacyPage() {
             </h1>
 
             <p className="mt-5 max-w-4xl text-lg font-semibold leading-8 text-yellow-100 md:text-2xl md:leading-10">
-              Chess Administrator  -  FIDE Arbiter  -  Coach  -  Mentor  -  Development
+              Chess Administrator - FIDE Arbiter - Coach - Mentor - Development
               Leader
             </p>
 
             <p className="mt-6 max-w-4xl border-l-4 border-yellow-500 pl-5 text-base italic leading-8 text-gray-200 md:text-xl md:leading-10">
-              DoneFor decades, Joe Mahomole has devoted his life to building chess
-              not for personal recognition, but to create opportunities for
-              future generations."
+              For decades, Joe Mahomole has helped build chess structures,
+              opportunities and pathways that continue to benefit future
+              generations.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
@@ -250,6 +290,39 @@ export default function JoeMahomoleLegacyPage() {
                 that continue to benefit from his experience.
               </p>
             </div>
+          </div>
+        </section>
+
+        <section className="mt-12 rounded-[2rem] border border-yellow-500/20 bg-zinc-950 p-6 md:p-10">
+          <div className="max-w-4xl">
+            <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">
+              Verified Highlights
+            </p>
+
+            <h2 className="mt-3 text-3xl font-black md:text-5xl">
+              A record of leadership, coaching and service
+            </h2>
+
+            <p className="mt-4 text-sm leading-7 text-gray-400 md:text-base md:leading-8">
+              These highlights summarise the public service record currently
+              recognised by PCC for this Hall of Fame profile.
+            </p>
+          </div>
+
+          <div className="mt-8 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            {careerHighlights.map((highlight) => (
+              <article
+                key={highlight.label}
+                className="rounded-2xl border border-white/10 bg-black p-4"
+              >
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-yellow-300">
+                  {highlight.label}
+                </p>
+                <p className="mt-3 text-sm leading-6 text-gray-300">
+                  {highlight.text}
+                </p>
+              </article>
+            ))}
           </div>
         </section>
 

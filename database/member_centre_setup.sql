@@ -161,7 +161,7 @@ on public.tournaments
 for select
 to authenticated
 using (
-  coalesce(registration_status, '') <> 'Draft'
+  registration_status::text <> 'Draft'
   or exists (
     select 1
     from public.admin_users
