@@ -4,7 +4,6 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
-import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import { supabase } from "@/lib/supabase";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Completed";
@@ -31,6 +30,8 @@ type SectionForm = {
   section_name: string;
   minimum_birth_year: string;
   maximum_birth_year: string;
+  minimum_rating: string;
+  maximum_rating: string;
   gender_restriction: GenderRestriction;
   entry_fee_override: string;
   maximum_players: string;
@@ -67,16 +68,20 @@ const provinces = [
 ];
 
 const quickSectionTemplates: SectionForm[] = [
-  { section_name: "U8", minimum_birth_year: "2019", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U10", minimum_birth_year: "2017", maximum_birth_year: "2018", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U12", minimum_birth_year: "2015", maximum_birth_year: "2016", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U14", minimum_birth_year: "2013", maximum_birth_year: "2014", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "Ladies", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "Female", entry_fee_override: "", maximum_players: "" },
-  { section_name: "Custom", minimum_birth_year: "", maximum_birth_year: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U8", minimum_birth_year: "2019", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U10", minimum_birth_year: "2017", maximum_birth_year: "2018", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U12", minimum_birth_year: "2015", maximum_birth_year: "2016", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U14", minimum_birth_year: "2013", maximum_birth_year: "2014", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U1800", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1799", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U1600", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1599", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U1400", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1399", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U1200", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1199", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Ladies", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "Female", entry_fee_override: "", maximum_players: "" },
+  { section_name: "Custom", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
 ];
 
 const inputClass =
@@ -102,6 +107,8 @@ function createBlankSection(): SectionForm {
     section_name: "",
     minimum_birth_year: "",
     maximum_birth_year: "",
+    minimum_rating: "",
+    maximum_rating: "",
     gender_restriction: "All",
     entry_fee_override: "",
     maximum_players: "",
@@ -238,7 +245,7 @@ export default function EditTournamentPage() {
       const { data: sectionData } = await supabase
         .from("tournament_sections")
         .select(
-          "id, section_name, minimum_birth_year, maximum_birth_year, gender_restriction, entry_fee_override, maximum_players"
+          "id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, gender_restriction, entry_fee_override, maximum_players"
         )
         .eq("tournament_id", tournamentId)
         .order("section_name", { ascending: true });
@@ -256,6 +263,14 @@ export default function EditTournamentPage() {
               section.maximum_birth_year === null || section.maximum_birth_year === undefined
                 ? ""
                 : String(section.maximum_birth_year),
+            minimum_rating:
+              section.minimum_rating === null || section.minimum_rating === undefined
+                ? ""
+                : String(section.minimum_rating),
+            maximum_rating:
+              section.maximum_rating === null || section.maximum_rating === undefined
+                ? ""
+                : String(section.maximum_rating),
             gender_restriction: dbGenderToForm(section.gender_restriction),
             entry_fee_override:
               section.entry_fee_override === null || section.entry_fee_override === undefined
@@ -320,6 +335,8 @@ export default function EditTournamentPage() {
         section_name: section.section_name,
         minimum_birth_year: cleanOptionalNumber(section.minimum_birth_year),
         maximum_birth_year: cleanOptionalNumber(section.maximum_birth_year),
+        minimum_rating: cleanOptionalNumber(section.minimum_rating),
+        maximum_rating: cleanOptionalNumber(section.maximum_rating),
         gender_restriction: section.gender_restriction,
         entry_fee_override: cleanOptionalNumber(section.entry_fee_override),
         maximum_players: cleanOptionalNumber(section.maximum_players),
@@ -606,8 +623,8 @@ export default function EditTournamentPage() {
                   </p>
                   <h2 className="mt-2 text-2xl font-bold">Sections</h2>
                   <p className="mt-2 text-sm text-gray-400">
-                    Use birth-year rules for junior sections. Open, Ladies and
-                    Custom can be left without birth-year limits.
+                    Junior sections usually use birth year. Open sections can
+                    use rating bands, or both age and rating when needed.
                   </p>
                 </div>
 
@@ -654,7 +671,7 @@ export default function EditTournamentPage() {
                       </button>
                     </div>
 
-                    <div className="mt-4 grid gap-4 md:grid-cols-3">
+                    <div className="mt-4 grid gap-4 md:grid-cols-4">
                       <div className="md:col-span-3">
                         <label className="mb-2 block text-sm font-semibold">
                           Section name
@@ -669,9 +686,12 @@ export default function EditTournamentPage() {
                         />
                       </div>
 
-                      <div>
+                      <div className="rounded-xl border border-white/10 bg-zinc-950 p-3 md:col-span-2">
+                        <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
+                          Age / junior eligibility
+                        </p>
                         <label className="mb-2 block text-sm font-semibold">
-                          Minimum birth year
+                          Born from
                         </label>
                         <input
                           type="number"
@@ -690,9 +710,12 @@ export default function EditTournamentPage() {
                         />
                       </div>
 
-                      <div>
+                      <div className="rounded-xl border border-white/10 bg-zinc-950 p-3 md:col-span-2">
+                        <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
+                          Age / junior eligibility
+                        </p>
                         <label className="mb-2 block text-sm font-semibold">
-                          Maximum birth year
+                          Born until
                         </label>
                         <input
                           type="number"
@@ -707,6 +730,38 @@ export default function EditTournamentPage() {
                             )
                           }
                           placeholder="e.g. 2014"
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold">
+                          Minimum rating
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={section.minimum_rating}
+                          onChange={(event) =>
+                            updateSection(index, "minimum_rating", event.target.value)
+                          }
+                          placeholder="e.g. 1200"
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-2 block text-sm font-semibold">
+                          Maximum rating
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={section.maximum_rating}
+                          onChange={(event) =>
+                            updateSection(index, "maximum_rating", event.target.value)
+                          }
+                          placeholder="e.g. 1599"
                           className={inputClass}
                         />
                       </div>

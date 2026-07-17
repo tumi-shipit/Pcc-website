@@ -47,6 +47,8 @@ type TournamentSection = {
   section_name: string;
   minimum_birth_year: number | null;
   maximum_birth_year: number | null;
+  minimum_rating: number | null;
+  maximum_rating: number | null;
   gender_restriction: string;
   entry_fee_override: number | null;
   maximum_players: number | null;
@@ -107,38 +109,56 @@ function formatDate(value: string) {
 function getSectionLabel(section: TournamentSection) {
   const minimumBirthYear = section.minimum_birth_year;
   const maximumBirthYear = section.maximum_birth_year;
-
-  if (!minimumBirthYear && !maximumBirthYear) {
-    return section.section_name;
-  }
+  const minimumRating = section.minimum_rating;
+  const maximumRating = section.maximum_rating;
+  const labels: string[] = [];
 
   if (minimumBirthYear && !maximumBirthYear) {
-    return `${section.section_name} (${minimumBirthYear} & later)`;
+    labels.push(`born ${minimumBirthYear} or later`);
   }
 
   if (minimumBirthYear && maximumBirthYear) {
-    return `${section.section_name} (${minimumBirthYear} & ${maximumBirthYear})`;
+    labels.push(`born ${minimumBirthYear}-${maximumBirthYear}`);
   }
 
-  return section.section_name;
+  if (minimumRating !== null && minimumRating !== undefined && maximumRating !== null && maximumRating !== undefined) {
+    labels.push(`${minimumRating}-${maximumRating}`);
+  } else if (minimumRating !== null && minimumRating !== undefined) {
+    labels.push(`${minimumRating}+`);
+  } else if (maximumRating !== null && maximumRating !== undefined) {
+    labels.push(`U${maximumRating + 1}`);
+  }
+
+  return labels.length > 0
+    ? `${section.section_name} (${labels.join(", ")})`
+    : section.section_name;
 }
 
 function getSectionEligibilityMessage(
   section: TournamentSection,
   playerDateOfBirth: string | null,
-  playerGender: string | null
+  playerGender: string | null,
+  playerRating: number | null
 ) {
-  if (!playerDateOfBirth) {
+  const hasAgeRule =
+    section.minimum_birth_year !== null ||
+    section.maximum_birth_year !== null;
+  const hasRatingRule =
+    section.minimum_rating !== null ||
+    section.maximum_rating !== null;
+
+  if (hasAgeRule && !playerDateOfBirth) {
     return "Date of birth is required before choosing a section.";
   }
 
   const playerBirthYear = getBirthYear(playerDateOfBirth);
 
-  if (!playerBirthYear) {
+  if (hasAgeRule && !playerBirthYear) {
     return "Invalid date of birth. Please check the player's profile.";
   }
 
   if (
+    playerBirthYear &&
     section.minimum_birth_year !== null &&
     section.minimum_birth_year !== undefined &&
     playerBirthYear < section.minimum_birth_year
@@ -151,6 +171,7 @@ function getSectionEligibilityMessage(
   }
 
   if (
+    playerBirthYear &&
     section.maximum_birth_year !== null &&
     section.maximum_birth_year !== undefined &&
     playerBirthYear > section.maximum_birth_year
@@ -170,7 +191,35 @@ function getSectionEligibilityMessage(
     return `${section.section_name} is restricted to ${section.gender_restriction} players.`;
   }
 
+  if (hasRatingRule && playerRating === null) {
+    return `${section.section_name} requires a Chess SA rating before choosing this section.`;
+  }
+
+  if (
+    playerRating !== null &&
+    section.minimum_rating !== null &&
+    section.minimum_rating !== undefined &&
+    playerRating < section.minimum_rating
+  ) {
+    return `You are not eligible for ${section.section_name}. This section is for players rated ${section.minimum_rating} or higher.`;
+  }
+
+  if (
+    playerRating !== null &&
+    section.maximum_rating !== null &&
+    section.maximum_rating !== undefined &&
+    playerRating > section.maximum_rating
+  ) {
+    return `You are not eligible for ${section.section_name}. This section is for players rated ${section.maximum_rating} or below.`;
+  }
+
   return "";
+}
+
+function getBestChessSaRating(player: ChessSaPlayer | null) {
+  if (!player) return null;
+
+  return player.standard_rating ?? player.rapid_rating ?? player.blitz_rating ?? null;
 }
 
 const southAfricanProvinces = [
@@ -236,9 +285,15 @@ export default function RegisterPage() {
     selectedChessSaPlayer?.gender ?? (newPlayerMode ? newPlayer.gender : null);
 
   const selectedPlayerAge = calculateAge(playerDateOfBirth);
+  const selectedPlayerRating = getBestChessSaRating(selectedChessSaPlayer);
 
   const selectedSectionEligibilityMessage = selectedSection
-    ? getSectionEligibilityMessage(selectedSection, playerDateOfBirth, playerGender)
+    ? getSectionEligibilityMessage(
+        selectedSection,
+        playerDateOfBirth,
+        playerGender,
+        selectedPlayerRating
+      )
     : "";
 
   const entryFee =
@@ -282,7 +337,7 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournament_sections")
         .select(
-          "id, section_name, minimum_birth_year, maximum_birth_year, gender_restriction, entry_fee_override, maximum_players"
+          "id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, gender_restriction, entry_fee_override, maximum_players"
         )
         .eq("tournament_id", selectedTournamentId)
         .order("minimum_birth_year", { ascending: false, nullsFirst: false })
@@ -427,12 +482,7 @@ export default function RegisterPage() {
         proofOfPaymentUrl = filePath;
       }
 
-      const bestRating = selectedChessSaPlayer
-        ? selectedChessSaPlayer.standard_rating ??
-          selectedChessSaPlayer.rapid_rating ??
-          selectedChessSaPlayer.blitz_rating ??
-          null
-        : null;
+      const bestRating = getBestChessSaRating(selectedChessSaPlayer);
 
       const { error } = await supabase.rpc("submit_tournament_registration", {
         p_full_name: selectedChessSaPlayer
@@ -1028,7 +1078,8 @@ export default function RegisterPage() {
                       const sectionError = getSectionEligibilityMessage(
                         section,
                         playerDateOfBirth,
-                        playerGender
+                        playerGender,
+                        selectedPlayerRating
                       );
 
                       return (

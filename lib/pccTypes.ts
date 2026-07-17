@@ -64,6 +64,11 @@ export type TournamentSection = {
   id: UUID;
   tournament_id?: UUID;
   section_name: string;
+  minimum_birth_year?: number | null;
+  maximum_birth_year?: number | null;
+  minimum_rating?: number | null;
+  maximum_rating?: number | null;
+  gender_restriction?: string | null;
   entry_fee_override: number | null;
   maximum_players: number | null;
 };

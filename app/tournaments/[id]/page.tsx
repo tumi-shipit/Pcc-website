@@ -26,6 +26,10 @@ type Tournament = {
 type TournamentSection = {
   id: string;
   section_name: string;
+  minimum_birth_year?: number | null;
+  maximum_birth_year?: number | null;
+  minimum_rating?: number | null;
+  maximum_rating?: number | null;
   entry_fee_override: number | null;
   maximum_players: number | null;
 };
@@ -151,6 +155,26 @@ function publicResultFederation(result: ResultWithPlayer) {
   return result.federation?.trim() || "-";
 }
 
+function sectionRuleLabel(section: TournamentSection) {
+  const rules: string[] = [];
+
+  if (section.minimum_birth_year && section.maximum_birth_year) {
+    rules.push(`Born ${section.minimum_birth_year}-${section.maximum_birth_year}`);
+  } else if (section.minimum_birth_year) {
+    rules.push(`Born ${section.minimum_birth_year}+`);
+  }
+
+  if (section.minimum_rating && section.maximum_rating) {
+    rules.push(`Rating ${section.minimum_rating}-${section.maximum_rating}`);
+  } else if (section.minimum_rating) {
+    rules.push(`Rating ${section.minimum_rating}+`);
+  } else if (section.maximum_rating) {
+    rules.push(`Rating U${section.maximum_rating + 1}`);
+  }
+
+  return rules.join(" - ");
+}
+
 export default function TournamentHubPage() {
   const params = useParams();
   const tournamentId = String(params.id);
@@ -198,7 +222,7 @@ export default function TournamentHubPage() {
 
       const { data: sectionData } = await supabase
         .from("tournament_sections")
-        .select("id, section_name, entry_fee_override, maximum_players")
+        .select("id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, entry_fee_override, maximum_players")
         .eq("tournament_id", tournamentId)
         .order("section_name", { ascending: true });
 
@@ -556,6 +580,9 @@ export default function TournamentHubPage() {
                     >
                       <p className="font-bold">{section.section_name}</p>
                       <p className="mt-1 text-xs text-gray-400">
+                        {sectionRuleLabel(section) || "Open section"}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
                         {section.entry_fee_override
                           ? formatMoney(section.entry_fee_override)
                           : "Standard fee"}
