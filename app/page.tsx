@@ -6,6 +6,7 @@ import Achievements from "../components/Achievements";
 import Tournaments from "../components/Tournaments";
 import Leadership from "../components/Leadership";
 import TrustDetails from "../components/TrustDetails";
+import Footer from "../components/footer";
 
 export default function Home() {
   return (
@@ -21,6 +22,7 @@ export default function Home() {
       <Achievements />
       <Tournaments />
       <Leadership />
+      <Footer />
     </>
   );
 }

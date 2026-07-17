@@ -12,9 +12,9 @@ const actions = [
     label: "Pay",
   },
   {
-    title: "Verify Players",
-    href: "/admin/players/verify",
-    label: "Verify",
+    title: "Player Centre",
+    href: "/admin/players",
+    label: "Players",
   },
   {
     title: "Check Duplicates",
@@ -35,7 +35,7 @@ const actions = [
 
 export default function OperationsQuickActions() {
   return (
-    <section className="rounded-3xl border border-white/10 bg-zinc-900 p-6">
+    <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/10">
       <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
         Quick Actions
       </p>
@@ -47,7 +47,7 @@ export default function OperationsQuickActions() {
           <Link
             key={action.href}
             href={action.href}
-            className="rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:-translate-y-1 hover:border-red-500"
+            className="rounded-xl border border-white/10 bg-zinc-950 p-4 transition hover:-translate-y-1 hover:border-red-500 hover:bg-red-500/10"
           >
             <p className="text-xs font-black uppercase tracking-[0.18em] text-red-300">
               {action.label}

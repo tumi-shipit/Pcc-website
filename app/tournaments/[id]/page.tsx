@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { supabase } from "@/lib/supabase";
 
 type Tournament = {
@@ -136,15 +137,6 @@ function medal(position: number | null) {
   if (position === 2) return "2nd";
   if (position === 3) return "3rd";
   return "";
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
 }
 
 function publicResultName(result: ResultWithPlayer) {
@@ -729,19 +721,14 @@ function TournamentTeam({
               <div className="flex items-center gap-4">
                 <Link
                   href={`/players/${player.id}`}
-                  className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-lg font-black text-red-200"
+                  className="shrink-0"
                 >
-                  {player.profile_photo_url ? (
-                    <Image
-                      src={player.profile_photo_url}
-                      alt={player.full_name}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    initials(player.full_name)
-                  )}
+                  <PlayerAvatar
+                    name={player.full_name}
+                    photoUrl={player.profile_photo_url}
+                    size="lg"
+                    className="border-red-500/30"
+                  />
                 </Link>
 
                 <div className="min-w-0">
@@ -784,19 +771,12 @@ function PlayerMiniCard({
   return (
     <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
       <div className="flex items-center gap-4">
-        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-lg font-black text-red-200">
-          {result.player?.profile_photo_url ? (
-            <Image
-              src={result.player.profile_photo_url}
-              alt={publicResultName(result)}
-              fill
-              sizes="64px"
-              className="object-cover"
-            />
-          ) : (
-            initials(publicResultName(result))
-          )}
-        </div>
+        <PlayerAvatar
+          name={publicResultName(result)}
+          photoUrl={result.player?.profile_photo_url}
+          size="lg"
+          className="border-red-500/30"
+        />
 
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
@@ -1164,12 +1144,19 @@ function FinalRankingTable({
                           {result.player ? (
                             <Link
                               href={`/players/${result.player.id}`}
-                              className="line-clamp-2 transition hover:text-red-300"
+                              className="flex min-w-0 items-center gap-2 transition hover:text-red-300"
                             >
-                              {publicResultName(result)}
+                              <PlayerAvatar
+                                name={publicResultName(result)}
+                                photoUrl={result.player.profile_photo_url}
+                                size="xs"
+                              />
+                              <span className="line-clamp-2">
+                                {publicResultName(result)}
+                              </span>
                             </Link>
                           ) : (
-                            <span className="line-clamp-2">
+                            <span className="line-clamp-2 pl-10">
                               {publicResultName(result)}
                             </span>
                           )}

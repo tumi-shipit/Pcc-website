@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
@@ -31,6 +31,18 @@ type OfficialRow = {
   player_id: string | null;
 };
 
+type PlayerSearchIdentity = {
+  player_id?: string | null;
+  chess_sa_id?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  organiser_name?: string | null;
+  organiser_email?: string | null;
+};
+
+const playerSelect =
+  "id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, title";
+
 const inputClass =
   "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
 
@@ -43,17 +55,36 @@ function valueOrDash(value: string | number | null | undefined) {
   return String(value);
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
+function searchPattern(value: string) {
+  return `%${value.replaceAll(",", " ").trim()}%`;
+}
+
+function playerSearchScore(player: Player) {
+  let score = 0;
+  if (player.profile_photo_url) score += 40;
+  if (player.verification_status === "Verified") score += 25;
+  if (player.chess_sa_id) score += 20;
+  if (player.rating) score += 10;
+  return score;
+}
+
+function uniquePlayers(players: Player[]) {
+  const playerMap = new Map<string, Player>();
+
+  players
+    .sort((left, right) => playerSearchScore(right) - playerSearchScore(left))
+    .forEach((player) => {
+      if (!playerMap.has(player.id)) playerMap.set(player.id, player);
+    });
+
+  return Array.from(playerMap.values()).sort((left, right) =>
+    left.full_name.localeCompare(right.full_name)
+  );
 }
 
 export default function PublicPlayersDirectoryPage() {
   const [players, setPlayers] = useState<Player[]>([]);
+  const [directSearchPlayers, setDirectSearchPlayers] = useState<Player[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
   const [officials, setOfficials] = useState<OfficialRow[]>([]);
   const [search, setSearch] = useState("");
@@ -71,9 +102,7 @@ export default function PublicPlayersDirectoryPage() {
 
       const { data: playerData, error: playerError } = await supabase
         .from("players")
-        .select(
-          "id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, title"
-        )
+        .select(playerSelect)
         .order("full_name", { ascending: true })
         .limit(10000);
 
@@ -102,6 +131,107 @@ export default function PublicPlayersDirectoryPage() {
 
     loadPlayers();
   }, []);
+
+  useEffect(() => {
+    const text = search.trim();
+
+    if (!text) {
+      const timer = window.setTimeout(() => {
+        setDirectSearchPlayers([]);
+      }, 0);
+
+      return () => window.clearTimeout(timer);
+    }
+
+    const timer = window.setTimeout(async () => {
+      const pattern = searchPattern(text);
+      const searchPlayers: Player[] = [];
+      const searchIdentities: PlayerSearchIdentity[] = [];
+
+      const { data } = await supabase
+        .from("players")
+        .select(playerSelect)
+        .or(
+          `full_name.ilike.${pattern},chess_sa_id.ilike.${pattern},fide_id.ilike.${pattern},club.ilike.${pattern},province.ilike.${pattern},title.ilike.${pattern},email.ilike.${pattern}`
+        )
+        .order("full_name", { ascending: true })
+        .limit(50);
+
+      searchPlayers.push(...((data ?? []) as unknown as Player[]));
+
+      const { data: registrationMatches } = await supabase
+        .from("registration_details")
+        .select("full_name, chess_sa_id, email")
+        .or(`full_name.ilike.${pattern},chess_sa_id.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(30);
+
+      searchIdentities.push(...((registrationMatches ?? []) as unknown as PlayerSearchIdentity[]));
+
+      const { data: accessMatches } = await supabase
+        .from("tournament_organiser_access")
+        .select("player_id, chess_sa_id, organiser_name, organiser_email")
+        .or(
+          `organiser_name.ilike.${pattern},chess_sa_id.ilike.${pattern},organiser_email.ilike.${pattern}`
+        )
+        .limit(30);
+
+      searchIdentities.push(...((accessMatches ?? []) as unknown as PlayerSearchIdentity[]));
+
+      const playerIds = Array.from(
+        new Set(searchIdentities.map((identity) => identity.player_id).filter(Boolean))
+      ) as string[];
+      const chessSaIds = Array.from(
+        new Set(searchIdentities.map((identity) => identity.chess_sa_id).filter(Boolean))
+      ) as string[];
+      const names = Array.from(
+        new Set(
+          searchIdentities
+            .map((identity) => identity.full_name ?? identity.organiser_name)
+            .filter(Boolean)
+            .map((name) => name!.trim())
+            .filter(Boolean)
+        )
+      );
+
+      if (playerIds.length > 0) {
+        const { data: linkedPlayers } = await supabase
+          .from("players")
+          .select(playerSelect)
+          .in("id", playerIds)
+          .limit(50);
+
+        searchPlayers.push(...((linkedPlayers ?? []) as unknown as Player[]));
+      }
+
+      if (chessSaIds.length > 0) {
+        const { data: chessSaPlayers } = await supabase
+          .from("players")
+          .select(playerSelect)
+          .in("chess_sa_id", chessSaIds)
+          .limit(50);
+
+        searchPlayers.push(...((chessSaPlayers ?? []) as unknown as Player[]));
+      }
+
+      const nameMatches = await Promise.all(
+        names.slice(0, 8).map((name) =>
+          supabase
+            .from("players")
+            .select(playerSelect)
+            .ilike("full_name", searchPattern(name))
+            .limit(10)
+        )
+      );
+
+      nameMatches.forEach(({ data: matchedPlayers }) => {
+        searchPlayers.push(...((matchedPlayers ?? []) as unknown as Player[]));
+      });
+
+      setDirectSearchPlayers(uniquePlayers(searchPlayers));
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const playerStats = useMemo(() => {
     const stats = new Map<
@@ -219,18 +349,35 @@ export default function PublicPlayersDirectoryPage() {
 
   const filteredPlayers = useMemo(() => {
     const text = search.trim().toLowerCase();
+    const directSearchIds = new Set(directSearchPlayers.map((player) => player.id));
 
-    return publicPlayers
+    const searchMatches = (player: Player) =>
+      !text ||
+      player.full_name.toLowerCase().includes(text) ||
+      (player.chess_sa_id ?? "").toLowerCase().includes(text) ||
+      (player.fide_id ?? "").toLowerCase().includes(text) ||
+      (player.club ?? "").toLowerCase().includes(text) ||
+      (player.province ?? "").toLowerCase().includes(text) ||
+      (player.title ?? "").toLowerCase().includes(text);
+
+    const directPlayerMap = new Map<string, Player>();
+
+    const seedPlayers = text
+      ? [...publicPlayers, ...players.filter(searchMatches), ...directSearchPlayers]
+      : publicPlayers;
+
+    seedPlayers.forEach((player) => {
+      directPlayerMap.set(player.id, player);
+    });
+
+    const searchablePlayers = Array.from(directPlayerMap.values());
+
+    return searchablePlayers
       .filter((player) => {
         const stats = displayPlayerStats.get(player.id);
-        const matchesSearch =
-          !text ||
-          player.full_name.toLowerCase().includes(text) ||
-          (player.chess_sa_id ?? "").toLowerCase().includes(text) ||
-          (player.fide_id ?? "").toLowerCase().includes(text) ||
-          (player.club ?? "").toLowerCase().includes(text) ||
-          (player.province ?? "").toLowerCase().includes(text) ||
-          (player.title ?? "").toLowerCase().includes(text);
+        const matchesSearch = searchMatches(player) || directSearchIds.has(player.id);
+
+        if (text) return matchesSearch;
 
         const matchesProvince =
           provinceFilter === "All" || player.province === provinceFilter;
@@ -265,6 +412,8 @@ export default function PublicPlayersDirectoryPage() {
       });
   }, [
     publicPlayers,
+    players,
+    directSearchPlayers,
     displayPlayerStats,
     search,
     provinceFilter,
@@ -402,7 +551,10 @@ export default function PublicPlayersDirectoryPage() {
           <div className="mt-5 rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-zinc-400">
             Showing{" "}
             <span className="font-black text-white">{filteredPlayers.length}</span>{" "}
-            of <span className="font-black text-white">{publicPlayers.length}</span>{" "}
+            of{" "}
+            <span className="font-black text-white">
+              {search.trim() ? "matching" : publicPlayers.length}
+            </span>{" "}
             players.
           </div>
 
@@ -452,7 +604,11 @@ export default function PublicPlayersDirectoryPage() {
                               href={`/players/${player.id}`}
                               className="flex items-center gap-3 font-bold text-white transition hover:text-red-300"
                             >
-                              <PlayerAvatar player={player} size="sm" />
+                              <PlayerAvatar
+                                name={player.full_name}
+                                photoUrl={player.profile_photo_url}
+                                size="sm"
+                              />
                               <span>
                                 {player.full_name}
                                 <span className="mt-1 block text-xs font-normal text-zinc-500">
@@ -509,35 +665,6 @@ export default function PublicPlayersDirectoryPage() {
   );
 }
 
-function PlayerAvatar({
-  player,
-  size = "md",
-}: {
-  player: Player;
-  size?: "sm" | "md";
-}) {
-  const className =
-    size === "sm"
-      ? "relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-red-600/10 text-xs font-black text-red-200"
-      : "relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-red-600/10 text-base font-black text-red-200";
-
-  return (
-    <div className={className}>
-      {player.profile_photo_url ? (
-        <Image
-          src={player.profile_photo_url}
-          alt={player.full_name}
-          fill
-          sizes={size === "sm" ? "40px" : "56px"}
-          className="object-cover"
-        />
-      ) : (
-        initials(player.full_name)
-      )}
-    </div>
-  );
-}
-
 function PlayerMobileCard({
   player,
   stats,
@@ -551,7 +678,11 @@ function PlayerMobileCard({
       className="rounded-xl border border-white/10 bg-zinc-900 p-4 transition hover:border-red-500"
     >
       <div className="flex items-center gap-3">
-        <PlayerAvatar player={player} />
+        <PlayerAvatar
+          name={player.full_name}
+          photoUrl={player.profile_photo_url}
+          size="md"
+        />
         <div className="min-w-0">
           <p className="truncate font-black text-white">{player.full_name}</p>
           <p className="mt-1 truncate text-sm text-zinc-400">

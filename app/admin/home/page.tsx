@@ -61,7 +61,6 @@ const adminDirectory = [
     group: "Daily control",
     links: [
       { href: "/admin/home", label: "Command Overview", text: "Main administration dashboard." },
-      { href: "/admin/operations", label: "Operations Centre", text: "Payments, profile health, imports and operational issues." },
       { href: "/admin/search", label: "Admin Search", text: "Find players and tournaments quickly." },
       { href: "/admin/organiser-access", label: "Organiser Access", text: "Grant tournament-only entry access." },
       { href: "/admin/organiser-requests", label: "Organiser Requests", text: "Approve or reject organiser entry changes." },
@@ -72,10 +71,7 @@ const adminDirectory = [
     links: [
       { href: "/admin/players", label: "Player Centre", text: "Search, filter and open player records." },
       { href: "/admin/members", label: "Membership Register", text: "Record paid memberships and renewal dates." },
-      { href: "/admin/players/link-chessa", label: "Link Chess SA IDs", text: "Connect existing players to Chess SA IDs." },
       { href: "/admin/players/sync", label: "Chess SA Sync", text: "Import ratings and complete missing details." },
-      { href: "/admin/players/verify", label: "Verification Queue", text: "Review and approve player records." },
-      { href: "/admin/players/verify/import", label: "Verification Import", text: "Bulk review imported player details." },
       { href: "/admin/players/duplicates", label: "Duplicate Centre", text: "Find and repair duplicate profiles." },
     ],
   },
@@ -90,12 +86,10 @@ const adminDirectory = [
     ],
   },
   {
-    group: "Imports and media",
+    group: "Records and publishing",
     links: [
       { href: "/admin/imports", label: "Import History", text: "Review every import session." },
       { href: "/admin/imports/review", label: "Import Review", text: "Inspect imported rows that need attention." },
-      { href: "/admin/import-ratings", label: "Ratings Import", text: "Upload rating files." },
-      { href: "/admin/import-tournament", label: "Archive Import", text: "Create archive events from files." },
       { href: "/admin/news", label: "Newsroom", text: "Publish news, reports and player stories." },
     ],
   },
@@ -480,7 +474,7 @@ export default function AdminDashboardPage() {
                   <QuickLink href="/admin/organiser-access" label="Organiser access" />
                   <QuickLink href="/admin/players/sync" label="Chess SA sync" />
                   <QuickLink href="/admin/players/duplicates" label="Duplicate checks" />
-                  <QuickLink href="/admin/import-tournament" label="Archive import" />
+                  <QuickLink href="/admin/tournaments" label="Tournament centre" />
                   <QuickLink href="/admin/news" label="News publishing" />
                 </div>
               </section>

@@ -1,10 +1,10 @@
 ﻿"use client";
 
 import { use, FormEvent, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { supabase } from "@/lib/supabase";
 
 type Tournament = {
@@ -51,14 +51,52 @@ const emptyForm: OfficialForm = {
   notes: "",
 };
 
-const arbiterRoles = [
+const officialRoles = [
   "Chief Arbiter",
+  "Deputy Chief Arbiter",
   "Deputy Arbiter",
   "Arbiter",
   "Assistant Arbiter",
   "Pairings Officer",
   "Appeals Committee",
+  "Tournament Director",
+  "Chief Organiser",
+  "Main Organiser",
+  "Assistant Organiser",
+  "Organiser",
+  "Coach",
+  "Team Manager",
+  "Manager",
+  "Media Officer",
+  "Technical Officer",
+  "Volunteer",
+  "Event Support",
 ];
+
+const arbiterRoles = new Set([
+  "Chief Arbiter",
+  "Deputy Chief Arbiter",
+  "Deputy Arbiter",
+  "Arbiter",
+  "Assistant Arbiter",
+  "Pairings Officer",
+  "Appeals Committee",
+]);
+
+const organiserRoles = new Set([
+  "Tournament Director",
+  "Chief Organiser",
+  "Main Organiser",
+  "Assistant Organiser",
+  "Organiser",
+]);
+
+function roleGroup(role: string) {
+  if (role === "Chief Arbiter") return "Chief";
+  if (arbiterRoles.has(role)) return "Arbiters";
+  if (organiserRoles.has(role)) return "Organisers";
+  return "Support";
+}
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
@@ -75,15 +113,6 @@ function formatDate(value: string | null) {
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
 }
 
 export default function TournamentArbitersPage({
@@ -131,7 +160,6 @@ export default function TournamentArbitersPage({
         "id, tournament_id, player_id, role, notes, created_at, players(id, full_name, chess_sa_id, fide_id, club, province, rating, verification_status, profile_photo_url, title)"
       )
       .eq("tournament_id", tournamentId)
-      .in("role", arbiterRoles)
       .order("created_at", { ascending: true });
 
     const { data: playerData, error: playerError } = await supabase
@@ -143,7 +171,7 @@ export default function TournamentArbitersPage({
       .limit(10000);
 
     if (officialError) {
-      setMessage(`Could not load tournament arbiters: ${officialError.message}`);
+      setMessage(`Could not load tournament officials: ${officialError.message}`);
     } else if (playerError) {
       setMessage(`Could not load players: ${playerError.message}`);
     }
@@ -189,10 +217,9 @@ export default function TournamentArbitersPage({
     return {
       total: officials.length,
       chief: officials.filter((official) => official.role === "Chief Arbiter").length,
-      deputy: officials.filter((official) => official.role === "Deputy Arbiter").length,
-      assistants: officials.filter((official) =>
-        ["Arbiter", "Assistant Arbiter"].includes(official.role)
-      ).length,
+      arbiters: officials.filter((official) => arbiterRoles.has(official.role)).length,
+      organisers: officials.filter((official) => organiserRoles.has(official.role)).length,
+      support: officials.filter((official) => roleGroup(official.role) === "Support").length,
     };
   }, [officials]);
 
@@ -223,6 +250,15 @@ export default function TournamentArbitersPage({
       return;
     }
 
+    const selectedOfficial = players.find((player) => player.id === form.player_id);
+
+    if (!selectedOfficial?.chess_sa_id) {
+      setMessage(
+        "Officials must be linked to a Player Centre profile with a Chess SA ID before they can be assigned."
+      );
+      return;
+    }
+
     setSaving(true);
     setMessage("");
 
@@ -241,12 +277,12 @@ export default function TournamentArbitersPage({
         .eq("id", editingOfficialId);
 
       if (error) {
-        setMessage(`Could not update arbiter: ${error.message}`);
+        setMessage(`Could not update official: ${error.message}`);
         setSaving(false);
         return;
       }
 
-      setMessage("Arbiter assignment updated.");
+      setMessage("Official assignment updated.");
     } else {
       const duplicate = officials.find(
         (official) =>
@@ -254,7 +290,7 @@ export default function TournamentArbitersPage({
       );
 
       if (duplicate) {
-        setMessage("This player already has that arbiter role for this tournament.");
+        setMessage("This person already has that official role for this tournament.");
         setSaving(false);
         return;
       }
@@ -262,12 +298,12 @@ export default function TournamentArbitersPage({
       const { error } = await supabase.from("tournament_officials").insert(payload);
 
       if (error) {
-        setMessage(`Could not assign arbiter: ${error.message}`);
+        setMessage(`Could not assign official: ${error.message}`);
         setSaving(false);
         return;
       }
 
-      setMessage("Arbiter assigned.");
+      setMessage("Official assigned.");
     }
 
     if (form.role === "Chief Arbiter") {
@@ -324,13 +360,13 @@ export default function TournamentArbitersPage({
 
     setMessage("");
 
-    const { error } = await supabase
+      const { error } = await supabase
       .from("tournament_officials")
       .delete()
       .eq("id", official.id);
 
     if (error) {
-      setMessage(`Could not remove arbiter: ${error.message}`);
+      setMessage(`Could not remove official: ${error.message}`);
       return;
     }
 
@@ -343,7 +379,7 @@ export default function TournamentArbitersPage({
 
     if (editingOfficialId === official.id) resetForm();
 
-    setMessage("Arbiter removed.");
+    setMessage("Official removed.");
     await loadPage();
   }
 
@@ -352,7 +388,7 @@ export default function TournamentArbitersPage({
       <AdminGuard>
         <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
           <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-            Loading tournament arbiters...
+            Loading tournament officials...
           </div>
         </main>
       </AdminGuard>
@@ -386,7 +422,7 @@ export default function TournamentArbitersPage({
 
           <section className="mt-6 rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.24),_transparent_36%),linear-gradient(135deg,_#18181b,_#09090b)] p-6 shadow-2xl md:p-8">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-              Tournament Arbiters
+              Tournament Officials
             </p>
 
             <h1 className="mt-3 text-4xl font-black md:text-6xl">
@@ -394,9 +430,10 @@ export default function TournamentArbitersPage({
             </h1>
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-              Assign arbiters from the Player Centre. Public tournament pages can
-              display the Chief Arbiter with their profile photo and link back to
-              the player profile.
+              Assign arbiters, organisers, managers, coaches and support roles
+              from the Player Centre. Every official must be linked through a
+              Chess SA ID so their public profile, member centre and tournament
+              roles stay connected.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -419,17 +456,18 @@ export default function TournamentArbitersPage({
           )}
 
           <section className="mt-8 grid gap-4 md:grid-cols-4">
-            <StatCard label="Total Arbiters" value={stats.total} />
+            <StatCard label="Officials" value={stats.total} />
             <StatCard label="Chief" value={stats.chief} tone="red" />
-            <StatCard label="Deputy" value={stats.deputy} tone="yellow" />
-            <StatCard label="Arbiter Team" value={stats.assistants} tone="green" />
+            <StatCard label="Arbiters" value={stats.arbiters} tone="yellow" />
+            <StatCard label="Organisers" value={stats.organisers} tone="green" />
+            <StatCard label="Support" value={stats.support} />
           </section>
 
           <section className="mt-8 grid gap-8 lg:grid-cols-[430px_1fr]">
             <aside className="space-y-8">
               <section className="rounded-3xl border border-white/10 bg-zinc-900 p-6">
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                  {editingOfficialId ? "Edit Arbiter" : "Assign Arbiter"}
+                  {editingOfficialId ? "Edit Official" : "Assign Official"}
                 </p>
 
                 <h2 className="mt-3 text-2xl font-black">
@@ -469,20 +507,12 @@ export default function TournamentArbitersPage({
                   {selectedPlayer && (
                     <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
                       <div className="flex items-center gap-4">
-                        <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-500/30 bg-red-600/10 text-sm font-black text-red-200">
-                          {selectedPlayer.profile_photo_url ? (
-                            <Image
-                              src={selectedPlayer.profile_photo_url}
-                              alt={selectedPlayer.full_name}
-                              fill
-                              sizes="64px"
-                              className="object-cover"
-                            />
-                          ) : (
-                            initials(selectedPlayer.full_name)
-                          )}
-                        </div>
-
+                        <PlayerAvatar
+                          name={selectedPlayer.full_name}
+                          photoUrl={selectedPlayer.profile_photo_url}
+                          size="lg"
+                          className="border-red-500/30"
+                        />
                         <div>
                           <p className="font-black text-white">
                             {selectedPlayer.full_name}
@@ -502,7 +532,7 @@ export default function TournamentArbitersPage({
                       onChange={(event) => updateField("role", event.target.value)}
                       className={inputClass}
                     >
-                      {arbiterRoles.map((role) => (
+                      {officialRoles.map((role) => (
                         <option key={role} value={role}>
                           {role}
                         </option>
@@ -530,7 +560,7 @@ export default function TournamentArbitersPage({
                         ? "Saving..."
                         : editingOfficialId
                         ? "Save Changes"
-                        : "Assign Arbiter"}
+                        : "Assign Official"}
                     </button>
 
                     <button
@@ -549,9 +579,9 @@ export default function TournamentArbitersPage({
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                    Assigned Arbiters
+                    Assigned Officials
                   </p>
-                  <h2 className="mt-3 text-2xl font-black">Arbiter Team</h2>
+                  <h2 className="mt-3 text-2xl font-black">Tournament Team</h2>
                 </div>
 
                 <select
@@ -560,7 +590,7 @@ export default function TournamentArbitersPage({
                   className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition focus:border-red-500"
                 >
                   <option value="All">All roles</option>
-                  {arbiterRoles.map((role) => (
+                  {officialRoles.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
@@ -570,7 +600,7 @@ export default function TournamentArbitersPage({
 
               {filteredOfficials.length === 0 ? (
                 <p className="mt-6 rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
-                  No arbiters assigned yet.
+                  No officials assigned yet.
                 </p>
               ) : (
                 <div className="mt-6 grid gap-4">
@@ -595,17 +625,11 @@ export default function TournamentArbitersPage({
                               href={`/admin/players/${official.player_id}`}
                               className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-zinc-900 text-lg font-black text-red-200"
                             >
-                              {player?.profile_photo_url ? (
-                                <Image
-                                  src={player.profile_photo_url}
-                                  alt={player.full_name}
-                                  fill
-                                  sizes="80px"
-                                  className="object-cover"
-                                />
-                              ) : (
-                                initials(player?.full_name ?? "P")
-                              )}
+                              <PlayerAvatar
+                                name={player?.full_name ?? "P"}
+                                photoUrl={player?.profile_photo_url}
+                                size="lg"
+                              />
                             </Link>
 
                             <div>

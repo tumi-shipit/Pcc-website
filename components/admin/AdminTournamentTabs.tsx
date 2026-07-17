@@ -5,12 +5,9 @@ import { usePathname } from "next/navigation";
 
 const tournamentTabs = [
   ["Overview", ""],
-  ["Results", "/results"],
-  ["Import Results", "/import-results"],
-  ["Archive", "/archive"],
+  ["Results & Archive", "/archive"],
   ["Gallery", "/gallery"],
-  ["Arbiters", "/arbiters"],
-  ["Organisers", "/organisers"],
+  ["Officials", "/arbiters"],
   ["Live", "/live"],
   ["Edit", "/edit"],
 ];

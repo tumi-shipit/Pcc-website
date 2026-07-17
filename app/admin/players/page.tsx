@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { supabase } from "@/lib/supabase";
 
 type Player = {
@@ -18,6 +19,7 @@ type Player = {
   email: string | null;
   phone: string | null;
   verification_status: string | null;
+  profile_photo_url: string | null;
   created_at: string | null;
   updated_at: string | null;
 };
@@ -109,7 +111,7 @@ export default function AdminPlayersPage() {
     const { data: playerData, error: playerError } = await supabase
       .from("players")
       .select(
-        "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, created_at, updated_at"
+        "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, created_at, updated_at"
       )
       .order("full_name", { ascending: true })
       .limit(5000);
@@ -279,27 +281,22 @@ export default function AdminPlayersPage() {
             </div>
           </section>
 
-          <section className="mt-6 grid gap-3 md:grid-cols-4">
-            <ActionLink
-              href="/admin/players/link-chessa"
-              title="Link Chess SA IDs"
-              description="Update existing players without creating duplicates."
-              primary
-            />
+          <section className="mt-6 grid gap-3 md:grid-cols-3">
             <ActionLink
               href="/admin/players/sync"
               title="Chess SA Sync"
-              description="Import ratings, IDs and missing profile data."
-            />
-            <ActionLink
-              href="/admin/players/verify"
-              title="Verification Queue"
-              description="Review incomplete or unverified profiles."
+              description="Import ratings, IDs, missing details and safe identity matches."
+              primary
             />
             <ActionLink
               href="/admin/players/duplicates"
               title="Duplicate Centre"
               description="Find and merge likely duplicate players."
+            />
+            <ActionLink
+              href="/admin/members"
+              title="Membership Register"
+              description="Manage paying members linked to Player Centre profiles."
             />
           </section>
 
@@ -407,7 +404,13 @@ export default function AdminPlayersPage() {
                     className="rounded-xl border border-white/10 bg-zinc-900 p-4"
                   >
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <PlayerAvatar
+                          name={player.full_name}
+                          photoUrl={player.profile_photo_url}
+                          size="sm"
+                        />
+                        <div className="min-w-0">
                         <p className="text-lg font-black text-white">
                           {player.full_name}
                         </p>
@@ -415,6 +418,7 @@ export default function AdminPlayersPage() {
                           {player.gender ?? "Gender not recorded"}
                           {age !== null ? ` | ${age} yrs` : ""}
                         </p>
+                        </div>
                       </div>
                       <HealthBadge health={player.profile_health} />
                     </div>
@@ -465,11 +469,20 @@ export default function AdminPlayersPage() {
                     return (
                       <tr key={player.id} className="border-t border-white/10">
                         <td className="p-4">
-                          <p className="font-black text-white">{player.full_name}</p>
-                          <p className="mt-1 text-xs text-zinc-500">
-                            {player.gender ?? "Gender not set"}
-                            {age !== null ? ` - ${age} yrs` : ""}
-                          </p>
+                          <div className="flex items-center gap-3">
+                            <PlayerAvatar
+                              name={player.full_name}
+                              photoUrl={player.profile_photo_url}
+                              size="sm"
+                            />
+                            <div>
+                              <p className="font-black text-white">{player.full_name}</p>
+                              <p className="mt-1 text-xs text-zinc-500">
+                                {player.gender ?? "Gender not set"}
+                                {age !== null ? ` - ${age} yrs` : ""}
+                              </p>
+                            </div>
+                          </div>
                         </td>
                         <td className="p-4 text-xs text-zinc-400">
                           Chess SA: {valueOrDash(player.chess_sa_id)}

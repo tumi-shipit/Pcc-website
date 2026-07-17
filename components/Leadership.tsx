@@ -97,14 +97,14 @@ export default function Leadership() {
           </p>
         </div>
 
-        <div className="mt-10 grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
+        <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 lg:gap-5">
           {leaders.map((leader) => (
             <LeaderCard key={leader.name} leader={leader} />
           ))}
         </div>
 
-        <div className="mt-12 rounded-3xl border border-white/10 bg-zinc-900 p-6 text-center md:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+        <div className="mt-12 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center md:p-8">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-red-400">
             Legacy
           </p>
 
@@ -120,9 +120,9 @@ export default function Leadership() {
 
           <Link
             href="/hall-of-fame"
-            className="mt-6 inline-flex rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500 hover:bg-red-600"
+            className="mt-6 inline-flex rounded-lg border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500 hover:bg-red-600"
           >
-            Visit PCC Hall of Fame 
+            Visit PCC Hall of Fame
           </Link>
         </div>
       </div>
@@ -132,13 +132,13 @@ export default function Leadership() {
 
 function LeaderCard({ leader }: { leader: Leader }) {
   return (
-    <article className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl transition duration-300 hover:-translate-y-1 hover:border-red-500/70">
+    <article className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-xl transition duration-300 hover:-translate-y-1 hover:border-red-500/70">
       <div className="relative aspect-[4/5] overflow-hidden bg-zinc-950">
         <Image
           src={leader.image}
           alt={`${leader.name}, ${leader.role} at Polokwane Chess Club`}
           fill
-          sizes="(max-width:768px) 100vw, (max-width:1024px) 50vw, 33vw"
+          sizes="(max-width: 640px) 100vw, (max-width:1024px) 50vw, 25vw"
           className="object-cover object-top transition-transform duration-700 group-hover:scale-110"
         />
 
@@ -162,7 +162,7 @@ function LeaderCard({ leader }: { leader: Leader }) {
       </div>
 
       <div className="border-t border-white/10 p-4 md:p-5">
-        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-red-200">
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-red-200">
           {leader.focus}
         </p>
 
@@ -186,7 +186,7 @@ function LeaderCard({ leader }: { leader: Leader }) {
             href={leader.legacyHref}
             className="mt-5 inline-flex text-sm font-bold text-red-300 transition hover:text-red-200"
           >
-            View Hall of Fame profile 
+            View Hall of Fame profile
           </Link>
         )}
       </div>

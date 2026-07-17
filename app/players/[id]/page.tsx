@@ -1,8 +1,8 @@
 "use client";
 
 import { use, useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
@@ -69,6 +69,8 @@ type OfficialAssignment = {
   } | null;
 };
 
+type MemberResolvedPlayer = Omit<Player, "gender" | "biography" | "title">;
+
 function formatDate(value: string | null) {
   if (!value) return "TBA";
   return new Date(value).toLocaleDateString("en-ZA", {
@@ -81,15 +83,6 @@ function formatDate(value: string | null) {
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
-}
-
-function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
 }
 
 export default function PublicPlayerProfilePage({
@@ -119,15 +112,39 @@ export default function PublicPlayerProfilePage({
           "id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, biography, title"
         )
         .eq("id", playerId)
-        .single();
+        .maybeSingle();
 
-      if (playerError || !playerData) {
+      let loadedPlayer = playerData as Player | null;
+
+      if ((playerError || !loadedPlayer) && (await supabase.auth.getSession()).data.session) {
+        const { data: memberProfileData } = await supabase
+          .rpc("resolve_member_player_profile")
+          .maybeSingle();
+        const memberProfile = memberProfileData as MemberResolvedPlayer | null;
+
+        if (memberProfile && memberProfile.id === playerId) {
+          loadedPlayer = {
+            id: memberProfile.id,
+            full_name: memberProfile.full_name,
+            chess_sa_id: memberProfile.chess_sa_id,
+            fide_id: memberProfile.fide_id,
+            gender: null,
+            club: memberProfile.club,
+            province: memberProfile.province,
+            rating: memberProfile.rating,
+            verification_status: memberProfile.verification_status,
+            profile_photo_url: memberProfile.profile_photo_url,
+            biography: null,
+            title: null,
+          } as Player;
+        }
+      }
+
+      if (!loadedPlayer) {
         setMessage("Player could not be loaded.");
         setLoading(false);
         return;
       }
-
-      const loadedPlayer = playerData as Player;
 
       const { data: relatedPlayerData } = await supabase
         .from("players")
@@ -245,20 +262,12 @@ export default function PublicPlayerProfilePage({
 
           <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_360px] lg:items-end">
             <div className="flex flex-col gap-6 md:flex-row md:items-center">
-              <div className="relative flex h-32 w-32 shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-red-600/10 text-3xl font-black text-red-200">
-                {player.profile_photo_url ? (
-                  <Image
-                    src={player.profile_photo_url}
-                    alt={player.full_name}
-                    fill
-                    priority
-                    sizes="128px"
-                    className="object-cover"
-                  />
-                ) : (
-                  initials(player.full_name)
-                )}
-              </div>
+              <PlayerAvatar
+                name={player.full_name}
+                photoUrl={player.profile_photo_url}
+                size="xl"
+                priority
+              />
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">

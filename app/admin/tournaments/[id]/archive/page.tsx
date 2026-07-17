@@ -1417,7 +1417,7 @@ export default function TournamentArchiveContinuationPage() {
 
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
-              href={`/admin/tournaments/${tournamentId}/results`}
+              href={`/admin/tournaments/${tournamentId}/archive`}
               className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
             >
               Open Results Centre

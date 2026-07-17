@@ -9,7 +9,7 @@ export default function AdminLiveRedirectPage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/admin/operations");
+    router.replace("/admin/home");
   }, [router]);
 
   return (
@@ -24,7 +24,7 @@ export default function AdminLiveRedirectPage() {
             The old global Live page is now the Operations Centre.
           </p>
           <Link
-            href="/admin/operations"
+            href="/admin/home"
             className="mt-6 inline-block rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
           >
             Open Operations Centre

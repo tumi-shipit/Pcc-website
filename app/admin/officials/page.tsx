@@ -401,7 +401,7 @@ export default function AdminOfficialsPage() {
               description="Search the Player Centre before assigning officials."
             />
             <QuickAction
-              href="/admin/players/verify"
+              href="/admin/players"
               title="Verification Queue"
               description="Verify official profiles with missing identity details."
             />
@@ -615,7 +615,7 @@ export default function AdminOfficialsPage() {
                               </Link>
 
                               <Link
-                                href={`/admin/tournaments/${tournament.id}/organisers`}
+                                href={`/admin/tournaments/${tournament.id}/arbiters`}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-center text-xs font-bold text-white transition hover:border-red-500"
                               >
                                 Organisers

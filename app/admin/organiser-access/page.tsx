@@ -39,6 +39,23 @@ type PlayerMatch = {
   email: string | null;
 };
 
+const accessRoles = [
+  "Organiser",
+  "Chief Organiser",
+  "Main Organiser",
+  "Assistant Organiser",
+  "Tournament Director",
+  "Chief Arbiter",
+  "Deputy Chief Arbiter",
+  "Arbiter",
+  "Registration Manager",
+  "Team Manager",
+  "Coach",
+  "Media Officer",
+  "Technical Officer",
+  "Event Support",
+];
+
 export default function AdminOrganiserAccessPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [accessRows, setAccessRows] = useState<AccessRow[]>([]);
@@ -363,10 +380,9 @@ export default function AdminOrganiserAccessPage() {
                     onChange={(event) => setRole(event.target.value)}
                     className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
                   >
-                    <option>Organiser</option>
-                    <option>Tournament Director</option>
-                    <option>Chief Arbiter</option>
-                    <option>Registration Manager</option>
+                    {accessRoles.map((accessRole) => (
+                      <option key={accessRole}>{accessRole}</option>
+                    ))}
                   </select>
                 </label>
               </div>

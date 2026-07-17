@@ -577,7 +577,7 @@ export default function AdminTournamentDashboardPage() {
               </Link>
 
               <Link
-                href={`/admin/tournaments/${tournamentId}/results`}
+                href={`/admin/tournaments/${tournamentId}/archive`}
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >
                 Results Results Centre
@@ -807,7 +807,7 @@ export default function AdminTournamentDashboardPage() {
 
             <div className="mt-5 space-y-3">
               <Link
-                href={`/admin/tournaments/${tournamentId}/results`}
+                href={`/admin/tournaments/${tournamentId}/archive`}
                 className="block rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm font-semibold text-red-100 transition hover:bg-red-500/20"
               >
                 Results Results Centre

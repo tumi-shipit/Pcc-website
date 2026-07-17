@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
 import Link from "next/link";
+import PlayerAvatar from "@/components/PlayerAvatar";
 import MemberGuard, {
   MemberMembership,
   MemberProfile,
@@ -71,7 +71,10 @@ type MemberOfficial = {
 type MemberOrganiserAccess = {
   id: string;
   tournament_id: string;
+  player_id: string | null;
+  chess_sa_id: string | null;
   organiser_email: string;
+  organiser_name: string | null;
   role: string | null;
   access_status: string | null;
   tournaments: {
@@ -99,15 +102,6 @@ function formatDate(value: string | null) {
   });
 }
 
-function initials(name: string) {
-  return name
-    .split(" ")
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
 function nameVariants(name: string | null | undefined) {
   if (!name) return [];
   const cleanName = name.trim().replace(/\s+/g, " ");
@@ -121,6 +115,10 @@ function nameVariants(name: string | null | undefined) {
   }
 
   return Array.from(variants);
+}
+
+function emailLabel(email: string) {
+  return email.split("@")[0]?.replace(/[._-]+/g, " ") || email;
 }
 
 function membershipDaysLeft(membership: MemberMembership) {
@@ -178,15 +176,20 @@ function MemberDashboard({
   const [officials, setOfficials] = useState<MemberOfficial[]>([]);
   const [organiserAccess, setOrganiserAccess] = useState<MemberOrganiserAccess[]>([]);
   const [memberTournaments, setMemberTournaments] = useState<MemberTournament[]>([]);
+  const [fallbackName, setFallbackName] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const daysLeft = membershipDaysLeft(membership);
+  const profilePlayer = player;
+  const displayChessSaId = profilePlayer?.chess_sa_id ?? membership.chess_sa_id;
+  const displayName =
+    profilePlayer?.full_name ?? fallbackName ?? emailLabel(membership.member_email || email);
 
   useEffect(() => {
     async function loadMemberCentre() {
       setLoading(true);
       setMessage("");
 
-      const displayChessSaId = player?.chess_sa_id ?? membership.chess_sa_id;
       const linkedPlayerIds = new Set<string>();
       if (player?.id) linkedPlayerIds.add(player.id);
       if (membership.player_id) linkedPlayerIds.add(membership.player_id);
@@ -278,7 +281,7 @@ function MemberDashboard({
       let accessQuery = supabase
         .from("tournament_organiser_access")
         .select(
-          "id, tournament_id, organiser_email, role, access_status, tournaments(id, tournament_name, start_date, venue)"
+          "id, tournament_id, player_id, chess_sa_id, organiser_email, organiser_name, role, access_status, tournaments(id, tournament_name, start_date, venue)"
         )
         .eq("access_status", "Active");
 
@@ -310,7 +313,7 @@ function MemberDashboard({
         created_at: registration.created_at ?? "",
         payment_status: registration.payment_status ?? "Pending",
         registration_status: registration.registration_status ?? "Pending",
-        full_name: player?.full_name ?? email,
+        full_name: displayName,
         chess_sa_id: displayChessSaId ?? null,
         email,
         tournament_name: registration.tournaments?.tournament_name ?? "Tournament",
@@ -322,6 +325,15 @@ function MemberDashboard({
       const detailRegistrations = detailRegistrationError
         ? []
         : ((detailRegistrationData ?? []) as unknown as MemberRegistration[]);
+
+      const accessRows = (accessData ?? []) as unknown as MemberOrganiserAccess[];
+      const recoveredName =
+        profilePlayer?.full_name ??
+        detailRegistrations.find((registration) => registration.full_name)?.full_name ??
+        accessRows.find((access) => access.organiser_name)?.organiser_name ??
+        null;
+
+      setFallbackName(recoveredName);
 
       const registrationMap = new Map<string, MemberRegistration>();
       [...linkedRegistrations, ...detailRegistrations].forEach((registration) => {
@@ -343,24 +355,52 @@ function MemberDashboard({
       else setMemberTournaments((tournamentData ?? []) as MemberTournament[]);
 
       if (accessError) setMessage((current) => current || "Could not load organiser access.");
-      else setOrganiserAccess((accessData ?? []) as unknown as MemberOrganiserAccess[]);
+      else setOrganiserAccess(accessRows);
 
       setLoading(false);
     }
 
     loadMemberCentre();
-  }, [email, player]);
+  }, [
+    displayChessSaId,
+    displayName,
+    email,
+    membership.player_id,
+    player,
+    profilePlayer?.full_name,
+    profilePlayer?.id,
+  ]);
 
-  const daysLeft = membershipDaysLeft(membership);
-  const displayChessSaId = player?.chess_sa_id ?? membership.chess_sa_id;
   const profileItems = [
-    { label: "Player profile linked", done: Boolean(player?.id) },
-    { label: "Chess SA ID recorded", done: Boolean(displayChessSaId) },
-    { label: "Rating available", done: Boolean(player?.rating) },
-    { label: "Club recorded", done: Boolean(player?.club) },
-    { label: "Profile photo added", done: Boolean(player?.profile_photo_url) },
+    {
+      label: "Player profile linked",
+      done: Boolean(profilePlayer?.id),
+      detail: profilePlayer?.full_name ?? "Membership is not linked to a Player Centre profile.",
+    },
+    {
+      label: "Chess SA ID recorded",
+      done: Boolean(displayChessSaId),
+      detail: displayChessSaId ? `Chess SA ${displayChessSaId}` : "Ask PCC to link your Chess SA ID.",
+    },
+    {
+      label: "Rating available",
+      done: Boolean(profilePlayer?.rating),
+      detail: profilePlayer?.rating ? `${profilePlayer.rating}` : "This will update from Chess SA sync or tournament records.",
+    },
+    {
+      label: "Club recorded",
+      done: Boolean(profilePlayer?.club),
+      detail: profilePlayer?.club ?? "Ask PCC to add your club.",
+    },
+    {
+      label: "Profile photo added",
+      done: Boolean(profilePlayer?.profile_photo_url),
+      detail: profilePlayer?.profile_photo_url ? "Photo is visible on your profile." : "Ask PCC admin to upload your profile photo.",
+    },
   ];
   const profileComplete = profileItems.filter((item) => item.done).length;
+  const profilePercent = Math.round((profileComplete / profileItems.length) * 100);
+  const missingProfileItems = profileItems.filter((item) => !item.done);
   const stats = useMemo(() => {
     const wins = results.filter((result) => result.final_position === 1).length;
     const podiums = results.filter((result) =>
@@ -418,7 +458,7 @@ function MemberDashboard({
                 Member Centre
               </p>
               <h1 className="mt-3 text-3xl font-black md:text-5xl">
-                Welcome{player ? `, ${player.full_name}` : ""}
+                Welcome, {displayName}
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-600">
                 View your PCC membership, linked player profile, tournament
@@ -478,22 +518,15 @@ function MemberDashboard({
           <aside className="space-y-6">
             <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-4">
-                <div className="relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-red-200 bg-red-50 text-xl font-black text-red-700">
-                  {player?.profile_photo_url ? (
-                    <Image
-                      src={player.profile_photo_url}
-                      alt={player.full_name}
-                      fill
-                      sizes="80px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    initials(player?.full_name ?? email)
-                  )}
-                </div>
+                <PlayerAvatar
+                  name={displayName}
+                  photoUrl={profilePlayer?.profile_photo_url}
+                  size="lg"
+                  className="border-red-200 bg-red-50 text-red-700"
+                />
                 <div className="min-w-0">
                   <p className="truncate text-xl font-black">
-                    {player?.full_name ?? email}
+                    {displayName}
                   </p>
                   <p className="mt-1 text-sm text-zinc-600">
                     {displayChessSaId ? `Chess SA ${displayChessSaId}` : "Chess SA ID not linked"}
@@ -501,9 +534,9 @@ function MemberDashboard({
                 </div>
               </div>
 
-              {player && (
+              {profilePlayer && (
                 <Link
-                  href={`/players/${player.id}`}
+                  href={`/players/${profilePlayer.id}`}
                   className="mt-5 block rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
                 >
                   Open Public Profile
@@ -543,30 +576,77 @@ function MemberDashboard({
 
             <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-xl font-black">Profile Health</h2>
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-700">
-                  {profileComplete}/{profileItems.length}
+                <div>
+                  <h2 className="text-xl font-black">Profile Health</h2>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Helps PCC keep your public profile accurate.
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    profilePercent === 100
+                      ? "bg-green-100 text-green-700"
+                      : profilePercent >= 60
+                      ? "bg-yellow-100 text-yellow-800"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {profilePercent}%
                 </span>
               </div>
-              <div className="mt-5 space-y-3">
+
+              <div className="mt-5 h-2 overflow-hidden rounded-full bg-zinc-100">
+                <div
+                  className={`h-full rounded-full ${
+                    profilePercent === 100
+                      ? "bg-green-600"
+                      : profilePercent >= 60
+                      ? "bg-yellow-500"
+                      : "bg-red-600"
+                  }`}
+                  style={{ width: `${profilePercent}%` }}
+                />
+              </div>
+
+              <p className="mt-4 text-sm font-bold text-zinc-800">
+                {profilePercent === 100
+                  ? "Your profile is complete."
+                  : `${missingProfileItems.length} item${
+                      missingProfileItems.length === 1 ? "" : "s"
+                    } still need attention.`}
+              </p>
+
+              <div className="mt-4 space-y-2">
                 {profileItems.map((item) => (
                   <div
                     key={item.label}
-                    className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm"
+                    className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm"
                   >
-                    <span className="text-zinc-700">{item.label}</span>
-                    <span
-                      className={
-                        item.done
-                          ? "font-bold text-green-700"
-                          : "font-bold text-yellow-700"
-                      }
-                    >
-                      {item.done ? "Done" : "Needed"}
-                    </span>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-bold text-zinc-800">{item.label}</span>
+                      <span
+                        className={
+                          item.done
+                            ? "font-bold text-green-700"
+                            : "font-bold text-yellow-700"
+                        }
+                      >
+                        {item.done ? "Complete" : "Needed"}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-5 text-zinc-500">
+                      {item.detail}
+                    </p>
                   </div>
                 ))}
               </div>
+
+              <Link
+                href="/contact"
+                className="mt-5 block rounded-xl border border-zinc-200 px-4 py-3 text-center text-sm font-bold text-zinc-900 transition hover:border-red-500"
+              >
+                Request profile update
+              </Link>
             </section>
           </aside>
 

@@ -175,7 +175,7 @@ function TournamentCard({
   );
 }
 
-export default function Tournaments() {
+export default function Tournaments({ fullPage = false }: { fullPage?: boolean }) {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -215,6 +215,13 @@ export default function Tournaments() {
     .filter((tournament) => !isUpcomingTournament(tournament))
     .sort((left, right) => parseCalendarDate(right.start_date).getTime() - parseCalendarDate(left.start_date).getTime());
 
+  const visibleUpcomingTournaments = fullPage
+    ? upcomingTournaments
+    : upcomingTournaments.slice(0, 4);
+  const visiblePastTournaments = fullPage
+    ? pastTournaments
+    : pastTournaments.slice(0, 4);
+
   return (
     <section id="tournaments" className="bg-zinc-950 py-16 text-white md:py-24">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
@@ -236,10 +243,10 @@ export default function Tournaments() {
           </div>
 
           <Link
-            href="/tournaments"
+            href={fullPage ? "#archive" : "/tournaments"}
             className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
           >
-            Open all tournaments
+            {fullPage ? "Open tournament archive" : "Open all tournaments"}
           </Link>
         </div>
 
@@ -253,7 +260,7 @@ export default function Tournaments() {
           <>
             {upcomingTournaments.length > 0 ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {upcomingTournaments.map((tournament) => (
+                {visibleUpcomingTournaments.map((tournament) => (
                   <TournamentCard key={tournament.id} tournament={tournament} />
                 ))}
               </div>
@@ -264,24 +271,35 @@ export default function Tournaments() {
             )}
 
             {pastTournaments.length > 0 && (
-              <div className="mt-16 border-t border-white/10 pt-12">
-                <div className="mb-8 max-w-3xl">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-                    Tournament Archive
-                  </p>
+              <div id="archive" className="mt-16 scroll-mt-28 border-t border-white/10 pt-12">
+                <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div className="max-w-3xl">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
+                      Tournament Archive
+                    </p>
 
-                  <h2 className="text-3xl font-bold md:text-5xl">
-                    Tournament Archive
-                  </h2>
+                    <h2 className="text-3xl font-bold md:text-5xl">
+                      Tournament Archive
+                    </h2>
 
-                  <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-                    Revisit completed events, tournament reports, photos and
-                    results.
-                  </p>
+                    <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
+                      Revisit completed events, tournament reports, photos and
+                      results.
+                    </p>
+                  </div>
+
+                  {!fullPage && (
+                    <Link
+                      href="/tournaments#archive"
+                      className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+                    >
+                      Open tournament archive
+                    </Link>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {pastTournaments.map((tournament) => (
+                  {visiblePastTournaments.map((tournament) => (
                     <TournamentCard
                       key={tournament.id}
                       tournament={tournament}

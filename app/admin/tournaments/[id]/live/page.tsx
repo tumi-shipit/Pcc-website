@@ -346,7 +346,7 @@ Tournament ID: ${tournamentId}`;
                 </Link>
 
                 <Link
-                  href={`/admin/tournaments/${tournamentId}/results`}
+                  href={`/admin/tournaments/${tournamentId}/archive`}
                   className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
                 >
                   Results Centre
@@ -474,7 +474,7 @@ Tournament ID: ${tournamentId}`;
                   </div>
 
                   <Link
-                    href={`/admin/tournaments/${tournamentId}/import-results`}
+                    href={`/admin/tournaments/${tournamentId}/archive`}
                     className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
                   >
                     Import Results
