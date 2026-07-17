@@ -4,9 +4,9 @@ import Link from "next/link";
 type Leader = {
   name: string;
   role: string;
-  description: string;
+  focus: string;
   image: string;
-  highlights: string[];
+  qualifications: string[];
   legacyHref?: string;
   legacyBadge?: string;
 };
@@ -15,12 +15,11 @@ const leaders: Leader[] = [
   {
     name: "Joe Mahomole",
     role: "Club Manager",
-    description:
-      "Providing leadership, mentorship and strategic guidance for Polokwane Chess Club and the wider chess community.",
+    focus: "Club leadership",
     image: "/images/leaders/joe.jpeg",
     legacyHref: "/hall-of-fame/joe-mahomole",
     legacyBadge: "Hall of Fame",
-    highlights: [
+    qualifications: [
       "Qualified FIDE Arbiter",
       "Level 3 Instructor & Coach",
       "Current President of Capricorn District Chess",
@@ -35,10 +34,9 @@ const leaders: Leader[] = [
   {
     name: "Tumelo Mmola",
     role: "Club Captain & Head of Operations",
-    description:
-      "Organising tournaments, developing systems and supporting the growth of competitive chess players.",
+    focus: "Growth of club",
     image: "/images/leaders/tumelo.jpeg",
-    highlights: [
+    qualifications: [
       "Qualified Level 3 Chess Instructor & Coach (CHESSA)",
       "Candidate Provincial Arbiter (CHESSA)",
       "Recognised National Arbiter (FIDE)",
@@ -51,10 +49,9 @@ const leaders: Leader[] = [
   {
     name: "Elias Mabotja",
     role: "Operations & Administration Manager",
-    description:
-      "Supporting the club through operations management, administration, event coordination and member service.",
+    focus: "Support through admin",
     image: "/images/leaders/elias-mabotja.jpg",
-    highlights: [
+    qualifications: [
       "Qualified FIDE School Instructor",
       "Recognised National Arbiter (FIDE)",
       "Level 1 Chess Instructor & Coach",
@@ -68,10 +65,9 @@ const leaders: Leader[] = [
   {
     name: "Tebogo Mahomole",
     role: "Competitions & Events Coordinator",
-    description:
-      "Strengthening the club through administration, event support and player development.",
+    focus: "Player development",
     image: "/images/leaders/tebogo.jpeg",
-    highlights: [
+    qualifications: [
       "Qualified Level 1 Chess Instructor & Coach",
       "Tournament Support",
       "Administration",
@@ -166,18 +162,24 @@ function LeaderCard({ leader }: { leader: Leader }) {
       </div>
 
       <div className="border-t border-white/10 p-4 md:p-5">
-        <p className="text-xs leading-6 text-gray-400 md:text-sm md:leading-7">{leader.description}</p>
+        <p className="rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs font-black uppercase tracking-[0.18em] text-red-200">
+          {leader.focus}
+        </p>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {leader.highlights.map((item) => (
-            <span
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.22em] text-red-300 md:text-xs">
+          Qualifications & service
+        </p>
+
+        <ul className="mt-4 space-y-2">
+          {leader.qualifications.map((item) => (
+            <li
               key={item}
-              className="rounded-full border border-white/10 bg-zinc-950 px-2.5 py-1 text-[11px] font-semibold text-gray-300 md:text-xs"
+              className="rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-[11px] font-semibold leading-5 text-gray-300 md:text-xs md:leading-6"
             >
               {item}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
 
         {leader.legacyHref && (
           <Link
@@ -191,6 +193,3 @@ function LeaderCard({ leader }: { leader: Leader }) {
     </article>
   );
 }
-
-
-
