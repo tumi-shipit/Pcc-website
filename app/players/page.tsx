@@ -293,7 +293,7 @@ export default function PublicPlayersDirectoryPage() {
       const owner = players.find((candidate) => {
         if (candidate.id === player.id) return false;
         if (candidate.verification_status !== "Verified" && !candidate.chess_sa_id) return false;
-        return tokenSimilarity(player.full_name, candidate.full_name) >= 50;
+        return tokenSimilarity(player.full_name, candidate.full_name) >= 70;
       });
 
       if (owner) map.set(player.id, owner.id);
@@ -349,7 +349,14 @@ export default function PublicPlayersDirectoryPage() {
 
   const filteredPlayers = useMemo(() => {
     const text = search.trim().toLowerCase();
-    const directSearchIds = new Set(directSearchPlayers.map((player) => player.id));
+    const ownerForPlayer = (player: Player) => {
+      const ownerId = duplicateOwnerMap.get(player.id);
+      if (!ownerId) return player;
+      return players.find((candidate) => candidate.id === ownerId) ?? player;
+    };
+    const directSearchIds = new Set(
+      directSearchPlayers.map((player) => ownerForPlayer(player).id)
+    );
 
     const searchMatches = (player: Player) =>
       !text ||
@@ -367,7 +374,8 @@ export default function PublicPlayersDirectoryPage() {
       : publicPlayers;
 
     seedPlayers.forEach((player) => {
-      directPlayerMap.set(player.id, player);
+      const displayPlayer = ownerForPlayer(player);
+      directPlayerMap.set(displayPlayer.id, displayPlayer);
     });
 
     const searchablePlayers = Array.from(directPlayerMap.values());
@@ -595,7 +603,7 @@ export default function PublicPlayersDirectoryPage() {
                   </thead>
                   <tbody>
                     {filteredPlayers.map((player) => {
-                      const stats = playerStats.get(player.id);
+                      const stats = displayPlayerStats.get(player.id);
 
                       return (
                         <tr key={player.id} className="border-t border-white/10">
@@ -653,7 +661,7 @@ export default function PublicPlayersDirectoryPage() {
                   <PlayerMobileCard
                     key={player.id}
                     player={player}
-                    stats={playerStats.get(player.id)}
+                    stats={displayPlayerStats.get(player.id)}
                   />
                 ))}
               </section>

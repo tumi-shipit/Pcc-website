@@ -32,6 +32,25 @@ export function normalizeText(value: string | null | undefined) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeNameToken(token: string) {
+  const cleanToken = normalizeText(token);
+
+  if (cleanToken.length > 4 && cleanToken.endsWith("s")) {
+    return cleanToken.slice(0, -1);
+  }
+
+  return cleanToken;
+}
+
+function nameTokenSet(value: string) {
+  return new Set(
+    normalizeText(value)
+      .split(" ")
+      .map(normalizeNameToken)
+      .filter(Boolean)
+  );
+}
+
 export function normalizeId(value: string | null | undefined) {
   return String(value ?? "")
     .trim()
@@ -48,8 +67,8 @@ export function makePairKey(a: string, b: string) {
 }
 
 export function tokenSimilarity(a: string, b: string) {
-  const left = new Set(normalizeText(a).split(" ").filter(Boolean));
-  const right = new Set(normalizeText(b).split(" ").filter(Boolean));
+  const left = nameTokenSet(a);
+  const right = nameTokenSet(b);
 
   if (left.size === 0 || right.size === 0) return 0;
 

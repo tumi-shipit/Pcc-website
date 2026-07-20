@@ -45,10 +45,28 @@ type OfficialForm = {
   notes: string;
 };
 
+type QuickPlayerForm = {
+  full_name: string;
+  chess_sa_id: string;
+  fide_id: string;
+  title: string;
+  club: string;
+  province: string;
+};
+
 const emptyForm: OfficialForm = {
   player_id: "",
   role: "Chief Arbiter",
   notes: "",
+};
+
+const emptyQuickPlayerForm: QuickPlayerForm = {
+  full_name: "",
+  chess_sa_id: "",
+  fide_id: "",
+  title: "",
+  club: "",
+  province: "",
 };
 
 const officialRoles = [
@@ -130,8 +148,12 @@ export default function TournamentArbitersPage({
   const [editingOfficialId, setEditingOfficialId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
+  const [showQuickCreate, setShowQuickCreate] = useState(false);
+  const [quickPlayerForm, setQuickPlayerForm] =
+    useState<QuickPlayerForm>(emptyQuickPlayerForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creatingPlayer, setCreatingPlayer] = useState(false);
   const [message, setMessage] = useState("");
 
   const editingOfficial = useMemo(() => {
@@ -227,6 +249,10 @@ export default function TournamentArbitersPage({
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function updateQuickPlayerField(field: keyof QuickPlayerForm, value: string) {
+    setQuickPlayerForm((current) => ({ ...current, [field]: value }));
+  }
+
   function resetForm() {
     setForm(emptyForm);
     setEditingOfficialId(null);
@@ -250,17 +276,21 @@ export default function TournamentArbitersPage({
       return;
     }
 
-    const selectedOfficial = players.find((player) => player.id === form.player_id);
-
-    if (!selectedOfficial?.chess_sa_id) {
-      setMessage(
-        "Officials must be linked to a Player Centre profile with a Chess SA ID before they can be assigned."
-      );
-      return;
-    }
-
     setSaving(true);
     setMessage("");
+
+    const duplicate = officials.find(
+      (official) =>
+        official.id !== editingOfficialId &&
+        official.player_id === form.player_id &&
+        official.role === form.role
+    );
+
+    if (duplicate) {
+      setMessage("This person already has that official role for this tournament.");
+      setSaving(false);
+      return;
+    }
 
     const payload = {
       tournament_id: tournamentId,
@@ -284,17 +314,6 @@ export default function TournamentArbitersPage({
 
       setMessage("Official assignment updated.");
     } else {
-      const duplicate = officials.find(
-        (official) =>
-          official.player_id === form.player_id && official.role === form.role
-      );
-
-      if (duplicate) {
-        setMessage("This person already has that official role for this tournament.");
-        setSaving(false);
-        return;
-      }
-
       const { error } = await supabase.from("tournament_officials").insert(payload);
 
       if (error) {
@@ -316,6 +335,82 @@ export default function TournamentArbitersPage({
     resetForm();
     setSaving(false);
     await loadPage();
+  }
+
+  async function createAndSelectPlayer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    const fullName = quickPlayerForm.full_name.trim();
+    const chessSaId = quickPlayerForm.chess_sa_id.trim();
+
+    if (!fullName) {
+      setMessage("Enter the person's full name before creating a Player Centre profile.");
+      return;
+    }
+
+    setCreatingPlayer(true);
+    setMessage("");
+
+    if (chessSaId) {
+      const { data: existingPlayer, error: existingError } = await supabase
+        .from("players")
+        .select(
+          "id, full_name, chess_sa_id, fide_id, club, province, rating, verification_status, profile_photo_url, title"
+        )
+        .eq("chess_sa_id", chessSaId)
+        .maybeSingle();
+
+      if (existingError) {
+        setMessage(`Could not check existing player: ${existingError.message}`);
+        setCreatingPlayer(false);
+        return;
+      }
+
+      if (existingPlayer) {
+        const player = existingPlayer as Player;
+        setPlayers((current) =>
+          current.some((item) => item.id === player.id) ? current : [player, ...current]
+        );
+        updateField("player_id", player.id);
+        setSearch(player.full_name);
+        setShowQuickCreate(false);
+        setQuickPlayerForm(emptyQuickPlayerForm);
+        setMessage("Existing Player Centre profile selected.");
+        setCreatingPlayer(false);
+        return;
+      }
+    }
+
+    const { data, error } = await supabase
+      .from("players")
+      .insert({
+        full_name: fullName,
+        chess_sa_id: chessSaId || null,
+        fide_id: quickPlayerForm.fide_id.trim() || null,
+        title: quickPlayerForm.title.trim() || null,
+        club: quickPlayerForm.club.trim() || null,
+        province: quickPlayerForm.province.trim() || null,
+        verification_status: chessSaId ? "Verified" : "Unverified",
+      })
+      .select(
+        "id, full_name, chess_sa_id, fide_id, club, province, rating, verification_status, profile_photo_url, title"
+      )
+      .single();
+
+    if (error || !data) {
+      setMessage(`Could not create Player Centre profile: ${error?.message ?? "Unknown error"}`);
+      setCreatingPlayer(false);
+      return;
+    }
+
+    const player = data as Player;
+    setPlayers((current) => [player, ...current]);
+    updateField("player_id", player.id);
+    setSearch(player.full_name);
+    setShowQuickCreate(false);
+    setQuickPlayerForm(emptyQuickPlayerForm);
+    setMessage("Player Centre profile created and selected. Choose a role, then assign.");
+    setCreatingPlayer(false);
   }
 
   async function setAsChiefArbiter(official: Official) {
@@ -431,9 +526,8 @@ export default function TournamentArbitersPage({
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
               Assign arbiters, organisers, managers, coaches and support roles
-              from the Player Centre. Every official must be linked through a
-              Chess SA ID so their public profile, member centre and tournament
-              roles stay connected.
+              from the Player Centre. A person can hold more than one role in
+              the same tournament; add each role separately.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -502,7 +596,48 @@ export default function TournamentArbitersPage({
                         </option>
                       ))}
                     </select>
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      Showing {Math.min(filteredPlayers.length, 300)} of{" "}
+                      {filteredPlayers.length} matching Player Centre profiles.
+                    </p>
                   </Field>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowQuickCreate((current) => !current);
+                      setQuickPlayerForm((current) => ({
+                        ...current,
+                        full_name: current.full_name || search,
+                      }));
+                    }}
+                    className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-left text-sm font-bold text-white transition hover:border-red-500"
+                  >
+                    {showQuickCreate
+                      ? "Hide quick add"
+                      : "Person not listed? Add/link Player Centre profile"}
+                  </button>
+
+                  {showQuickCreate && (
+                    <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
+                      <p className="text-sm font-black text-white">
+                        Quick add person
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-gray-500">
+                        Create the profile once, then assign this person to any
+                        number of roles for this tournament.
+                      </p>
+
+                      <div className="mt-4">
+                        <QuickPlayerFormFields
+                          form={quickPlayerForm}
+                          creating={creatingPlayer}
+                          onChange={updateQuickPlayerField}
+                          onSubmit={createAndSelectPlayer}
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   {selectedPlayer && (
                     <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
@@ -521,6 +656,12 @@ export default function TournamentArbitersPage({
                             {valueOrDash(selectedPlayer.title)}  -  Chess SA:{" "}
                             {valueOrDash(selectedPlayer.chess_sa_id)}
                           </p>
+                          {!selectedPlayer.chess_sa_id && (
+                            <p className="mt-2 text-xs leading-5 text-yellow-200">
+                              This role can be assigned now. Add a Chess SA ID
+                              later if this person must link to member identity.
+                            </p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -718,6 +859,75 @@ function Field({
       </span>
       {children}
     </label>
+  );
+}
+
+function QuickPlayerFormFields({
+  form,
+  creating,
+  onChange,
+  onSubmit,
+}: {
+  form: QuickPlayerForm;
+  creating: boolean;
+  onChange: (field: keyof QuickPlayerForm, value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form onSubmit={onSubmit} className="space-y-3">
+      <input
+        value={form.full_name}
+        onChange={(event) => onChange("full_name", event.target.value)}
+        placeholder="Full name"
+        className={inputClass}
+        required
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          value={form.chess_sa_id}
+          onChange={(event) => onChange("chess_sa_id", event.target.value)}
+          placeholder="Chess SA ID"
+          className={inputClass}
+        />
+        <input
+          value={form.fide_id}
+          onChange={(event) => onChange("fide_id", event.target.value)}
+          placeholder="FIDE ID"
+          className={inputClass}
+        />
+      </div>
+
+      <input
+        value={form.title}
+        onChange={(event) => onChange("title", event.target.value)}
+        placeholder="Title or role label"
+        className={inputClass}
+      />
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <input
+          value={form.club}
+          onChange={(event) => onChange("club", event.target.value)}
+          placeholder="Club"
+          className={inputClass}
+        />
+        <input
+          value={form.province}
+          onChange={(event) => onChange("province", event.target.value)}
+          placeholder="Province"
+          className={inputClass}
+        />
+      </div>
+
+      <button
+        type="submit"
+        disabled={creating}
+        className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+      >
+        {creating ? "Creating..." : "Create and select"}
+      </button>
+    </form>
   );
 }
 
