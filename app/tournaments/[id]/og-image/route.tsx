@@ -118,14 +118,13 @@ export async function GET(request: Request) {
           <img
             src={posterUrl}
             alt={`${title} poster`}
-            width="420"
+            width="430"
             height="590"
             style={{
-              maxWidth: "1120px",
-              maxHeight: "590px",
-              width: "auto",
+              width: "430px",
               height: "590px",
               objectFit: "contain",
+              background: "#ffffff",
               boxShadow: "0 30px 90px rgba(0,0,0,0.62)",
             }}
           />
