@@ -271,7 +271,7 @@ export default function AdminDashboardPage() {
 
   return (
     <AdminGuard>
-      <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
+      <main className="min-h-screen overflow-x-hidden bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <section className="border-b border-white/10 pb-6">
             <div className="grid gap-6 lg:grid-cols-[1fr_520px] lg:items-end">
@@ -407,7 +407,7 @@ export default function AdminDashboardPage() {
 
           <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_380px]">
             <div>
-              <div className="flex items-end justify-between gap-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
                     Event Operations
@@ -416,7 +416,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <Link
                   href="/admin/tournaments/new"
-                  className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white transition hover:bg-red-700"
+                  className="rounded-lg bg-red-600 px-4 py-2.5 text-center text-sm font-bold text-white transition hover:bg-red-700 sm:w-auto"
                 >
                   New event
                 </Link>
@@ -431,16 +431,71 @@ export default function AdminDashboardPage() {
                   No tournaments found.
                 </p>
               ) : (
-                <div className="mt-6 overflow-hidden rounded-xl border border-white/10 bg-zinc-900">
-                  <table className="w-full min-w-[780px] text-left text-sm">
+                <>
+                <div className="mt-6 grid gap-3 md:hidden">
+                  {nextTournaments.map((tournament) => {
+                    const tournamentStats = getStats(tournament.id);
+                    return (
+                      <article
+                        key={tournament.id}
+                        className="rounded-xl border border-white/10 bg-zinc-900 p-4"
+                      >
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass(
+                              tournament.registration_status
+                            )}`}
+                          >
+                            {tournament.registration_status ?? "TBA"}
+                          </span>
+                          <span className="text-xs font-semibold text-zinc-500">
+                            {formatDate(tournament.start_date)}
+                          </span>
+                        </div>
+
+                        <h3 className="mt-3 break-words text-base font-black text-white">
+                          {tournament.tournament_name}
+                        </h3>
+                        <p className="mt-1 break-words text-xs leading-5 text-zinc-500">
+                          {tournament.venue}
+                        </p>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div className="rounded-lg border border-white/10 bg-zinc-950 p-3">
+                            <p className="text-xs text-zinc-500">Entries</p>
+                            <p className="mt-1 text-lg font-black text-white">
+                              {tournamentStats?.total_registrations ?? 0}
+                            </p>
+                          </div>
+                          <div className="rounded-lg border border-white/10 bg-zinc-950 p-3">
+                            <p className="text-xs text-zinc-500">Paid</p>
+                            <p className="mt-1 text-lg font-black text-white">
+                              {tournamentStats?.paid_registrations ?? 0}
+                            </p>
+                          </div>
+                        </div>
+
+                        <Link
+                          href={`/admin/tournaments/${tournament.id}`}
+                          className="mt-4 block rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+                        >
+                          Open dashboard
+                        </Link>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 hidden overflow-hidden rounded-xl border border-white/10 bg-zinc-900 md:block">
+                  <table className="w-full table-fixed text-left text-sm">
                     <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
                       <tr>
-                        <th className="p-4">Tournament</th>
-                        <th className="p-4">Date</th>
-                        <th className="p-4">Status</th>
-                        <th className="p-4">Entries</th>
-                        <th className="p-4">Paid</th>
-                        <th className="p-4">Action</th>
+                        <th className="w-[36%] p-4">Tournament</th>
+                        <th className="w-[16%] p-4">Date</th>
+                        <th className="w-[16%] p-4">Status</th>
+                        <th className="w-[10%] p-4">Entries</th>
+                        <th className="w-[10%] p-4">Paid</th>
+                        <th className="w-[12%] p-4">Action</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -449,8 +504,8 @@ export default function AdminDashboardPage() {
                         return (
                           <tr key={tournament.id} className="border-t border-white/10">
                             <td className="p-4">
-                              <p className="font-black text-white">{tournament.tournament_name}</p>
-                              <p className="mt-1 text-xs text-zinc-500">{tournament.venue}</p>
+                              <p className="break-words font-black text-white">{tournament.tournament_name}</p>
+                              <p className="mt-1 break-words text-xs text-zinc-500">{tournament.venue}</p>
                             </td>
                             <td className="p-4 text-zinc-300">{formatDate(tournament.start_date)}</td>
                             <td className="p-4">
@@ -478,6 +533,7 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
             </div>
 
