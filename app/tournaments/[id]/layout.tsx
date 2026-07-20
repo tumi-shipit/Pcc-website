@@ -17,6 +17,8 @@ type Props = {
 };
 
 const siteUrl = "https://polokwanechessclub.co.za";
+const fallbackImage = "/images/organisations/polokwane-chess-club.png";
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabasePublishableKey =
@@ -56,17 +58,18 @@ function buildDescription(tournament: TournamentShareData) {
   return body ? `${details}. ${body}`.slice(0, 180) : details;
 }
 
-function buildOgImageUrl(tournamentId: string, posterUrl: string | null) {
-  const posterKey =
-    posterUrl
-      ?.split("/")
-      .pop()
-      ?.replace(/[^a-zA-Z0-9.-]/g, "")
-      .slice(0, 80) || "poster";
+function absoluteImageUrl(value: string | null) {
+  const image = value?.trim() || fallbackImage;
 
-  return `${siteUrl}/tournaments/${tournamentId}/og-image?format=full-poster-v4&v=${encodeURIComponent(
-    posterKey
-  )}`;
+  if (image.startsWith("http://") || image.startsWith("https://")) {
+    return image;
+  }
+
+  if (image.startsWith("/")) {
+    return `${siteUrl}${image}`;
+  }
+
+  return `${siteUrl}/${image}`;
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -103,7 +106,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = tournament.tournament_name;
   const description = buildDescription(tournament);
   const absoluteUrl = `${siteUrl}${tournamentUrl}`;
-  const image = buildOgImageUrl(id, tournament.poster_image_url);
+  const image = absoluteImageUrl(tournament.poster_image_url);
 
   return {
     title,
