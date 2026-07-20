@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { use, FormEvent, useEffect, useMemo, useState } from "react";
+import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
@@ -268,9 +268,7 @@ export default function TournamentArbitersPage({
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  async function submitOfficial(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function submitOfficial() {
     if (!form.player_id) {
       setMessage("Select a player from the Player Centre.");
       return;
@@ -337,9 +335,7 @@ export default function TournamentArbitersPage({
     await loadPage();
   }
 
-  async function createAndSelectPlayer(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  async function createAndSelectPlayer() {
     const fullName = quickPlayerForm.full_name.trim();
     const chessSaId = quickPlayerForm.chess_sa_id.trim();
 
@@ -568,7 +564,7 @@ export default function TournamentArbitersPage({
                   Tournament official
                 </h2>
 
-                <form onSubmit={submitOfficial} className="mt-6 space-y-5">
+                <div className="mt-6 space-y-5">
                   <Field label="Search Player Centre">
                     <input
                       value={search}
@@ -693,7 +689,8 @@ export default function TournamentArbitersPage({
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <button
-                      type="submit"
+                      type="button"
+                      onClick={submitOfficial}
                       disabled={saving}
                       className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
                     >
@@ -712,7 +709,7 @@ export default function TournamentArbitersPage({
                       Clear
                     </button>
                   </div>
-                </form>
+                </div>
               </section>
             </aside>
 
@@ -871,10 +868,10 @@ function QuickPlayerFormFields({
   form: QuickPlayerForm;
   creating: boolean;
   onChange: (field: keyof QuickPlayerForm, value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: () => void;
 }) {
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
+    <div className="space-y-3">
       <input
         value={form.full_name}
         onChange={(event) => onChange("full_name", event.target.value)}
@@ -921,13 +918,14 @@ function QuickPlayerFormFields({
       </div>
 
       <button
-        type="submit"
+        type="button"
+        onClick={onSubmit}
         disabled={creating}
         className="w-full rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
       >
         {creating ? "Creating..." : "Create and select"}
       </button>
-    </form>
+    </div>
   );
 }
 
