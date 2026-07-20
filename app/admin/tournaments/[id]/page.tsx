@@ -591,6 +591,13 @@ export default function AdminTournamentDashboardPage() {
               </Link>
 
               <Link
+                href={`/admin/tournaments/${tournamentId}/arbiters`}
+                className="rounded-xl border border-green-500/40 bg-green-500/10 px-4 py-3 text-center text-sm font-bold text-green-100 transition hover:bg-green-500/20"
+              >
+                Assign Officials
+              </Link>
+
+              <Link
                 href="/admin/registrations"
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >

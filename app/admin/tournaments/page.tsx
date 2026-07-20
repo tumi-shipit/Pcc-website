@@ -249,12 +249,19 @@ export default function AdminTournamentsPage() {
                       </div>
                     </div>
 
-                    <div className="mt-5 grid grid-cols-2 gap-3">
+                    <div className="mt-5 grid gap-3 sm:grid-cols-3">
                       <Link
                         href={`/admin/tournaments/${tournament.id}`}
                         className="rounded-lg border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
                       >
                         Dashboard
+                      </Link>
+
+                      <Link
+                        href={`/admin/tournaments/${tournament.id}/arbiters`}
+                        className="rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-center text-sm font-bold text-green-100 transition hover:bg-green-500/20"
+                      >
+                        Officials
                       </Link>
 
                       <Link
