@@ -76,6 +76,8 @@ export default function AdminAccessPage() {
   const [savingAdmin, setSavingAdmin] = useState(false);
   const [updatingId, setUpdatingId] = useState("");
   const [message, setMessage] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [currentEmail, setCurrentEmail] = useState<string | null>(null);
 
   const isSuperAdmin = currentRole === "super_admin";
 
@@ -84,6 +86,10 @@ export default function AdminAccessPage() {
     if (!options.keepMessage) setMessage("");
 
     try {
+      const { data: userData } = await supabase.auth.getUser();
+      setCurrentUserId(userData.user?.id ?? null);
+      setCurrentEmail(userData.user?.email?.toLowerCase() ?? null);
+
       const { data: roleData, error: roleError } =
         await supabase.rpc("current_admin_role");
 
@@ -225,9 +231,16 @@ export default function AdminAccessPage() {
     setAdminStatus(admin.access_status);
   }
 
+  function isCurrentAdmin(admin: AdminUser) {
+    return (
+      (admin.admin_user_id && admin.admin_user_id === currentUserId) ||
+      (admin.email && admin.email.toLowerCase() === currentEmail)
+    );
+  }
+
   async function suspendAdmin(admin: AdminUser) {
-    if (admin.role === "super_admin") {
-      setMessage("Super admin access should be changed directly in Supabase.");
+    if (isCurrentAdmin(admin)) {
+      setMessage("You cannot suspend your own active admin access from here.");
       return;
     }
 
@@ -362,7 +375,7 @@ export default function AdminAccessPage() {
                               : "Waiting for first login"}
                           </p>
                           <p>Added {formatDate(admin.created_at)}</p>
-                          {isSuperAdmin && admin.role !== "super_admin" && (
+                          {isSuperAdmin && !isCurrentAdmin(admin) && (
                             <div className="flex gap-2 xl:justify-end">
                               <button
                                 type="button"

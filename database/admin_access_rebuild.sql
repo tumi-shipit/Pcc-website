@@ -4,8 +4,9 @@
 -- What this fixes:
 -- 1. You can grant admin access by email before the person has logged in.
 -- 2. When that person logs in later, the permission links itself to their account.
--- 3. Existing admin_users rows remain super admins.
--- 4. The admin save function no longer fails just because auth.users has no row yet.
+-- 3. admin_staff_permissions is the source of truth for Super Admin vs Admin.
+-- 4. admin_users is only a compatibility whitelist for older admin policies.
+-- 5. The admin save function no longer fails just because auth.users has no row yet.
 
 drop policy if exists "Admins can read admin staff permissions" on public.admin_staff_permissions;
 drop policy if exists "Super admins can insert admin staff permissions" on public.admin_staff_permissions;
@@ -64,6 +65,15 @@ where admin_user_id is not null;
 create index if not exists admin_staff_permissions_role_idx
 on public.admin_staff_permissions (role, access_status);
 
+with legacy_admins as (
+  select
+    admin_users.user_id,
+    lower(coalesce(auth_users.email, admin_users.user_id::text)) as email,
+    coalesce(auth_users.raw_user_meta_data ->> 'full_name', auth_users.email) as display_name,
+    row_number() over (order by admin_users.user_id) as legacy_order
+  from public.admin_users
+  left join auth.users auth_users on auth_users.id = admin_users.user_id
+)
 insert into public.admin_staff_permissions (
   admin_user_id,
   email,
@@ -74,31 +84,38 @@ insert into public.admin_staff_permissions (
   updated_at
 )
 select
-  admin_users.user_id,
-  lower(coalesce(auth_users.email, admin_users.user_id::text)),
-  coalesce(auth_users.raw_user_meta_data ->> 'full_name', auth_users.email),
-  'super_admin',
+  legacy_admins.user_id,
+  legacy_admins.email,
+  legacy_admins.display_name,
+  case
+    when not exists (
+      select 1
+      from public.admin_staff_permissions
+      where role = 'super_admin'
+    )
+    and legacy_admins.legacy_order = 1
+      then 'super_admin'
+    else 'admin'
+  end,
   'Active',
-  false,
+  case
+    when not exists (
+      select 1
+      from public.admin_staff_permissions
+      where role = 'super_admin'
+    )
+    and legacy_admins.legacy_order = 1
+      then false
+    else true
+  end,
   now()
-from public.admin_users
-left join auth.users auth_users on auth_users.id = admin_users.user_id
+from legacy_admins
 on conflict (email)
 do update set
   admin_user_id = coalesce(excluded.admin_user_id, public.admin_staff_permissions.admin_user_id),
   display_name = coalesce(excluded.display_name, public.admin_staff_permissions.display_name),
-  role = 'super_admin',
   access_status = 'Active',
-  requires_super_admin_approval = false,
   updated_at = now();
-
-update public.admin_staff_permissions permissions
-set role = 'super_admin',
-    access_status = 'Active',
-    requires_super_admin_approval = false,
-    updated_at = now()
-from public.admin_users admin_users
-where permissions.admin_user_id = admin_users.user_id;
 
 create or replace function public.current_admin_role()
 returns text
@@ -152,7 +169,16 @@ begin
     from public.admin_users
     where user_id = auth.uid()
   ) then
-    return 'super_admin';
+    if not exists (
+      select 1
+      from public.admin_staff_permissions
+      where role = 'super_admin'
+        and access_status = 'Active'
+    ) then
+      return 'super_admin';
+    end if;
+
+    return 'admin';
   end if;
 
   return null;
