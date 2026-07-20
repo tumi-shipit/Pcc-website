@@ -13,6 +13,8 @@ type TournamentForm = {
   tournament_name: string;
   organiser_name: string;
   description: string;
+  tournament_report: string;
+  chess_results_url: string;
   start_date: string;
   end_date: string;
   venue: string;
@@ -41,6 +43,8 @@ const emptyForm: TournamentForm = {
   tournament_name: "",
   organiser_name: "",
   description: "",
+  tournament_report: "",
+  chess_results_url: "",
   start_date: "",
   end_date: "",
   venue: "",
@@ -226,6 +230,8 @@ export default function NewTournamentPage() {
         tournament_name: form.tournament_name.trim(),
         organiser_name: form.organiser_name.trim() || null,
         description: form.description.trim() || null,
+        tournament_report: form.tournament_report.trim() || null,
+        chess_results_url: form.chess_results_url.trim() || null,
         start_date: form.start_date,
         end_date: form.end_date || form.start_date,
         venue: form.venue.trim(),
@@ -458,6 +464,21 @@ export default function NewTournamentPage() {
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-semibold">
+                  Chess-Results link
+                </label>
+                <input
+                  type="url"
+                  value={form.chess_results_url}
+                  onChange={(event) =>
+                    updateField("chess_results_url", event.target.value)
+                  }
+                  placeholder="https://chess-results.com/..."
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
                   Payment details
                 </label>
                 <textarea
@@ -478,6 +499,21 @@ export default function NewTournamentPage() {
                     updateField("description", event.target.value)
                   }
                   rows={5}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
+                  Tournament report
+                </label>
+                <textarea
+                  value={form.tournament_report}
+                  onChange={(event) =>
+                    updateField("tournament_report", event.target.value)
+                  }
+                  rows={8}
+                  placeholder="Write the public event report, highlights, winners and closing notes."
                   className={inputClass}
                 />
               </div>

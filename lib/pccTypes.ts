@@ -49,6 +49,7 @@ export type Tournament = {
   entry_fee: number;
   poster_image_url: string | null;
   payment_details: string | null;
+  chess_results_url?: string | null;
   arbiter_player_id?: string | null;
   organiser_player_id?: string | null;
   created_at?: string | null;

@@ -20,6 +20,7 @@ type Tournament = {
   entry_fee: number;
   poster_image_url: string | null;
   payment_details: string | null;
+  chess_results_url: string | null;
   arbiter_player_id: string | null;
 };
 
@@ -90,12 +91,29 @@ type TournamentOfficialRow = {
   players: Player | Player[] | null;
 };
 
+type TournamentRoleProfileRow = {
+  id: string;
+  tournament_id: string;
+  player_id: string | null;
+  role: string;
+  notes: string | null;
+  role_group: string;
+  full_name: string | null;
+  chess_sa_id: string | null;
+  fide_id: string | null;
+  rating: number | null;
+  club: string | null;
+  province: string | null;
+  profile_photo_url: string | null;
+};
+
 type PublicOfficial = {
   id: string;
   tournament_id: string;
-  player_id: string;
+  player_id: string | null;
   role: string;
   notes: string | null;
+  roleGroup?: string;
   player: Player | null;
 };
 
@@ -207,7 +225,7 @@ export default function TournamentHubPage() {
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, tournament_report, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, arbiter_player_id"
+          "id, tournament_name, description, tournament_report, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
         )
         .eq("id", tournamentId)
         .single();
@@ -255,25 +273,61 @@ export default function TournamentHubPage() {
 
       const resultRows = (resultData ?? []) as TournamentResult[];
 
-      const { data: officialData } = await supabase
-        .from("tournament_officials")
+      const { data: roleProfileData } = await supabase
+        .from("public_tournament_role_profiles")
         .select(
-          "id, tournament_id, player_id, role, notes, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url)"
+          "id, tournament_id, player_id, role, notes, role_group, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url"
         )
         .eq("tournament_id", tournamentId)
-        .order("created_at", { ascending: true });
+        .order("role_group", { ascending: true })
+        .order("role", { ascending: true });
 
-      const officialRows = (officialData ?? []) as unknown as TournamentOfficialRow[];
-      const loadedOfficials = officialRows.map((official) => ({
-        id: official.id,
-        tournament_id: official.tournament_id,
-        player_id: official.player_id,
-        role: official.role,
-        notes: official.notes,
-        player: Array.isArray(official.players)
-          ? official.players[0] ?? null
-          : official.players,
+      const roleProfileRows =
+        (roleProfileData ?? []) as unknown as TournamentRoleProfileRow[];
+
+      let loadedOfficials: PublicOfficial[] = roleProfileRows.map((role) => ({
+        id: role.id,
+        tournament_id: role.tournament_id,
+        player_id: role.player_id,
+        role: role.role,
+        notes: role.notes,
+        roleGroup: role.role_group,
+        player: role.full_name
+          ? {
+              id: role.player_id ?? role.id,
+              full_name: role.full_name,
+              chess_sa_id: role.chess_sa_id,
+              fide_id: role.fide_id,
+              rating: role.rating,
+              club: role.club,
+              province: role.province,
+              profile_photo_url: role.profile_photo_url,
+            }
+          : null,
       }));
+
+      if (loadedOfficials.length === 0) {
+        const { data: officialData } = await supabase
+          .from("tournament_officials")
+          .select(
+            "id, tournament_id, player_id, role, notes, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url)"
+          )
+          .eq("tournament_id", tournamentId)
+          .order("created_at", { ascending: true });
+
+        const officialRows = (officialData ?? []) as unknown as TournamentOfficialRow[];
+        loadedOfficials = officialRows.map((official) => ({
+          id: official.id,
+          tournament_id: official.tournament_id,
+          player_id: official.player_id,
+          role: official.role,
+          notes: official.notes,
+          roleGroup: "Official",
+          player: Array.isArray(official.players)
+            ? official.players[0] ?? null
+            : official.players,
+        }));
+      }
 
       const playerIds = [
         ...new Set(
@@ -445,25 +499,15 @@ export default function TournamentHubPage() {
                 </a>
               )}
 
-              {isShere && (
-                <>
-                  <a
-                    href="https://s2.chess-results.com/tnr1445907.aspx?lan=1&art=4&SNode=S0"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
-                  >
-                    Open Results
-                  </a>
-                  <a
-                    href="https://s1.chess-results.com/tnr1445906.aspx?lan=1&art=4&SNode=S0"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
-                  >
-                    Junior Results
-                  </a>
-                </>
+              {tournament.chess_results_url && (
+                <a
+                  href={tournament.chess_results_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
+                >
+                  Chess-Results
+                </a>
               )}
             </div>
 
@@ -715,7 +759,16 @@ function TournamentTeam({
     });
   }
 
-  const visibleTeam = team.filter((official) => official.player);
+  const rolePriority = (official: PublicOfficial) => {
+    const role = official.role.toLowerCase();
+    if (official.roleGroup === "Organiser" || role.includes("organiser")) return 0;
+    if (role === "chief arbiter") return 1;
+    if (role.includes("arbiter")) return 2;
+    return 3;
+  };
+  const visibleTeam = team
+    .filter((official) => official.player)
+    .sort((a, b) => rolePriority(a) - rolePriority(b));
 
   if (visibleTeam.length === 0) return null;
 
@@ -739,6 +792,21 @@ function TournamentTeam({
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {visibleTeam.map((official) => {
           const player = official.player as Player;
+          const hasPublicProfile =
+            Boolean(official.player_id) && player.id === official.player_id;
+          const avatar = (
+            <PlayerAvatar
+              name={player.full_name}
+              photoUrl={player.profile_photo_url}
+              size="lg"
+              className="border-red-500/30"
+            />
+          );
+          const name = (
+            <span className="mt-1 block truncate text-lg font-black text-white">
+              {player.full_name}
+            </span>
+          );
 
           return (
             <div
@@ -746,28 +814,28 @@ function TournamentTeam({
               className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
             >
               <div className="flex items-center gap-4">
-                <Link
-                  href={`/players/${player.id}`}
-                  className="shrink-0"
-                >
-                  <PlayerAvatar
-                    name={player.full_name}
-                    photoUrl={player.profile_photo_url}
-                    size="lg"
-                    className="border-red-500/30"
-                  />
-                </Link>
+                {hasPublicProfile ? (
+                  <Link href={`/players/${player.id}`} className="shrink-0">
+                    {avatar}
+                  </Link>
+                ) : (
+                  <div className="shrink-0">{avatar}</div>
+                )}
 
                 <div className="min-w-0">
                   <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
                     {official.role}
                   </p>
-                  <Link
-                    href={`/players/${player.id}`}
-                    className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
-                  >
-                    {player.full_name}
-                  </Link>
+                  {hasPublicProfile ? (
+                    <Link
+                      href={`/players/${player.id}`}
+                      className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
+                    >
+                      {player.full_name}
+                    </Link>
+                  ) : (
+                    name
+                  )}
                   <p className="mt-1 truncate text-xs text-gray-400">
                     {player.club ?? "Chess official"}
                     {player.province ? `  -  ${player.province}` : ""}
@@ -890,6 +958,17 @@ function ArchiveContent({
             The tournament report will appear here once it has been confirmed.
           </p>
         )}
+
+        {tournament.chess_results_url && (
+          <a
+            href={tournament.chess_results_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-6 inline-flex rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
+          >
+            View on Chess-Results
+          </a>
+        )}
       </section>
 
       <FinalStandingsSection results={results} sections={sections} />
@@ -914,7 +993,7 @@ function FinalStandingsSection({
   const sectionEntries = groupResultsBySection(results, sections).map((section) => ({
     ...section,
     podium: section.results
-      .filter((result) => [1, 2, 3].includes(result.final_position ?? 0))
+      .filter((result) => (result.final_position ?? 0) > 0)
       .slice(0, 3),
   }));
 
@@ -924,7 +1003,7 @@ function FinalStandingsSection({
         Final Standings
       </p>
       <h2 className="mt-3 text-2xl font-black md:text-4xl">
-        Top three by section
+        Confirmed standings by section
       </h2>
 
       {sectionEntries.length === 0 ? (
@@ -943,27 +1022,23 @@ function FinalStandingsSection({
               </h3>
 
               <div className="mt-4 space-y-3">
-                {[1, 2, 3].map((position) => {
-                  const result =
-                    section.podium.find(
-                      (item) => item.final_position === position
-                    ) ?? null;
+                {section.podium.length > 0 ? (
+                  section.podium.map((result, index) => {
+                    const position = result.final_position ?? index + 1;
 
-                  return result ? (
-                    <PlayerMiniCard
-                      key={`${section.sectionName}-${position}`}
-                      result={result}
-                      label={`${medal(position)} Place`}
-                    />
-                  ) : (
-                    <div
-                      key={`${section.sectionName}-${position}`}
-                      className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-500"
-                    >
-                      {medal(position)} Place will be confirmed.
-                    </div>
-                  );
-                })}
+                    return (
+                      <PlayerMiniCard
+                        key={`${section.sectionName}-${result.id}`}
+                        result={result}
+                        label={`${medal(position)} Place`}
+                      />
+                    );
+                  })
+                ) : (
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-500">
+                    Standings will be confirmed.
+                  </div>
+                )}
               </div>
             </div>
           ))}

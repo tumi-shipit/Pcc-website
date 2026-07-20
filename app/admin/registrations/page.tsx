@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../../lib/supabase";
 import AdminGuard from "@/components/AdminGuard";
 import * as XLSX from "xlsx";
+import {
+  buildSwissTeamTieBreakTextFiles,
+  buildTournamentWorkbook,
+  tournamentExportFilePart,
+  tournamentExportFormats,
+  TournamentExportFormat,
+} from "@/lib/tournamentExports";
 
 type RegistrationDetail = {
   registration_id: string;
@@ -77,6 +84,8 @@ export default function RegistrationsPage() {
     useState<RegistrationDetail | null>(null);
   const [selectedRegistrationIds, setSelectedRegistrationIds] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
+  const [exportFormat, setExportFormat] =
+    useState<TournamentExportFormat>("swiss");
 
   async function loadRegistrations() {
     setLoading(true);
@@ -289,34 +298,6 @@ export default function RegistrationsPage() {
     setUpdating(false);
   }
 
-  function splitName(fullName: string) {
-    const cleanName = fullName.trim().replace(/\s+/g, " ");
-    const parts = cleanName.split(" ");
-
-    if (parts.length === 1) {
-      return {
-        firstName: cleanName,
-        surname: "",
-      };
-    }
-
-    return {
-      firstName: parts.slice(0, -1).join(" "),
-      surname: parts[parts.length - 1],
-    };
-  }
-
-  function normalizeSex(gender: string | null) {
-    if (!gender) return "";
-
-    const value = gender.toLowerCase();
-
-    if (value === "m" || value === "male") return "m";
-    if (value === "f" || value === "female") return "f";
-
-    return "";
-  }
-
   function exportCsv() {
     const headers = [
       "Full Name",
@@ -371,88 +352,22 @@ export default function RegistrationsPage() {
     URL.revokeObjectURL(url);
   }
 
-  function buildSwissManagerWorkbook(players: RegistrationDetail[], sheetName = "Exp") {
-    const headers = [
-      "No",
-      "First Name",
-      "Surname",
-      "Title",
-      "ID no",
-      "Rating nat",
-      "Rating int",
-      "Birth",
-      " Fed",
-      "Sex",
-      "Type",
-      "Gr",
-      "Clubno",
-      "Club",
-      "FIDE-No",
-      "surname",
-      "first name",
-      "atitle",
-    ];
-
-    const rows = players.map((item, index) => {
-      const { firstName, surname } = splitName(item.full_name);
-
-      return [
-        index + 1,
-        firstName,
-        surname,
-        "",
-        item.chess_sa_id ?? "",
-        item.rating ?? "",
-        "",
-        item.date_of_birth ?? "",
-        "RSA",
-        normalizeSex(item.gender),
-        "",
-        item.section_name ?? "",
-        "",
-        item.club ?? "",
-        "",
-        surname,
-        firstName,
-        "",
-      ];
-    });
-
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-
-    worksheet["!cols"] = [
-      { wch: 6 },
-      { wch: 22 },
-      { wch: 18 },
-      { wch: 10 },
-      { wch: 15 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 12 },
-      { wch: 8 },
-      { wch: 8 },
-      { wch: 8 },
-      { wch: 10 },
-      { wch: 10 },
-      { wch: 22 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 22 },
-      { wch: 10 },
-    ];
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-
-    return workbook;
-  }
-
   function safeFileName(value: string) {
     return value
       .replace(/[^a-zA-Z0-9_-]+/g, "-")
       .replace(/-+/g, "-")
       .replace(/^-|-$/g, "")
       .toLowerCase();
+  }
+
+  function downloadTextFile(fileName: string, content: string) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   function exportSwissManagerXlsx() {
@@ -465,8 +380,19 @@ export default function RegistrationsPage() {
       return;
     }
 
-    const workbook = buildSwissManagerWorkbook(approvedPlayers);
-    XLSX.writeFile(workbook, "swiss-manager-approved-players.xlsx");
+    if (exportFormat === "team-tiebreaks") {
+      buildSwissTeamTieBreakTextFiles(
+        approvedPlayers,
+        tournamentExportFilePart(exportFormat)
+      ).forEach((file) => downloadTextFile(file.fileName, file.content));
+      return;
+    }
+
+    const workbook = buildTournamentWorkbook(approvedPlayers, exportFormat);
+    XLSX.writeFile(
+      workbook,
+      `${tournamentExportFilePart(exportFormat)}-approved-players.xlsx`
+    );
   }
 
   function exportEachSectionSeparately() {
@@ -494,16 +420,25 @@ export default function RegistrationsPage() {
     );
 
     Object.entries(groupedBySection).forEach(([sectionName, players]) => {
-      const workbook = buildSwissManagerWorkbook(players);
       const tournamentPart =
         tournamentFilter === "All"
           ? "all-tournaments"
           : safeFileName(tournamentFilter);
       const sectionPart = safeFileName(sectionName);
+      const baseFileName = `${tournamentExportFilePart(exportFormat)}-${tournamentPart}-${sectionPart}`;
+
+      if (exportFormat === "team-tiebreaks") {
+        buildSwissTeamTieBreakTextFiles(players, baseFileName).forEach((file) =>
+          downloadTextFile(file.fileName, file.content)
+        );
+        return;
+      }
+
+      const workbook = buildTournamentWorkbook(players, exportFormat);
 
       XLSX.writeFile(
         workbook,
-        `swiss-manager-${tournamentPart}-${sectionPart}.xlsx`
+        `${baseFileName}.xlsx`
       );
     });
 
@@ -539,7 +474,24 @@ export default function RegistrationsPage() {
               </p>
             </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label className="min-w-[230px] text-sm font-semibold text-gray-300">
+                Export format
+                <select
+                  value={exportFormat}
+                  onChange={(event) =>
+                    setExportFormat(event.target.value as TournamentExportFormat)
+                  }
+                  className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-red-500"
+                >
+                  {tournamentExportFormats.map((format) => (
+                    <option key={format.value} value={format.value}>
+                      {format.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
               <button
                 type="button"
                 onClick={exportCsv}
@@ -553,7 +505,7 @@ export default function RegistrationsPage() {
                 onClick={exportSwissManagerXlsx}
                 className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white transition hover:bg-red-700"
               >
-                Export Current Filter
+                Export Approved
               </button>
 
               <button

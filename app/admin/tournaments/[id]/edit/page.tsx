@@ -13,6 +13,8 @@ type TournamentForm = {
   tournament_name: string;
   organiser_name: string;
   description: string;
+  tournament_report: string;
+  chess_results_url: string;
   start_date: string;
   end_date: string;
   venue: string;
@@ -41,6 +43,8 @@ const emptyForm: TournamentForm = {
   tournament_name: "",
   organiser_name: "",
   description: "",
+  tournament_report: "",
+  chess_results_url: "",
   start_date: "",
   end_date: "",
   venue: "",
@@ -215,7 +219,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -230,6 +234,8 @@ export default function EditTournamentPage() {
         tournament_name: data.tournament_name ?? "",
         organiser_name: data.organiser_name ?? "",
         description: data.description ?? "",
+        tournament_report: data.tournament_report ?? "",
+        chess_results_url: data.chess_results_url ?? "",
         start_date: data.start_date ?? "",
         end_date: data.end_date ?? "",
         venue: data.venue ?? "",
@@ -302,6 +308,8 @@ export default function EditTournamentPage() {
         tournament_name: form.tournament_name.trim(),
         organiser_name: form.organiser_name.trim() || null,
         description: form.description.trim() || null,
+        tournament_report: form.tournament_report.trim() || null,
+        chess_results_url: form.chess_results_url.trim() || null,
         start_date: form.start_date,
         end_date: form.end_date || form.start_date,
         venue: form.venue.trim(),
@@ -590,6 +598,21 @@ export default function EditTournamentPage() {
 
               <div className="md:col-span-2">
                 <label className="mb-2 block text-sm font-semibold">
+                  Chess-Results link
+                </label>
+                <input
+                  type="url"
+                  value={form.chess_results_url}
+                  onChange={(event) =>
+                    updateField("chess_results_url", event.target.value)
+                  }
+                  placeholder="https://chess-results.com/..."
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
                   Payment details
                 </label>
                 <textarea
@@ -610,6 +633,21 @@ export default function EditTournamentPage() {
                     updateField("description", event.target.value)
                   }
                   rows={5}
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
+                  Tournament report
+                </label>
+                <textarea
+                  value={form.tournament_report}
+                  onChange={(event) =>
+                    updateField("tournament_report", event.target.value)
+                  }
+                  rows={8}
+                  placeholder="Write the public event report, highlights, winners and closing notes."
                   className={inputClass}
                 />
               </div>

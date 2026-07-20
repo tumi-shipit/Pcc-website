@@ -594,7 +594,7 @@ export default function AdminTournamentDashboardPage() {
                 href="/admin/registrations"
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >
-                Export Swiss
+                Export Entries
               </Link>
 
               <Link

@@ -2,10 +2,17 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import OrganiserGuard, { OrganiserAccess } from "@/components/organiser/OrganiserGuard";
 import { supabase } from "@/lib/supabase";
+import {
+  buildSwissTeamTieBreakTextFiles,
+  buildTournamentWorkbook,
+  tournamentExportFilePart,
+  tournamentExportFormats,
+  TournamentExportFormat,
+} from "@/lib/tournamentExports";
 
 type Tournament = {
   id: string;
@@ -35,15 +42,6 @@ type RegistrationRow = {
   section_name: string | null;
 };
 
-function formatDate(value: string | null) {
-  if (!value) return "TBA";
-  return new Date(value).toLocaleDateString("en-ZA", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
-
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
@@ -54,22 +52,6 @@ function statusClass(status: string | null) {
   if (status === "Rejected") return "bg-red-500/10 text-red-300";
   if (status === "Proof Submitted") return "bg-purple-500/10 text-purple-300";
   return "bg-yellow-500/10 text-yellow-300";
-}
-
-function splitName(fullName: string) {
-  const parts = fullName.trim().replace(/\s+/g, " ").split(" ");
-  if (parts.length === 1) return { firstName: fullName, surname: "" };
-  return {
-    firstName: parts.slice(0, -1).join(" "),
-    surname: parts.at(-1) ?? "",
-  };
-}
-
-function normalizeSex(gender: string | null) {
-  const value = String(gender ?? "").toLowerCase();
-  if (value === "male" || value === "m") return "m";
-  if (value === "female" || value === "f") return "f";
-  return "";
 }
 
 function safeFileName(value: string) {
@@ -100,7 +82,6 @@ function TournamentEntries({
   access: OrganiserAccess[];
 }) {
   const params = useParams();
-  const router = useRouter();
   const tournamentId = String(params.id ?? "");
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
@@ -111,6 +92,8 @@ function TournamentEntries({
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState("");
+  const [exportFormat, setExportFormat] =
+    useState<TournamentExportFormat>("swiss");
 
   const allowed = isAdmin || access.some((row) => row.tournament_id === tournamentId);
 
@@ -328,6 +311,16 @@ function TournamentEntries({
     URL.revokeObjectURL(url);
   }
 
+  function downloadTextFile(fileName: string, content: string) {
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
   function exportSwissManager() {
     const approvedRows = filteredRows.filter(
       (row) => row.registration_status === "Approved"
@@ -338,58 +331,21 @@ function TournamentEntries({
       return;
     }
 
-    const headers = [
-      "No",
-      "First Name",
-      "Surname",
-      "Title",
-      "ID no",
-      "Rating nat",
-      "Rating int",
-      "Birth",
-      " Fed",
-      "Sex",
-      "Type",
-      "Gr",
-      "Clubno",
-      "Club",
-      "FIDE-No",
-      "surname",
-      "first name",
-      "atitle",
-    ];
+    const baseFileName = `${safeFileName(
+      tournament?.tournament_name ?? "tournament"
+    )}-${tournamentExportFilePart(exportFormat)}-approved-entries`;
 
-    const rows = approvedRows.map((row, index) => {
-      const name = row.full_name ?? "";
-      const { firstName, surname } = splitName(name);
-      return [
-        index + 1,
-        firstName,
-        surname,
-        "",
-        row.chess_sa_id ?? "",
-        row.rating ?? "",
-        "",
-        row.date_of_birth ?? "",
-        "RSA",
-        normalizeSex(row.gender ?? null),
-        "",
-        row.section_name ?? "",
-        "",
-        row.club ?? "",
-        "",
-        surname,
-        firstName,
-        "",
-      ];
-    });
+    if (exportFormat === "team-tiebreaks") {
+      buildSwissTeamTieBreakTextFiles(approvedRows, baseFileName).forEach((file) =>
+        downloadTextFile(file.fileName, file.content)
+      );
+      return;
+    }
 
-    const workbook = XLSX.utils.book_new();
-    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Exp");
+    const workbook = buildTournamentWorkbook(approvedRows, exportFormat);
     XLSX.writeFile(
       workbook,
-      `${safeFileName(tournament?.tournament_name ?? "tournament")}-approved-entries.xlsx`
+      `${baseFileName}.xlsx`
     );
   }
 
@@ -423,7 +379,24 @@ function TournamentEntries({
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="min-w-[230px] text-sm font-semibold text-zinc-300">
+              Export format
+              <select
+                value={exportFormat}
+                onChange={(event) =>
+                  setExportFormat(event.target.value as TournamentExportFormat)
+                }
+                className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-900 px-4 py-3 text-white outline-none transition focus:border-red-500"
+              >
+                {tournamentExportFormats.map((format) => (
+                  <option key={format.value} value={format.value}>
+                    {format.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <button
               type="button"
               onClick={exportCsv}
@@ -436,7 +409,7 @@ function TournamentEntries({
               onClick={exportSwissManager}
               className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
             >
-              Export Approved XLSX
+              Export Approved
             </button>
           </div>
         </div>
