@@ -40,18 +40,16 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         return;
       }
 
+      const { data: roleData } = await supabase.rpc("current_admin_role");
+      let isAdmin = typeof roleData === "string" && roleData.length > 0;
+
       const { data: adminRow, error } = await supabase
         .from("admin_users")
         .select("user_id")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
-      let isAdmin = !error && Boolean(adminRow);
-
-      if (!isAdmin) {
-        const { data: roleData } = await supabase.rpc("current_admin_role");
-        isAdmin = typeof roleData === "string" && roleData.length > 0;
-      }
+      isAdmin = isAdmin || (!error && Boolean(adminRow));
 
       if (!isAdmin) {
         await supabase.auth.signOut();

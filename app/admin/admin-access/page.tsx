@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 
 type AdminUser = {
   id: string;
-  admin_user_id: string;
+  admin_user_id: string | null;
   email: string | null;
   display_name: string | null;
   role: string;
@@ -79,54 +79,61 @@ export default function AdminAccessPage() {
 
   const isSuperAdmin = currentRole === "super_admin";
 
-  async function loadAccess() {
+  async function loadAccess(options: { keepMessage?: boolean } = {}) {
     setLoading(true);
-    setMessage("");
+    if (!options.keepMessage) setMessage("");
 
-    const { data: roleData, error: roleError } =
-      await supabase.rpc("current_admin_role");
+    try {
+      const { data: roleData, error: roleError } =
+        await supabase.rpc("current_admin_role");
 
-    if (roleError) {
-      setMessage(
-        "Admin roles are not installed yet. Run database/admin_roles_and_approvals.sql in Supabase."
-      );
+      if (roleError) {
+        setMessage(
+          `Admin roles are not installed correctly. Run database/admin_access_rebuild.sql in Supabase. ${roleError.message}`
+        );
+        return false;
+      }
+
+      setCurrentRole((roleData as string | null) ?? null);
+
+      const { data: adminData, error: adminError } = await supabase
+        .from("admin_staff_permissions")
+        .select(
+          "id, admin_user_id, email, display_name, role, access_status, requires_super_admin_approval, created_at"
+        )
+        .order("role", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      if (adminError) {
+        setMessage(
+          `Could not load admin permissions. Run database/admin_access_rebuild.sql in Supabase. ${adminError.message}`
+        );
+        return false;
+      }
+
+      const { data: requestData, error: requestError } = await supabase
+        .from("admin_action_requests")
+        .select(
+          "id, requested_by, action_type, action_label, target_table, target_id, target_label, request_status, request_note, reviewed_at, review_note, created_at"
+        )
+        .order("created_at", { ascending: false })
+        .limit(200);
+
+      if (requestError) {
+        setMessage(`Could not load admin approval requests: ${requestError.message}`);
+      }
+
+      setAdmins((adminData ?? []) as unknown as AdminUser[]);
+      setRequests((requestData ?? []) as unknown as AdminActionRequest[]);
+      return true;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown admin access error.";
+      setMessage(`Could not load admin access: ${message}`);
+      return false;
+    } finally {
       setLoading(false);
-      return;
     }
-
-    setCurrentRole((roleData as string | null) ?? null);
-
-    const { data: adminData, error: adminError } = await supabase
-      .from("admin_staff_permissions")
-      .select(
-        "id, admin_user_id, email, display_name, role, access_status, requires_super_admin_approval, created_at"
-      )
-      .order("role", { ascending: true })
-      .order("created_at", { ascending: true });
-
-    if (adminError) {
-      setMessage(
-        `Could not load admin permissions. Run database/admin_roles_and_approvals.sql if you have not yet. ${adminError.message}`
-      );
-      setLoading(false);
-      return;
-    }
-
-    const { data: requestData, error: requestError } = await supabase
-      .from("admin_action_requests")
-      .select(
-        "id, requested_by, action_type, action_label, target_table, target_id, target_label, request_status, request_note, reviewed_at, review_note, created_at"
-      )
-      .order("created_at", { ascending: false })
-      .limit(200);
-
-    if (requestError) {
-      setMessage(`Could not load admin approval requests: ${requestError.message}`);
-    }
-
-    setAdmins((adminData ?? []) as unknown as AdminUser[]);
-    setRequests((requestData ?? []) as unknown as AdminActionRequest[]);
-    setLoading(false);
   }
 
   useEffect(() => {
@@ -178,26 +185,37 @@ export default function AdminAccessPage() {
     setSavingAdmin(true);
     setMessage("");
 
-    const { error } = await supabase.rpc("admin_upsert_staff_permission", {
-      p_email: adminEmail.trim(),
-      p_display_name: adminName.trim(),
-      p_role: adminRole,
-      p_access_status: adminStatus,
-    });
+    try {
+      const email = adminEmail.trim().toLowerCase();
+      const name = adminName.trim();
 
-    if (error) {
-      setMessage(`Could not save admin access: ${error.message}`);
+      const { error } = await supabase.rpc("admin_upsert_staff_permission", {
+        p_email: email,
+        p_display_name: name,
+        p_role: adminRole,
+        p_access_status: adminStatus,
+      });
+
+      if (error) {
+        setMessage(`Could not save admin access: ${error.message}`);
+        return;
+      }
+
+      setAdminEmail("");
+      setAdminName("");
+      setAdminRole("admin");
+      setAdminStatus("Active");
+      await loadAccess({ keepMessage: true });
+      setMessage(
+        `Admin access saved for ${email}. They can log in with that same email.`
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown admin save error.";
+      setMessage(`Could not save admin access: ${message}`);
+    } finally {
       setSavingAdmin(false);
-      return;
     }
-
-    setMessage("Admin access saved.");
-    setAdminEmail("");
-    setAdminName("");
-    setAdminRole("admin");
-    setAdminStatus("Active");
-    await loadAccess();
-    setSavingAdmin(false);
   }
 
   function editAdmin(admin: AdminUser) {
@@ -216,21 +234,28 @@ export default function AdminAccessPage() {
     setSavingAdmin(true);
     setMessage("");
 
-    const { error } = await supabase.rpc("admin_upsert_staff_permission", {
-      p_email: admin.email ?? "",
-      p_display_name: admin.display_name ?? "",
-      p_role: admin.role,
-      p_access_status: "Suspended",
-    });
+    try {
+      const { error } = await supabase.rpc("admin_upsert_staff_permission", {
+        p_email: admin.email ?? "",
+        p_display_name: admin.display_name ?? "",
+        p_role: admin.role,
+        p_access_status: "Suspended",
+      });
 
-    if (error) {
-      setMessage(`Could not suspend admin: ${error.message}`);
-    } else {
+      if (error) {
+        setMessage(`Could not suspend admin: ${error.message}`);
+        return;
+      }
+
+      await loadAccess({ keepMessage: true });
       setMessage("Admin suspended.");
-      await loadAccess();
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown admin suspend error.";
+      setMessage(`Could not suspend admin: ${message}`);
+    } finally {
+      setSavingAdmin(false);
     }
-
-    setSavingAdmin(false);
   }
 
   return (
@@ -247,11 +272,12 @@ export default function AdminAccessPage() {
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-400">
                 Manage who has admin access while keeping you as the super admin.
+                You can add someone by email before their first admin login.
               </p>
             </div>
             <button
               type="button"
-              onClick={loadAccess}
+              onClick={() => loadAccess()}
               className="rounded-lg border border-white/10 bg-zinc-900 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
             >
               Refresh
@@ -288,7 +314,7 @@ export default function AdminAccessPage() {
               <h2 className="mt-2 text-2xl font-black">Admin accounts</h2>
               </div>
               <span className="rounded-full bg-zinc-950 px-4 py-2 text-xs font-bold text-gray-400">
-                Login stays protected by admin_users
+                Email access links on login
               </span>
               </div>
 
@@ -330,6 +356,11 @@ export default function AdminAccessPage() {
                         </div>
                         <div className="grid gap-2 text-sm text-gray-500 xl:min-w-[180px] xl:text-right">
                           <p>{admin.email ?? "No email recorded"}</p>
+                          <p>
+                            {admin.admin_user_id
+                              ? "Linked to login"
+                              : "Waiting for first login"}
+                          </p>
                           <p>Added {formatDate(admin.created_at)}</p>
                           {isSuperAdmin && admin.role !== "super_admin" && (
                             <div className="flex gap-2 xl:justify-end">
@@ -367,7 +398,8 @@ export default function AdminAccessPage() {
               </p>
               <h2 className="mt-2 text-2xl font-black">Grant admin access</h2>
               <p className="mt-3 text-sm leading-6 text-gray-400">
-                Use the same email they use for organiser access or sign-in.
+                Use the exact email they will use to sign in. If they have not
+                signed in yet, the permission will wait for them.
               </p>
 
               <div className="mt-5 space-y-4">
