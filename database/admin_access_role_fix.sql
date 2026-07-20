@@ -17,6 +17,42 @@ alter table public.admin_staff_permissions
 add constraint admin_staff_permissions_role_check
 check (role in ('super_admin', 'admin'));
 
+update public.admin_staff_permissions permissions
+set role = 'super_admin',
+  access_status = 'Active',
+  requires_super_admin_approval = false,
+  updated_at = now()
+from public.admin_users admin_users
+where permissions.admin_user_id = admin_users.user_id;
+
+insert into public.admin_staff_permissions (
+  admin_user_id,
+  email,
+  display_name,
+  role,
+  access_status,
+  requires_super_admin_approval,
+  updated_at
+)
+select
+  admin_users.user_id,
+  coalesce(auth_users.email, admin_users.user_id::text),
+  coalesce(auth_users.raw_user_meta_data ->> 'full_name', auth_users.email),
+  'super_admin',
+  'Active',
+  false,
+  now()
+from public.admin_users
+left join auth.users auth_users on auth_users.id = admin_users.user_id
+where not exists (
+  select 1
+  from public.admin_staff_permissions permissions
+  where permissions.admin_user_id = admin_users.user_id
+);
+
+grant select, insert, update on public.admin_users to authenticated;
+grant select, insert, update on public.admin_staff_permissions to authenticated;
+
 create or replace function public.admin_upsert_staff_permission(
   p_email text,
   p_display_name text,
@@ -69,8 +105,25 @@ begin
   end if;
 
   insert into public.admin_users (user_id)
-  values (target_user_id)
-  on conflict (user_id) do nothing;
+  select target_user_id
+  where not exists (
+    select 1
+    from public.admin_users
+    where user_id = target_user_id
+  );
+
+  update public.admin_staff_permissions
+  set email = clean_email,
+    display_name = nullif(trim(p_display_name), ''),
+    role = clean_role,
+    access_status = p_access_status,
+    requires_super_admin_approval = clean_role <> 'super_admin',
+    updated_at = now()
+  where admin_user_id = target_user_id;
+
+  if found then
+    return;
+  end if;
 
   insert into public.admin_staff_permissions (
     admin_user_id,
@@ -91,15 +144,7 @@ begin
     clean_role <> 'super_admin',
     auth.uid(),
     now()
-  )
-  on conflict (admin_user_id)
-  do update set
-    email = excluded.email,
-    display_name = excluded.display_name,
-    role = excluded.role,
-    access_status = excluded.access_status,
-    requires_super_admin_approval = excluded.requires_super_admin_approval,
-    updated_at = now();
+  );
 end;
 $$;
 

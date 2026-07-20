@@ -66,7 +66,22 @@ select
   false
 from public.admin_users
 left join auth.users auth_users on auth_users.id = admin_users.user_id
-on conflict (admin_user_id) do nothing;
+on conflict (admin_user_id)
+do update set
+  email = coalesce(excluded.email, public.admin_staff_permissions.email),
+  display_name = coalesce(excluded.display_name, public.admin_staff_permissions.display_name),
+  role = 'super_admin',
+  access_status = 'Active',
+  requires_super_admin_approval = false,
+  updated_at = now();
+
+update public.admin_staff_permissions permissions
+set role = 'super_admin',
+    access_status = 'Active',
+    requires_super_admin_approval = false,
+    updated_at = now()
+from public.admin_users admin_users
+where permissions.admin_user_id = admin_users.user_id;
 
 grant select on public.admin_staff_permissions to authenticated;
 
