@@ -1,42 +1,74 @@
 -- Admin roles and approval foundation.
 -- Run this in Supabase before giving other people admin access.
--- Existing admins are kept as super_admin so you do not lock yourself out.
+-- Important: admin_users stays as the simple login whitelist.
 
-alter table public.admin_users
-add column if not exists email text,
-add column if not exists display_name text,
-add column if not exists role text not null default 'super_admin',
-add column if not exists access_status text not null default 'Active',
-add column if not exists requires_super_admin_approval boolean not null default true,
-add column if not exists created_at timestamptz not null default now(),
-add column if not exists updated_at timestamptz not null default now();
+drop policy if exists "Admins can read admin users" on public.admin_users;
+drop policy if exists "Super admins can manage admin users" on public.admin_users;
+alter table public.admin_users disable row level security;
+grant select, insert, update on public.admin_users to authenticated;
 
-alter table public.admin_users
-drop constraint if exists admin_users_role_check;
+create table if not exists public.admin_staff_permissions (
+  id uuid primary key default gen_random_uuid(),
+  admin_user_id uuid not null references auth.users(id) on delete cascade,
+  email text not null,
+  display_name text,
+  role text not null default 'admin',
+  access_status text not null default 'Active',
+  requires_super_admin_approval boolean not null default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (admin_user_id),
+  unique (email)
+);
 
-alter table public.admin_users
-add constraint admin_users_role_check
+alter table public.admin_staff_permissions
+drop constraint if exists admin_staff_permissions_role_check;
+
+update public.admin_staff_permissions
+set role = 'admin',
+    updated_at = now()
+where role <> 'super_admin';
+
+alter table public.admin_staff_permissions
+add constraint admin_staff_permissions_role_check
 check (
   role in (
     'super_admin',
-    'tournament_manager',
-    'event_assistant',
-    'payment_reviewer',
-    'content_editor',
-    'data_manager',
-    'viewer'
+    'admin'
   )
 );
 
-alter table public.admin_users
-drop constraint if exists admin_users_access_status_check;
+alter table public.admin_staff_permissions
+drop constraint if exists admin_staff_permissions_access_status_check;
 
-alter table public.admin_users
-add constraint admin_users_access_status_check
+alter table public.admin_staff_permissions
+add constraint admin_staff_permissions_access_status_check
 check (access_status in ('Active', 'Suspended'));
 
-create index if not exists admin_users_role_idx
-on public.admin_users (role, access_status);
+create index if not exists admin_staff_permissions_role_idx
+on public.admin_staff_permissions (role, access_status);
+
+insert into public.admin_staff_permissions (
+  admin_user_id,
+  email,
+  display_name,
+  role,
+  access_status,
+  requires_super_admin_approval
+)
+select
+  admin_users.user_id,
+  coalesce(auth_users.email, admin_users.user_id::text),
+  coalesce(auth_users.raw_user_meta_data ->> 'full_name', auth_users.email),
+  'super_admin',
+  'Active',
+  false
+from public.admin_users
+left join auth.users auth_users on auth_users.id = admin_users.user_id
+on conflict (admin_user_id) do nothing;
+
+grant select on public.admin_staff_permissions to authenticated;
 
 create or replace function public.current_admin_role()
 returns text
@@ -45,11 +77,21 @@ stable
 security definer
 set search_path = public
 as $$
-  select role
-  from public.admin_users
-  where user_id = auth.uid()
-    and access_status = 'Active'
-  limit 1
+  select coalesce(
+    (
+      select role
+      from public.admin_staff_permissions
+      where admin_user_id = auth.uid()
+        and access_status = 'Active'
+      limit 1
+    ),
+    (
+      select 'super_admin'
+      from public.admin_users
+      where user_id = auth.uid()
+      limit 1
+    )
+  )
 $$;
 
 create or replace function public.is_super_admin()
@@ -94,11 +136,6 @@ create index if not exists admin_action_requests_requested_by_idx
 on public.admin_action_requests (requested_by, created_at desc);
 
 grant select, insert, update on public.admin_action_requests to authenticated;
-grant select, insert, update on public.admin_users to authenticated;
-
-drop policy if exists "Admins can read admin users" on public.admin_users;
-drop policy if exists "Super admins can manage admin users" on public.admin_users;
-alter table public.admin_users disable row level security;
 
 alter table public.admin_action_requests enable row level security;
 
@@ -163,6 +200,88 @@ begin
 end;
 $$;
 
+create or replace function public.admin_upsert_staff_permission(
+  p_email text,
+  p_display_name text,
+  p_role text,
+  p_access_status text default 'Active'
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  target_user_id uuid;
+  clean_email text;
+begin
+  if not public.is_super_admin() then
+    raise exception 'Only super admins can manage admin access.';
+  end if;
+
+  clean_email := lower(trim(p_email));
+
+  if clean_email = '' then
+    raise exception 'Email is required.';
+  end if;
+
+  if p_role not in (
+    'super_admin',
+    'admin'
+  ) then
+    raise exception 'Role must be Super Admin or Admin.';
+  end if;
+
+  if p_access_status not in ('Active', 'Suspended') then
+    raise exception 'Unknown access status.';
+  end if;
+
+  select id
+  into target_user_id
+  from auth.users
+  where lower(email) = clean_email
+  limit 1;
+
+  if target_user_id is null then
+    raise exception 'That person must create/sign in to an account before admin access can be granted.';
+  end if;
+
+  insert into public.admin_users (user_id)
+  values (target_user_id)
+  on conflict (user_id) do nothing;
+
+  insert into public.admin_staff_permissions (
+    admin_user_id,
+    email,
+    display_name,
+    role,
+    access_status,
+    requires_super_admin_approval,
+    created_by,
+    updated_at
+  )
+  values (
+    target_user_id,
+    clean_email,
+    nullif(trim(p_display_name), ''),
+    p_role,
+    p_access_status,
+    p_role <> 'super_admin',
+    auth.uid(),
+    now()
+  )
+  on conflict (admin_user_id)
+  do update set
+    email = excluded.email,
+    display_name = excluded.display_name,
+    role = excluded.role,
+    access_status = excluded.access_status,
+    requires_super_admin_approval = excluded.requires_super_admin_approval,
+    updated_at = now();
+end;
+$$;
+
 grant execute on function public.current_admin_role() to authenticated;
 grant execute on function public.is_super_admin() to authenticated;
 grant execute on function public.admin_review_action_request(uuid, text, text) to authenticated;
+grant execute on function public.admin_upsert_staff_permission(text, text, text, text) to authenticated;

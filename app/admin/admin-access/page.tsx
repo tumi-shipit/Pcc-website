@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 
 type AdminUser = {
-  user_id: string;
+  id: string;
+  admin_user_id: string;
   email: string | null;
   display_name: string | null;
   role: string;
@@ -31,23 +32,15 @@ type AdminActionRequest = {
 
 const roleLabels: Record<string, string> = {
   super_admin: "Super admin",
-  tournament_manager: "Tournament manager",
-  event_assistant: "Event assistant",
-  payment_reviewer: "Payment reviewer",
-  content_editor: "Content editor",
-  data_manager: "Data manager",
-  viewer: "Viewer",
+  admin: "Admin",
 };
 
 const roleDescriptions: Record<string, string> = {
   super_admin: "Full control, including approvals, admins, payment settings and deletes.",
-  tournament_manager: "Can manage assigned tournament work; restricted changes need approval.",
-  event_assistant: "Can help with registrations, proof checks and event-day work.",
-  payment_reviewer: "Can review payment queues and mark payments after checks.",
-  content_editor: "Can prepare reports, news and galleries; publishing can require approval.",
-  data_manager: "Can clean player data and imports; merges/deletes need approval.",
-  viewer: "Can view admin information without making changes.",
+  admin: "Can access the admin side and work on tournaments, registrations, players and reports.",
 };
+
+const editableRoles = ["admin"];
 
 function formatDate(value: string | null) {
   if (!value) return "Not recorded";
@@ -75,7 +68,12 @@ export default function AdminAccessPage() {
   const [requests, setRequests] = useState<AdminActionRequest[]>([]);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
   const [requestStatus, setRequestStatus] = useState("Pending");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [adminRole, setAdminRole] = useState("admin");
+  const [adminStatus, setAdminStatus] = useState("Active");
   const [loading, setLoading] = useState(true);
+  const [savingAdmin, setSavingAdmin] = useState(false);
   const [updatingId, setUpdatingId] = useState("");
   const [message, setMessage] = useState("");
 
@@ -99,16 +97,16 @@ export default function AdminAccessPage() {
     setCurrentRole((roleData as string | null) ?? null);
 
     const { data: adminData, error: adminError } = await supabase
-      .from("admin_users")
+      .from("admin_staff_permissions")
       .select(
-        "user_id, email, display_name, role, access_status, requires_super_admin_approval, created_at"
+        "id, admin_user_id, email, display_name, role, access_status, requires_super_admin_approval, created_at"
       )
       .order("role", { ascending: true })
       .order("created_at", { ascending: true });
 
     if (adminError) {
       setMessage(
-        `Could not load admin users. Run database/admin_roles_and_approvals.sql if you have not yet. ${adminError.message}`
+        `Could not load admin permissions. Run database/admin_roles_and_approvals.sql if you have not yet. ${adminError.message}`
       );
       setLoading(false);
       return;
@@ -144,7 +142,7 @@ export default function AdminAccessPage() {
     return {
       totalAdmins: admins.length,
       superAdmins: admins.filter((admin) => admin.role === "super_admin").length,
-      limitedAdmins: admins.filter((admin) => admin.role !== "super_admin").length,
+      limitedAdmins: admins.filter((admin) => admin.role === "admin").length,
       pendingRequests: requests.filter(
         (request) => request.request_status === "Pending"
       ).length,
@@ -175,6 +173,66 @@ export default function AdminAccessPage() {
     setUpdatingId("");
   }
 
+  async function saveAdmin(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSavingAdmin(true);
+    setMessage("");
+
+    const { error } = await supabase.rpc("admin_upsert_staff_permission", {
+      p_email: adminEmail.trim(),
+      p_display_name: adminName.trim(),
+      p_role: adminRole,
+      p_access_status: adminStatus,
+    });
+
+    if (error) {
+      setMessage(`Could not save admin access: ${error.message}`);
+      setSavingAdmin(false);
+      return;
+    }
+
+    setMessage("Admin access saved.");
+    setAdminEmail("");
+    setAdminName("");
+    setAdminRole("admin");
+    setAdminStatus("Active");
+    await loadAccess();
+    setSavingAdmin(false);
+  }
+
+  function editAdmin(admin: AdminUser) {
+    setAdminEmail(admin.email ?? "");
+    setAdminName(admin.display_name ?? "");
+    setAdminRole(admin.role === "super_admin" ? "admin" : admin.role);
+    setAdminStatus(admin.access_status);
+  }
+
+  async function suspendAdmin(admin: AdminUser) {
+    if (admin.role === "super_admin") {
+      setMessage("Super admin access should be changed directly in Supabase.");
+      return;
+    }
+
+    setSavingAdmin(true);
+    setMessage("");
+
+    const { error } = await supabase.rpc("admin_upsert_staff_permission", {
+      p_email: admin.email ?? "",
+      p_display_name: admin.display_name ?? "",
+      p_role: admin.role,
+      p_access_status: "Suspended",
+    });
+
+    if (error) {
+      setMessage(`Could not suspend admin: ${error.message}`);
+    } else {
+      setMessage("Admin suspended.");
+      await loadAccess();
+    }
+
+    setSavingAdmin(false);
+  }
+
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
@@ -188,8 +246,7 @@ export default function AdminAccessPage() {
                 Admin Access
               </h1>
               <p className="mt-3 max-w-3xl text-sm leading-7 text-gray-400">
-                Manage who can help on the site while keeping restricted changes
-                under super-admin approval.
+                Manage who has admin access while keeping you as the super admin.
               </p>
             </div>
             <button
@@ -208,9 +265,9 @@ export default function AdminAccessPage() {
           )}
 
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Admins" value={stats.totalAdmins} />
+            <StatCard label="Accounts" value={stats.totalAdmins} />
             <StatCard label="Super admins" value={stats.superAdmins} />
-            <StatCard label="Limited admins" value={stats.limitedAdmins} />
+            <StatCard label="Admins" value={stats.limitedAdmins} />
             <StatCard label="Pending approvals" value={stats.pendingRequests} />
           </div>
 
@@ -221,64 +278,152 @@ export default function AdminAccessPage() {
             </p>
           )}
 
-          <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5">
-            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_420px]">
+            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+              <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
                   Roles
                 </p>
-                <h2 className="mt-2 text-2xl font-black">Admin users</h2>
+              <h2 className="mt-2 text-2xl font-black">Admin accounts</h2>
               </div>
               <span className="rounded-full bg-zinc-950 px-4 py-2 text-xs font-bold text-gray-400">
-                Role changes are done in Supabase for now
+                Login stays protected by admin_users
               </span>
+              </div>
+
+              {loading ? (
+                <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+                  Loading admin access...
+                </p>
+              ) : admins.length === 0 ? (
+                <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+                No admin permissions found.
+                </p>
+              ) : (
+                <div className="mt-5 grid gap-3">
+                  {admins.map((admin) => (
+                    <article
+                      key={admin.id}
+                      className="rounded-xl border border-white/10 bg-zinc-950 p-4"
+                    >
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                        <div>
+                          <div className="flex flex-wrap gap-2">
+                            <span
+                              className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass(
+                                admin.access_status
+                              )}`}
+                            >
+                              {admin.access_status}
+                            </span>
+                            <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-gray-300">
+                              {roleLabels[admin.role] ?? admin.role}
+                            </span>
+                          </div>
+                          <h3 className="mt-3 text-lg font-black text-white">
+                            {admin.display_name || admin.email || admin.admin_user_id}
+                          </h3>
+                          <p className="mt-1 text-sm text-gray-400">
+                            {roleDescriptions[admin.role] ?? "Custom admin role."}
+                          </p>
+                        </div>
+                        <div className="grid gap-2 text-sm text-gray-500 xl:min-w-[180px] xl:text-right">
+                          <p>{admin.email ?? "No email recorded"}</p>
+                          <p>Added {formatDate(admin.created_at)}</p>
+                          {isSuperAdmin && admin.role !== "super_admin" && (
+                            <div className="flex gap-2 xl:justify-end">
+                              <button
+                                type="button"
+                                onClick={() => editAdmin(admin)}
+                                className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={savingAdmin || admin.access_status === "Suspended"}
+                                onClick={() => suspendAdmin(admin)}
+                                className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
+                              >
+                                Suspend
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {loading ? (
-              <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
-                Loading admin access...
+            <form
+              onSubmit={saveAdmin}
+              className="rounded-2xl border border-white/10 bg-zinc-900 p-5"
+            >
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                Add Admin
               </p>
-            ) : admins.length === 0 ? (
-              <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
-                No admin users found.
+              <h2 className="mt-2 text-2xl font-black">Grant admin access</h2>
+              <p className="mt-3 text-sm leading-6 text-gray-400">
+                Use the same email they use for organiser access or sign-in.
               </p>
-            ) : (
-              <div className="mt-5 grid gap-3">
-                {admins.map((admin) => (
-                  <article
-                    key={admin.user_id}
-                    className="rounded-xl border border-white/10 bg-zinc-950 p-4"
+
+              <div className="mt-5 space-y-4">
+                <label className="block">
+                  <span className="text-sm font-semibold text-zinc-200">Email</span>
+                  <input
+                    required
+                    type="email"
+                    value={adminEmail}
+                    onChange={(event) => setAdminEmail(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-semibold text-zinc-200">Name</span>
+                  <input
+                    value={adminName}
+                    onChange={(event) => setAdminName(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-sm font-semibold text-zinc-200">Role</span>
+                  <select
+                    value={adminRole}
+                    onChange={(event) => setAdminRole(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
                   >
-                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap gap-2">
-                          <span
-                            className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass(
-                              admin.access_status
-                            )}`}
-                          >
-                            {admin.access_status}
-                          </span>
-                          <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-gray-300">
-                            {roleLabels[admin.role] ?? admin.role}
-                          </span>
-                        </div>
-                        <h3 className="mt-3 text-lg font-black text-white">
-                          {admin.display_name || admin.email || admin.user_id}
-                        </h3>
-                        <p className="mt-1 text-sm text-gray-400">
-                          {roleDescriptions[admin.role] ?? "Custom admin role."}
-                        </p>
-                      </div>
-                      <div className="text-sm text-gray-500 lg:text-right">
-                        <p>{admin.email ?? "No email recorded"}</p>
-                        <p>Added {formatDate(admin.created_at)}</p>
-                      </div>
-                    </div>
-                  </article>
-                ))}
+                    {editableRoles.map((roleOption) => (
+                      <option key={roleOption} value={roleOption}>
+                        {roleLabels[roleOption]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-sm font-semibold text-zinc-200">Status</span>
+                  <select
+                    value={adminStatus}
+                    onChange={(event) => setAdminStatus(event.target.value)}
+                    className="mt-2 w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+                  >
+                    <option>Active</option>
+                    <option>Suspended</option>
+                  </select>
+                </label>
               </div>
-            )}
+
+              <button
+                type="submit"
+                disabled={!isSuperAdmin || savingAdmin}
+                className="mt-6 w-full rounded-lg bg-red-600 px-5 py-3 font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+              >
+                {savingAdmin ? "Saving..." : "Save admin access"}
+              </button>
+            </form>
           </section>
 
           <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5">

@@ -85,6 +85,15 @@ export default function MemberLoginPage() {
             </button>
           </form>
 
+          <div className="mt-5 border-t border-white/10 pt-5">
+            <Link
+              href="/admin/login"
+              className="block rounded-lg border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500 hover:bg-white/5"
+            >
+              Admin login
+            </Link>
+          </div>
+
           {message && (
             <p className="mt-5 rounded-lg border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-100">
               {message}
