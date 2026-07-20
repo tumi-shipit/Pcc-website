@@ -46,7 +46,14 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         .eq("user_id", user.id)
         .single();
 
-      if (error || !adminRow) {
+      let isAdmin = !error && Boolean(adminRow);
+
+      if (!isAdmin) {
+        const { data: roleData } = await supabase.rpc("current_admin_role");
+        isAdmin = typeof roleData === "string" && roleData.length > 0;
+      }
+
+      if (!isAdmin) {
         await supabase.auth.signOut();
         router.replace("/admin/login");
         return;
