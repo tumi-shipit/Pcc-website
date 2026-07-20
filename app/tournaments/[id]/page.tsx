@@ -489,7 +489,7 @@ export default function TournamentHubPage() {
           <h1 className="text-2xl font-bold">Tournament not found</h1>
           <p className="mt-3">{message || "Tournament could not be found."}</p>
           <Link
-            href="/#tournaments"
+            href="/tournaments"
             className="mt-5 inline-block rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white"
           >
             Back to Tournament Centre
@@ -526,7 +526,7 @@ export default function TournamentHubPage() {
 
           <div className="flex flex-col justify-center">
             <Link
-              href="/#tournaments"
+              href="/tournaments"
               className="text-sm font-semibold text-red-300 transition hover:text-red-200"
             >
                Back to Tournament Centre
@@ -565,7 +565,7 @@ export default function TournamentHubPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               {isOpen ? (
                 <Link
-                  href="/register"
+                  href={`/register?tournament=${tournament.id}`}
                   className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
                 >
                   Register Now
@@ -703,7 +703,7 @@ export default function TournamentHubPage() {
                   Sections will be confirmed soon.
                 </p>
               ) : (
-                <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   {sections.map((section) => (
                     <div
                       key={section.id}

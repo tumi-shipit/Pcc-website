@@ -11,6 +11,7 @@ const primaryNav = [
   { href: "/admin/players", label: "Players" },
   { href: "/admin/organisations", label: "Organisations" },
   { href: "/admin/registrations", label: "Entries" },
+  { href: "/admin/payments", label: "Payments" },
   { href: "/admin/news", label: "News" },
   { href: "/admin/operations", label: "Ops" },
 ];

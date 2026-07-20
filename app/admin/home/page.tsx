@@ -81,6 +81,7 @@ const adminDirectory = [
       { href: "/admin/tournaments", label: "Tournament Centre", text: "Open and manage all tournaments." },
       { href: "/admin/tournaments/new", label: "New Tournament", text: "Create a new tournament page." },
       { href: "/admin/registrations", label: "Registrations", text: "Approve entries and confirm payments." },
+      { href: "/admin/payments", label: "Payment Desk", text: "Review proof of payment and unpaid entries." },
       { href: "/admin/officials", label: "Officials", text: "Assign arbiters, organisers and officials." },
       { href: "/organiser", label: "Organiser Portal", text: "Preview the organiser-facing dashboard." },
     ],

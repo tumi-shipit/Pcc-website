@@ -17,7 +17,6 @@ type Props = {
 };
 
 const siteUrl = "https://polokwanechessclub.co.za";
-const fallbackImage = "/images/organisations/polokwane-chess-club.png";
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -91,8 +90,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const title = tournament.tournament_name;
   const description = buildDescription(tournament);
-  const image = tournament.poster_image_url || fallbackImage;
   const absoluteUrl = `${siteUrl}${tournamentUrl}`;
+  const image = `${siteUrl}/tournaments/${id}/og-image?v=${encodeURIComponent(
+    tournament.poster_image_url || tournament.registration_status || title
+  )}`;
 
   return {
     title,

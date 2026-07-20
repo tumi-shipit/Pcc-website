@@ -30,6 +30,12 @@ type TournamentStats = {
 type SectionStat = {
   section_name: string;
   total: number;
+  approved: number;
+  paid: number;
+  pending: number;
+  proof_submitted: number;
+  missing_chess_sa: number;
+  maximum_players: number | null;
 };
 
 type SectionArchiveStatus = {
@@ -41,6 +47,25 @@ type SectionArchiveStatus = {
 
 type RegistrationSectionRow = {
   section_name: string | null;
+  payment_status: string | null;
+  registration_status: string | null;
+  chess_sa_id: string | null;
+};
+
+type OperationStats = {
+  pending_review: number;
+  proof_submitted: number;
+  approved_unpaid: number;
+  missing_chess_sa: number;
+  rejected: number;
+};
+
+const emptyOperationStats: OperationStats = {
+  pending_review: 0,
+  proof_submitted: 0,
+  approved_unpaid: 0,
+  missing_chess_sa: 0,
+  rejected: 0,
 };
 
 type GalleryImage = {
@@ -108,6 +133,8 @@ export default function AdminTournamentDashboardPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [sectionStats, setSectionStats] = useState<SectionStat[]>([]);
+  const [operationStats, setOperationStats] =
+    useState<OperationStats>(emptyOperationStats);
   const [sectionArchiveStatus, setSectionArchiveStatus] = useState<
     SectionArchiveStatus[]
   >([]);
@@ -232,21 +259,57 @@ export default function AdminTournamentDashboardPage() {
 
       const { data: registrationData } = await supabase
         .from("registration_details")
-        .select("section_name")
+        .select("section_name, payment_status, registration_status, chess_sa_id")
         .eq("tournament_name", tournamentData.tournament_name);
 
-      const groupedSections = (
-        (registrationData ?? []) as RegistrationSectionRow[]
-      ).reduce<Record<string, number>>((groups, item) => {
+      const registrationRows = (registrationData ?? []) as RegistrationSectionRow[];
+      const groupedSections = registrationRows.reduce<Record<string, SectionStat>>((groups, item) => {
         const section = item.section_name ?? "No section";
-        groups[section] = (groups[section] ?? 0) + 1;
+        const current =
+          groups[section] ??
+          {
+            section_name: section,
+            total: 0,
+            approved: 0,
+            paid: 0,
+            pending: 0,
+            proof_submitted: 0,
+            missing_chess_sa: 0,
+            maximum_players: null,
+          };
+
+        current.total += 1;
+        if (item.registration_status === "Approved") current.approved += 1;
+        if (item.payment_status === "Paid") current.paid += 1;
+        if (item.registration_status === "Pending") current.pending += 1;
+        if (item.payment_status === "Proof Submitted") current.proof_submitted += 1;
+        if (!item.chess_sa_id) current.missing_chess_sa += 1;
+        groups[section] = current;
+
         return groups;
       }, {});
+
+      const nextOperationStats = registrationRows.reduce<OperationStats>(
+        (counts, item) => {
+          if (item.registration_status === "Pending") counts.pending_review += 1;
+          if (item.payment_status === "Proof Submitted") counts.proof_submitted += 1;
+          if (
+            item.registration_status === "Approved" &&
+            item.payment_status !== "Paid"
+          ) {
+            counts.approved_unpaid += 1;
+          }
+          if (!item.chess_sa_id) counts.missing_chess_sa += 1;
+          if (item.registration_status === "Rejected") counts.rejected += 1;
+          return counts;
+        },
+        { ...emptyOperationStats }
+      );
 
       const { data: archiveSectionsData, error: archiveSectionsError } =
         await supabase
           .from("tournament_sections")
-          .select("id, section_name")
+          .select("id, section_name, maximum_players")
           .eq("tournament_id", tournamentId)
           .order("section_name", { ascending: true });
 
@@ -297,6 +360,7 @@ export default function AdminTournamentDashboardPage() {
           (archiveSectionsData ?? []) as {
             id: string;
             section_name: string;
+            maximum_players: number | null;
           }[]
         ).map((section) => ({
           id: section.id,
@@ -308,11 +372,23 @@ export default function AdminTournamentDashboardPage() {
 
       setTournament(tournamentData as Tournament);
       setStats((statsData ?? null) as TournamentStats | null);
+      setOperationStats(nextOperationStats);
       setSectionStats(
-        Object.entries(groupedSections).map(([section_name, total]) => ({
-          section_name,
-          total: Number(total),
-        }))
+        Object.values(groupedSections)
+          .map((section) => {
+            const configuredSection = (
+              (archiveSectionsData ?? []) as {
+                section_name: string;
+                maximum_players: number | null;
+              }[]
+            ).find((item) => item.section_name === section.section_name);
+
+            return {
+              ...section,
+              maximum_players: configuredSection?.maximum_players ?? null,
+            };
+          })
+          .sort((a, b) => a.section_name.localeCompare(b.section_name))
       );
 
       await loadGallery();
@@ -566,6 +642,34 @@ export default function AdminTournamentDashboardPage() {
               </div>
             </div>
 
+            <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <OperationCard
+                label="Needs review"
+                value={operationStats.pending_review}
+                tone="yellow"
+              />
+              <OperationCard
+                label="Proof submitted"
+                value={operationStats.proof_submitted}
+                tone="purple"
+              />
+              <OperationCard
+                label="Approved unpaid"
+                value={operationStats.approved_unpaid}
+                tone="blue"
+              />
+              <OperationCard
+                label="Missing Chess SA"
+                value={operationStats.missing_chess_sa}
+                tone="red"
+              />
+              <OperationCard
+                label="Rejected"
+                value={operationStats.rejected}
+                tone="zinc"
+              />
+            </div>
+
             <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <Link
                 href={`/admin/registrations?tournament=${encodeURIComponent(
@@ -574,6 +678,15 @@ export default function AdminTournamentDashboardPage() {
                 className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
               >
                 View Registrations
+              </Link>
+
+              <Link
+                href={`/admin/payments?tournament=${encodeURIComponent(
+                  tournament.tournament_name
+                )}`}
+                className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-center text-sm font-bold text-blue-100 transition hover:bg-blue-500/20"
+              >
+                Payment Desk
               </Link>
 
               <Link
@@ -703,6 +816,128 @@ export default function AdminTournamentDashboardPage() {
             {uploadProgress}
           </p>
         )}
+
+        <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-6">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                Operations Dashboard
+              </p>
+              <h2 className="mt-2 text-2xl font-black">Section load and queues</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-400">
+                Use this to see which sections need approval, payment checks, or
+                Chess SA cleanup before export.
+              </p>
+            </div>
+
+            <Link
+              href={`/admin/registrations?tournament=${encodeURIComponent(
+                tournament.tournament_name
+              )}`}
+              className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
+            >
+              Open Registration Queue
+            </Link>
+
+            <Link
+              href={`/admin/payments?tournament=${encodeURIComponent(
+                tournament.tournament_name
+              )}`}
+              className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-4 py-3 text-center text-sm font-bold text-blue-100 transition hover:bg-blue-500/20"
+            >
+              Open Payment Desk
+            </Link>
+          </div>
+
+          {sectionStats.length === 0 ? (
+            <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
+              No registrations have been received yet.
+            </p>
+          ) : (
+            <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+              <div className="hidden overflow-x-auto lg:block">
+                <table className="min-w-full divide-y divide-white/10">
+                  <thead className="bg-zinc-950">
+                    <tr>
+                      {[
+                        "Section",
+                        "Entries",
+                        "Approved",
+                        "Paid",
+                        "Needs review",
+                        "Proof",
+                        "Missing ID",
+                      ].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500"
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10 bg-zinc-900">
+                    {sectionStats.map((section) => (
+                      <tr key={section.section_name}>
+                        <td className="px-4 py-4 font-semibold text-white">
+                          {section.section_name}
+                        </td>
+                        <td className="px-4 py-4 text-gray-300">
+                          {section.total}
+                          {section.maximum_players
+                            ? ` / ${section.maximum_players}`
+                            : ""}
+                        </td>
+                        <td className="px-4 py-4 text-green-300">
+                          {section.approved}
+                        </td>
+                        <td className="px-4 py-4 text-blue-300">
+                          {section.paid}
+                        </td>
+                        <td className="px-4 py-4 text-yellow-300">
+                          {section.pending}
+                        </td>
+                        <td className="px-4 py-4 text-purple-300">
+                          {section.proof_submitted}
+                        </td>
+                        <td className="px-4 py-4 text-red-300">
+                          {section.missing_chess_sa}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="grid gap-3 bg-zinc-950 p-3 lg:hidden">
+                {sectionStats.map((section) => (
+                  <div
+                    key={section.section_name}
+                    className="rounded-xl border border-white/10 bg-zinc-900 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <h3 className="font-bold text-white">{section.section_name}</h3>
+                      <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
+                        {section.total}
+                        {section.maximum_players
+                          ? ` / ${section.maximum_players}`
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      <QueueMini label="Approved" value={section.approved} />
+                      <QueueMini label="Paid" value={section.paid} />
+                      <QueueMini label="Review" value={section.pending} />
+                      <QueueMini label="Proof" value={section.proof_submitted} />
+                      <QueueMini label="Missing ID" value={section.missing_chess_sa} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
 
         <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
           <section className="rounded-2xl border border-white/10 bg-zinc-900 p-6">
@@ -969,5 +1204,41 @@ export default function AdminTournamentDashboardPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function OperationCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "yellow" | "purple" | "blue" | "red" | "zinc";
+}) {
+  const toneClass = {
+    yellow: "text-yellow-300 border-yellow-500/20 bg-yellow-500/10",
+    purple: "text-purple-300 border-purple-500/20 bg-purple-500/10",
+    blue: "text-blue-300 border-blue-500/20 bg-blue-500/10",
+    red: "text-red-300 border-red-500/20 bg-red-500/10",
+    zinc: "text-gray-300 border-white/10 bg-zinc-950",
+  }[tone];
+
+  return (
+    <div className={`rounded-xl border p-4 ${toneClass}`}>
+      <p className="text-xs font-semibold uppercase tracking-wider opacity-80">
+        {label}
+      </p>
+      <p className="mt-2 text-3xl font-black">{value}</p>
+    </div>
+  );
+}
+
+function QueueMini({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg bg-zinc-950 p-3">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-1 text-lg font-black text-white">{value}</p>
+    </div>
   );
 }

@@ -8,7 +8,7 @@ const actions = [
   },
   {
     title: "Review Payments",
-    href: "/admin/registrations",
+    href: "/admin/payments",
     label: "Pay",
   },
   {
