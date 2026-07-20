@@ -69,8 +69,8 @@ export async function GET(request: Request) {
     (
       <div
         style={{
-          width: "1080px",
-          height: "1350px",
+          width: "1200px",
+          height: "630px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -84,17 +84,17 @@ export async function GET(request: Request) {
         <img
           src={posterUrl}
           alt=""
-          width="1080"
-          height="1350"
+          width="1200"
+          height="630"
           style={{
             position: "absolute",
             inset: 0,
-            width: "1080px",
-            height: "1350px",
+            width: "1200px",
+            height: "630px",
             objectFit: "cover",
-            opacity: 0.32,
-            filter: "blur(28px)",
-            transform: "scale(1.08)",
+            opacity: 0.4,
+            filter: "blur(24px)",
+            transform: "scale(1.12)",
           }}
         />
         <div
@@ -102,13 +102,13 @@ export async function GET(request: Request) {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(180deg, rgba(0,0,0,0.48), rgba(0,0,0,0.14) 42%, rgba(0,0,0,0.48))",
+              "radial-gradient(circle at center, rgba(0,0,0,0.08), rgba(0,0,0,0.68)), linear-gradient(90deg, rgba(0,0,0,0.72), rgba(0,0,0,0.12) 50%, rgba(0,0,0,0.72))",
           }}
         />
         <div
           style={{
-            width: "1030px",
-            height: "1300px",
+            width: "1160px",
+            height: "590px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -118,21 +118,23 @@ export async function GET(request: Request) {
           <img
             src={posterUrl}
             alt={`${title} poster`}
-            width="1030"
-            height="1300"
+            width="420"
+            height="590"
             style={{
-              width: "1030px",
-              height: "1300px",
+              maxWidth: "1120px",
+              maxHeight: "590px",
+              width: "auto",
+              height: "590px",
               objectFit: "contain",
-              boxShadow: "0 34px 110px rgba(0,0,0,0.58)",
+              boxShadow: "0 30px 90px rgba(0,0,0,0.62)",
             }}
           />
         </div>
       </div>
     ),
     {
-      width: 1080,
-      height: 1350,
+      width: 1200,
+      height: 630,
     }
   );
 }

@@ -64,7 +64,7 @@ function buildOgImageUrl(tournamentId: string, posterUrl: string | null) {
       ?.replace(/[^a-zA-Z0-9.-]/g, "")
       .slice(0, 80) || "poster";
 
-  return `${siteUrl}/tournaments/${tournamentId}/og-image?v=${encodeURIComponent(
+  return `${siteUrl}/tournaments/${tournamentId}/og-image?format=full-poster-v2&v=${encodeURIComponent(
     posterKey
   )}`;
 }
@@ -120,8 +120,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: [
         {
           url: image,
-          width: 1080,
-          height: 1350,
+          width: 1200,
+          height: 630,
           alt: `${title} tournament poster`,
         },
       ],
