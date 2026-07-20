@@ -5,11 +5,6 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 
-type AdminAccessRow = {
-  user_id: string;
-  access_status?: string | null;
-};
-
 const primaryNav = [
   { href: "/admin/home", label: "Overview" },
   { href: "/admin/tournaments", label: "Tournaments" },
@@ -45,29 +40,13 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         return;
       }
 
-      const { data: statusAdminRow, error: statusError } = await supabase
+      const { data: adminRow, error } = await supabase
         .from("admin_users")
-        .select("user_id, access_status")
+        .select("user_id")
         .eq("user_id", user.id)
         .single();
 
-      let adminRow = statusAdminRow as AdminAccessRow | null;
-      let error = statusError;
-
-      if (error && error.code === "42703") {
-        const fallback = await supabase
-          .from("admin_users")
-          .select("user_id")
-          .eq("user_id", user.id)
-          .single();
-
-        adminRow = fallback.data as AdminAccessRow | null;
-        error = fallback.error;
-      }
-
-      const accessStatus = (adminRow as AdminAccessRow | null)?.access_status;
-
-      if (error || !adminRow || (accessStatus && accessStatus !== "Active")) {
+      if (error || !adminRow) {
         await supabase.auth.signOut();
         router.replace("/admin/login");
         return;

@@ -104,12 +104,7 @@ on public.admin_action_requests
 for select
 to authenticated
 using (
-  exists (
-    select 1
-    from public.admin_users
-    where admin_users.user_id = auth.uid()
-      and admin_users.access_status = 'Active'
-  )
+  public.current_admin_role() is not null
 );
 
 drop policy if exists "Admins can create own action requests" on public.admin_action_requests;
@@ -119,12 +114,7 @@ for insert
 to authenticated
 with check (
   requested_by = auth.uid()
-  and exists (
-    select 1
-    from public.admin_users
-    where admin_users.user_id = auth.uid()
-      and admin_users.access_status = 'Active'
-  )
+  and public.current_admin_role() is not null
 );
 
 drop policy if exists "Super admins can update action requests" on public.admin_action_requests;
@@ -143,12 +133,7 @@ on public.admin_users
 for select
 to authenticated
 using (
-  exists (
-    select 1
-    from public.admin_users current_admin
-    where current_admin.user_id = auth.uid()
-      and current_admin.access_status = 'Active'
-  )
+  public.current_admin_role() is not null
 );
 
 drop policy if exists "Super admins can manage admin users" on public.admin_users;
