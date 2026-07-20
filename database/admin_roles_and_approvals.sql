@@ -214,18 +214,26 @@ as $$
 declare
   target_user_id uuid;
   clean_email text;
+  clean_role text;
 begin
   if not public.is_super_admin() then
     raise exception 'Only super admins can manage admin access.';
   end if;
 
   clean_email := lower(trim(p_email));
+  clean_role := lower(trim(coalesce(p_role, '')));
+  clean_role := replace(clean_role, ' ', '_');
+  clean_role := replace(clean_role, '-', '_');
+
+  if clean_role in ('superadmin', 'super_administrator') then
+    clean_role := 'super_admin';
+  end if;
 
   if clean_email = '' then
     raise exception 'Email is required.';
   end if;
 
-  if p_role not in (
+  if clean_role not in (
     'super_admin',
     'admin'
   ) then
@@ -264,9 +272,9 @@ begin
     target_user_id,
     clean_email,
     nullif(trim(p_display_name), ''),
-    p_role,
+    clean_role,
     p_access_status,
-    p_role <> 'super_admin',
+    clean_role <> 'super_admin',
     auth.uid(),
     now()
   )
