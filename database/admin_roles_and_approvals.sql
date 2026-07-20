@@ -96,6 +96,10 @@ on public.admin_action_requests (requested_by, created_at desc);
 grant select, insert, update on public.admin_action_requests to authenticated;
 grant select, insert, update on public.admin_users to authenticated;
 
+drop policy if exists "Admins can read admin users" on public.admin_users;
+drop policy if exists "Super admins can manage admin users" on public.admin_users;
+alter table public.admin_users disable row level security;
+
 alter table public.admin_action_requests enable row level security;
 
 drop policy if exists "Admins can read admin action requests" on public.admin_action_requests;
@@ -121,25 +125,6 @@ drop policy if exists "Super admins can update action requests" on public.admin_
 create policy "Super admins can update action requests"
 on public.admin_action_requests
 for update
-to authenticated
-using (public.is_super_admin())
-with check (public.is_super_admin());
-
-alter table public.admin_users enable row level security;
-
-drop policy if exists "Admins can read admin users" on public.admin_users;
-create policy "Admins can read admin users"
-on public.admin_users
-for select
-to authenticated
-using (
-  public.current_admin_role() is not null
-);
-
-drop policy if exists "Super admins can manage admin users" on public.admin_users;
-create policy "Super admins can manage admin users"
-on public.admin_users
-for all
 to authenticated
 using (public.is_super_admin())
 with check (public.is_super_admin());

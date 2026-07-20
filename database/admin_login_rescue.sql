@@ -10,4 +10,7 @@ where user_id is not null;
 
 grant select on public.admin_users to authenticated;
 
+drop policy if exists "Admins can read admin users" on public.admin_users;
+drop policy if exists "Super admins can manage admin users" on public.admin_users;
+
 alter table public.admin_users disable row level security;
