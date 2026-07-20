@@ -8,6 +8,7 @@ const tournamentTabs = [
   ["Results & Completed", "/archive"],
   ["Gallery", "/gallery"],
   ["Officials", "/arbiters"],
+  ["Organisations", "/organisations"],
   ["Live", "/live"],
   ["Edit", "/edit"],
 ];

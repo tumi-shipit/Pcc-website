@@ -598,6 +598,13 @@ export default function AdminTournamentDashboardPage() {
               </Link>
 
               <Link
+                href={`/admin/tournaments/${tournamentId}/organisations`}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-green-500"
+              >
+                Organisations
+              </Link>
+
+              <Link
                 href="/admin/registrations"
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >

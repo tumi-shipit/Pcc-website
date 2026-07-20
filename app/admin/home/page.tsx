@@ -343,6 +343,12 @@ export default function AdminDashboardPage() {
               }
             />
             <WorkflowLink
+              href="/admin/organisations"
+              title="Organisations"
+              metric="Logos & reps"
+              description="Manage clubs, schools, partners and committee representatives."
+            />
+            <WorkflowLink
               href="/admin/organiser-requests"
               title="Organiser Requests"
               metric="Admin approval"
@@ -472,6 +478,7 @@ export default function AdminDashboardPage() {
                 <h2 className="text-xl font-black">Core Tools</h2>
                 <div className="mt-4 space-y-3">
                   <QuickLink href="/admin/organiser-access" label="Organiser access" />
+                  <QuickLink href="/admin/organisations" label="Organisations" />
                   <QuickLink href="/admin/players/sync" label="Chess SA sync" />
                   <QuickLink href="/admin/players/duplicates" label="Duplicate checks" />
                   <QuickLink href="/admin/tournaments" label="Tournament centre" />

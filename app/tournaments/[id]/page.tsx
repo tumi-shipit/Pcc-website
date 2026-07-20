@@ -117,6 +117,37 @@ type PublicOfficial = {
   player: Player | null;
 };
 
+type Organisation = {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  website_url: string | null;
+  representative_name: string | null;
+};
+
+type CommitteeMember = {
+  id: string;
+  organisation_id: string;
+  full_name: string;
+  role_title: string | null;
+};
+
+type TournamentOrganisationRow = {
+  id: string;
+  tournament_id: string;
+  organisation_id: string;
+  role: string;
+  representative_member_id: string | null;
+  representative_name: string | null;
+  notes: string | null;
+  display_order: number | null;
+};
+
+type PublicTournamentOrganisation = TournamentOrganisationRow & {
+  organisation: Organisation | null;
+  representative: CommitteeMember | null;
+};
+
 function formatDate(date: string | null) {
   if (!date) return "TBA";
 
@@ -204,6 +235,7 @@ export default function TournamentHubPage() {
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
   const [arbiter, setArbiter] = useState<Player | null>(null);
   const [officials, setOfficials] = useState<PublicOfficial[]>([]);
+  const [organisations, setOrganisations] = useState<PublicTournamentOrganisation[]>([]);
   const [showAllGallery, setShowAllGallery] = useState(false);
   const [selectedGalleryImage, setSelectedGalleryImage] =
     useState<GalleryImage | null>(null);
@@ -272,6 +304,48 @@ export default function TournamentHubPage() {
         .order("points", { ascending: false, nullsFirst: false });
 
       const resultRows = (resultData ?? []) as TournamentResult[];
+
+      const { data: tournamentOrganisationData } = await supabase
+        .from("tournament_organisations")
+        .select(
+          "id, tournament_id, organisation_id, role, representative_member_id, representative_name, notes, display_order"
+        )
+        .eq("tournament_id", tournamentId)
+        .order("display_order", { ascending: true })
+        .order("created_at", { ascending: true });
+
+      const tournamentOrganisationRows =
+        (tournamentOrganisationData ?? []) as unknown as TournamentOrganisationRow[];
+      const organisationIds = Array.from(
+        new Set(tournamentOrganisationRows.map((row) => row.organisation_id))
+      );
+      const representativeIds = Array.from(
+        new Set(
+          tournamentOrganisationRows
+            .map((row) => row.representative_member_id)
+            .filter(Boolean)
+        )
+      ) as string[];
+      let loadedOrganisations: Organisation[] = [];
+      let loadedCommitteeMembers: CommitteeMember[] = [];
+
+      if (organisationIds.length > 0) {
+        const { data: organisationData } = await supabase
+          .from("organisations")
+          .select("id, name, logo_url, website_url, representative_name")
+          .in("id", organisationIds);
+
+        loadedOrganisations = (organisationData ?? []) as unknown as Organisation[];
+      }
+
+      if (representativeIds.length > 0) {
+        const { data: memberData } = await supabase
+          .from("organisation_committee_members")
+          .select("id, organisation_id, full_name, role_title")
+          .in("id", representativeIds);
+
+        loadedCommitteeMembers = (memberData ?? []) as unknown as CommitteeMember[];
+      }
 
       const { data: roleProfileData } = await supabase
         .from("public_tournament_role_profiles")
@@ -366,6 +440,18 @@ export default function TournamentHubPage() {
       setStats((statsData ?? null) as TournamentStats | null);
       setGallery((galleryData ?? []) as unknown as GalleryImage[]);
       setResults(resultRowsWithPlayers);
+      setOrganisations(
+        tournamentOrganisationRows.map((row) => ({
+          ...row,
+          organisation:
+            loadedOrganisations.find((organisation) => organisation.id === row.organisation_id) ??
+            null,
+          representative:
+            loadedCommitteeMembers.find(
+              (member) => member.id === row.representative_member_id
+            ) ?? null,
+        }))
+      );
       setArbiter(
         players.find((player) => player.id === loadedTournament.arbiter_player_id) ??
           null
@@ -558,6 +644,7 @@ export default function TournamentHubPage() {
         </div>
 
         <TournamentTeam officials={officials} fallbackArbiter={arbiter} />
+        <TournamentOrganisations organisations={organisations} />
 
         {isCompleted && (
           <ArchiveContent
@@ -849,6 +936,94 @@ function TournamentTeam({
                 </p>
               )}
             </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TournamentOrganisations({
+  organisations,
+}: {
+  organisations: PublicTournamentOrganisation[];
+}) {
+  if (organisations.length === 0) return null;
+
+  return (
+    <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Event Organisations
+          </p>
+          <h2 className="mt-2 text-2xl font-black md:text-3xl">
+            Organisers and partners
+          </h2>
+        </div>
+
+        <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+          {organisations.length} organisation
+          {organisations.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {organisations.map((assignment) => {
+          const organisation = assignment.organisation;
+          const representative =
+            assignment.representative_name ||
+            assignment.representative?.full_name ||
+            organisation?.representative_name;
+          const content = (
+            <div className="rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500/60">
+              <div className="flex items-center gap-4">
+                {organisation?.logo_url ? (
+                  <img
+                    src={organisation.logo_url}
+                    alt={`${organisation.name} logo`}
+                    className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
+                  />
+                ) : (
+                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-lg font-black text-red-200">
+                    {(organisation?.name ?? "OR").slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
+                    {assignment.role}
+                  </p>
+                  <p className="mt-1 truncate text-lg font-black text-white">
+                    {organisation?.name ?? "Organisation"}
+                  </p>
+                  {representative && (
+                    <p className="mt-1 truncate text-xs text-gray-400">
+                      Representative: {representative}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {assignment.notes && (
+                <p className="mt-3 text-xs leading-5 text-gray-500">
+                  {assignment.notes}
+                </p>
+              )}
+            </div>
+          );
+
+          return organisation?.website_url ? (
+            <a
+              key={assignment.id}
+              href={organisation.website_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {content}
+            </a>
+          ) : (
+            <div key={assignment.id}>{content}</div>
           );
         })}
       </div>
