@@ -540,7 +540,7 @@ export default function TournamentArchiveContinuationPage() {
       .order("section_name", { ascending: true });
 
     if (tournamentError || !tournamentData) {
-      setMessage("Tournament archive could not be loaded.");
+      setMessage("Completed tournament data could not be loaded.");
       setLoading(false);
       return;
     }
@@ -824,7 +824,7 @@ export default function TournamentArchiveContinuationPage() {
 
   async function importPlayersForSection() {
     if (!tournament) {
-      setMessage("Tournament archive not loaded.");
+      setMessage("Completed tournament data not loaded.");
       return;
     }
 
@@ -1000,7 +1000,7 @@ export default function TournamentArchiveContinuationPage() {
 
   async function importRankingsForSection() {
     if (!tournament) {
-      setMessage("Tournament archive not loaded.");
+      setMessage("Completed tournament data not loaded.");
       return;
     }
 
@@ -1163,7 +1163,7 @@ export default function TournamentArchiveContinuationPage() {
       <AdminGuard>
         <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
           <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-            Loading archive importer...
+            Loading completed tournament importer...
           </div>
         </main>
       </AdminGuard>
@@ -1183,17 +1183,17 @@ export default function TournamentArchiveContinuationPage() {
 
           <section className="mt-6 border-b border-white/10 pb-6">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
-              Archive Manager
+              Completed Manager
             </p>
 
             <div className="mt-3 grid gap-5 lg:grid-cols-[1fr_360px] lg:items-end">
               <div>
                 <h1 className="text-4xl font-black md:text-6xl">
-                  {tournament?.tournament_name ?? "Tournament Archive"}
+                  {tournament?.tournament_name ?? "Completed Tournament"}
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base">
-                  Build the public archive one section at a time. Load the
+                  Build the public completed page one section at a time. Load the
                   player list first, then import the final ranking for that same
                   section.
                 </p>

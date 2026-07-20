@@ -285,7 +285,7 @@ export default function TournamentGalleryPage({
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
               Upload and manage tournament photos. These images appear on the
-              public tournament archive when the event is completed.
+              public completed tournament page when the event is completed.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">

@@ -148,7 +148,7 @@ export default function AdminTournamentsPage() {
               <BoardStat label="Active" value={stats.active} />
               <BoardStat label="Upcoming" value={stats.upcoming} />
               <BoardStat label="Drafts" value={stats.drafts} tone="muted" />
-              <BoardStat label="Archive" value={stats.completed} />
+              <BoardStat label="Completed" value={stats.completed} />
               <BoardStat label="Total" value={stats.total} />
             </div>
           </div>

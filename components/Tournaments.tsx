@@ -119,7 +119,7 @@ function TournamentCard({
             tournament.registration_status
           )}`}
         >
-          {archive ? "Archive" : getStatusLabel(tournament.registration_status)}
+          {archive ? "Completed" : getStatusLabel(tournament.registration_status)}
         </span>
       </Link>
 
@@ -153,7 +153,7 @@ function TournamentCard({
             href={`/tournaments/${tournament.id}`}
             className="block rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-semibold text-white transition hover:border-red-500"
           >
-            {archive ? "View Archive" : "View Tournament"}
+            {archive ? "View Completed Event" : "View Tournament"}
           </Link>
 
           {!archive &&
@@ -237,8 +237,8 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
 
           <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
             Find upcoming events, open entries and completed tournament
-            archives from one public hub. Each tournament page shows dates,
-            venue, sections, fees, results and archive material where available.
+            completed events from one public hub. Each tournament page shows
+            dates, venue, sections, fees, results and event material where available.
           </p>
           </div>
 
@@ -246,7 +246,7 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
             href={fullPage ? "#archive" : "/tournaments"}
             className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
           >
-            {fullPage ? "Open tournament archive" : "Open all tournaments"}
+            {fullPage ? "Open completed tournaments" : "Open all tournaments"}
           </Link>
         </div>
 
@@ -275,11 +275,11 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
                 <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="max-w-3xl">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-                      Tournament Archive
+                      Completed Tournaments
                     </p>
 
                     <h2 className="text-3xl font-bold md:text-5xl">
-                      Tournament Archive
+                      Completed Tournaments
                     </h2>
 
                     <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
@@ -293,7 +293,7 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
                       href="/tournaments#archive"
                       className="rounded-xl border border-white/10 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
                     >
-                      Open tournament archive
+                      Open completed tournaments
                     </Link>
                   )}
                 </div>

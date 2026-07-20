@@ -290,7 +290,7 @@ export default function AdminPlayerHistoryPage({
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                  Results Archive
+                  Completed Results
                 </p>
                 <h2 className="mt-3 text-2xl font-black">
                   Tournament Results

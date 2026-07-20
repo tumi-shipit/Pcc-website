@@ -149,7 +149,7 @@ function statusStyle(status: string) {
 
 function statusLabel(status: string) {
   if (status === "Open") return "Registration Open";
-  if (status === "Completed") return "Tournament Archive";
+  if (status === "Completed") return "Completed Tournament";
   if (status === "Live") return "Live Tournament";
   return "Registration Not Open";
 }
@@ -486,7 +486,7 @@ export default function TournamentHubPage() {
                 </Link>
               ) : (
                 <span className="rounded-xl bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-400">
-                  {isCompleted ? "Archived Event" : "Registration Not Open"}
+                  {isCompleted ? "Completed Event" : "Registration Not Open"}
                 </span>
               )}
 
@@ -515,7 +515,7 @@ export default function TournamentHubPage() {
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <NextStep label="1. Check details" text="Confirm date, venue, section and fee." />
                 <NextStep label="2. Register" text="Use the tournament registration form when open." />
-                <NextStep label="3. Follow updates" text="Results and archive material appear here." />
+                <NextStep label="3. Follow updates" text="Results and completed event material appear here." />
               </div>
             )}
           </div>
@@ -647,7 +647,7 @@ export default function TournamentHubPage() {
                   Tournament Gallery
                 </p>
                 <h2 className="mt-2 text-2xl font-black md:text-4xl">
-                  Photo Archive
+                  Completed Photos
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-gray-400">
                   Photos from prize-giving, action boards and tournament moments.

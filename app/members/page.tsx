@@ -817,7 +817,7 @@ function MemberDashboard({
                       <div className="flex items-start justify-between gap-3">
                         <p className="font-bold text-zinc-950">{tournament.tournament_name}</p>
                         <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-bold text-zinc-600">
-                          {tournament.registration_status ?? "Archived"}
+                          {tournament.registration_status ?? "Completed"}
                         </span>
                       </div>
                       <p className="mt-2 text-xs text-zinc-500">

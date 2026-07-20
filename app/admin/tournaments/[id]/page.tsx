@@ -157,12 +157,12 @@ export default function AdminTournamentDashboardPage() {
       },
       {
         title: "Gallery",
-        description: gallery.length > 0 ? `${gallery.length} photos archived` : "No archive photos yet",
+        description: gallery.length > 0 ? `${gallery.length} completed photos` : "No completed photos yet",
         complete: gallery.length > 0,
         active: results.length > 0 && gallery.length === 0,
       },
       {
-        title: "Archive",
+        title: "Completed",
         description:
           tournament?.registration_status === "Completed"
             ? "Tournament marked completed"
@@ -445,7 +445,7 @@ export default function AdminTournamentDashboardPage() {
   }
 
   async function deleteGalleryImage(image: GalleryImage) {
-    const confirmed = window.confirm("Delete this gallery image from the archive?");
+    const confirmed = window.confirm("Delete this gallery image from the completed event gallery?");
     if (!confirmed) return;
 
     setMessage("");
@@ -587,7 +587,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/archive`}
                 className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-center text-sm font-bold text-red-100 transition hover:bg-red-500/20"
               >
-                Continue Archive Import
+                Continue Completed Import
               </Link>
 
               <Link
@@ -702,7 +702,7 @@ export default function AdminTournamentDashboardPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                  Archive Manager
+                  Completed Manager
                 </p>
                 <h2 className="mt-2 text-2xl font-bold">Section import progress</h2>
                 <p className="mt-2 text-sm leading-6 text-gray-400">
@@ -714,7 +714,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/archive`}
                 className="rounded-xl bg-red-600 px-4 py-3 text-center text-sm font-bold text-white transition hover:bg-red-700"
               >
-                Continue Archive Import
+                Continue Completed Import
               </Link>
             </div>
 
@@ -747,7 +747,7 @@ export default function AdminTournamentDashboardPage() {
                           </h3>
                           <p className="mt-1 text-xs text-gray-400">
                             {complete
-                              ? "Archive complete"
+                              ? "Completed"
                               : playersDone
                               ? "Final ranking still required"
                               : "Player import not started"}
@@ -824,7 +824,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/archive`}
                 className="block rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm font-semibold text-white transition hover:border-red-500"
               >
-                Continue Archive Import
+                Continue Completed Import
               </Link>
 
               <Link
@@ -838,7 +838,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/tournaments/${tournamentId}`}
                 className="block rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm font-semibold text-white transition hover:border-red-500"
               >
-                Open Public Archive
+                Open Completed Page
               </Link>
 
               <Link
@@ -855,14 +855,14 @@ export default function AdminTournamentDashboardPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                Archive Gallery
+                Completed Gallery
               </p>
 
               <h2 className="mt-2 text-2xl font-bold">Tournament Photos</h2>
 
               <p className="mt-2 text-sm text-gray-400">
                 Upload individual photos or a full folder at once. Photos appear
-                on the public archive page when the tournament is completed.
+                on the public completed tournament page.
               </p>
             </div>
 
