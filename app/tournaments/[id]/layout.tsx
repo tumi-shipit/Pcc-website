@@ -64,7 +64,7 @@ function buildOgImageUrl(tournamentId: string, posterUrl: string | null) {
       ?.replace(/[^a-zA-Z0-9.-]/g, "")
       .slice(0, 80) || "poster";
 
-  return `${siteUrl}/tournaments/${tournamentId}/og-image?format=full-poster-v3&v=${encodeURIComponent(
+  return `${siteUrl}/tournaments/${tournamentId}/og-image?format=full-poster-v4&v=${encodeURIComponent(
     posterKey
   )}`;
 }
