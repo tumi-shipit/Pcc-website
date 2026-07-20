@@ -14,6 +14,7 @@ const primaryNav = [
   { href: "/admin/payments", label: "Payments" },
   { href: "/admin/news", label: "News" },
   { href: "/admin/operations", label: "Ops" },
+  { href: "/admin/admin-access", label: "Admins" },
 ];
 
 const toolNav = [
@@ -41,11 +42,11 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
 
       const { data: adminRow, error } = await supabase
         .from("admin_users")
-        .select("user_id")
+        .select("user_id, access_status")
         .eq("user_id", user.id)
         .single();
 
-      if (error || !adminRow) {
+      if (error || !adminRow || adminRow.access_status !== "Active") {
         await supabase.auth.signOut();
         router.replace("/admin/login");
         return;

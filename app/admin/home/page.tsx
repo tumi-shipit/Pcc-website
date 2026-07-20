@@ -64,6 +64,7 @@ const adminDirectory = [
       { href: "/admin/search", label: "Admin Search", text: "Find players and tournaments quickly." },
       { href: "/admin/organiser-access", label: "Organiser Access", text: "Grant tournament-only entry access." },
       { href: "/admin/organiser-requests", label: "Organiser Requests", text: "Approve or reject organiser entry changes." },
+      { href: "/admin/admin-access", label: "Admin Access", text: "Review admin roles and restricted approval requests." },
     ],
   },
   {
@@ -355,6 +356,12 @@ export default function AdminDashboardPage() {
               metric="Admin approval"
               description="Review organiser entry changes before they affect the tournament."
             />
+            <WorkflowLink
+              href="/admin/admin-access"
+              title="Admin Access"
+              metric={`${commandStats.activeOrganiserAccess} helpers`}
+              description="Keep admin helpers under your super-admin approval control."
+            />
           </section>
 
           <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
@@ -480,6 +487,7 @@ export default function AdminDashboardPage() {
                 <div className="mt-4 space-y-3">
                   <QuickLink href="/admin/organiser-access" label="Organiser access" />
                   <QuickLink href="/admin/organisations" label="Organisations" />
+                  <QuickLink href="/admin/admin-access" label="Admin access" />
                   <QuickLink href="/admin/players/sync" label="Chess SA sync" />
                   <QuickLink href="/admin/players/duplicates" label="Duplicate checks" />
                   <QuickLink href="/admin/tournaments" label="Tournament centre" />
