@@ -648,26 +648,23 @@ export default function RegisterPage() {
         <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
           <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-xl md:p-8">
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-              Chess Tournament Registration Portal
+              Registration Platform
             </p>
 
             <h1 className="mt-3 text-xl font-bold md:text-2xl leading-tight md:text-5xl">
-              Register for Upcoming Chess Tournaments
+              Find and enter chess tournaments
             </h1>
 
             <p className="mt-4 max-w-4xl text-sm leading-6 text-gray-300 md:text-base md:leading-7">
-              Welcome to the Chess Tournament Registration Portal. This platform
-              gives players a simple and secure way to register for upcoming
-              chess tournaments organised by clubs, schools, districts,
-              provinces and other recognised chess organisations across South
-              Africa.
+              Use this platform to find chess tournaments around the province
+              from verified organisers and organisations, then enter the event
+              you want to play in.
             </p>
 
             <p className="mt-3 hidden max-w-4xl text-sm leading-6 text-gray-400 md:block md:text-base md:leading-7">
-              Polokwane Chess Club is committed to developing chess by
-              supporting players, organisers and arbiters through a modern
-              registration system that makes it easier to discover events and
-              participate in competitive chess.
+              Wherever you are in the province, open tournaments can be listed
+              here so players, families, schools, clubs and coaches can register
+              from one trusted place.
             </p>
 
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
@@ -676,19 +673,19 @@ export default function RegisterPage() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-300">
-                Tournament Registration
+                Provincial Tournament Hub
               </span>
 
               <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300">
-                Chess SA Player Lookup
+                Verified Organisers
               </span>
 
               <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-300">
-                New Player Registration
+                Player Lookup
               </span>
 
               <span className="rounded-full border border-purple-500/40 bg-purple-500/10 px-3 py-1.5 text-xs font-medium text-purple-300">
-                Secure Online Entries
+                Online Entries
               </span>
             </div>
           </div>
@@ -697,18 +694,18 @@ export default function RegisterPage() {
             {[
               [
                 "1",
-                "Find yourself",
-                "Search using your Chess SA ID or surname and date of birth. New players can register without a Chess SA profile.",
+                "Find profile",
+                "Search using the player's Chess SA ID or the player's surname and date of birth.",
               ],
               [
                 "2",
-                "Choose your tournament",
-                "Select the tournament and section you want to enter.",
+                "Choose event",
+                "Select the tournament and the correct section for the player.",
               ],
               [
                 "3",
-                "Submit your entry",
-                "Add your contact details, payment option and submit your registration for review.",
+                "Send entry",
+                "Add contact details, choose payment option and submit.",
               ],
             ].map(([number, title, description]) => (
               <div
@@ -731,18 +728,20 @@ export default function RegisterPage() {
 
       <section className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
         <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
-          <h2 className="text-xl font-bold md:text-2xl">1. Find your Chess SA profile</h2>
+          <h2 className="text-xl font-bold md:text-2xl">
+            1. Find the Chess SA profile
+          </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Most players do not know their Chess SA ID, so surname and date of
-            birth is the recommended search method.
+            Use the player's surname and date of birth. If you know the
+            player's Chess SA ID, you can use that instead.
           </p>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {(
               [
-                ["surname", "Search by surname + date of birth"],
-                ["chesssa", "Search by Chess SA ID"],
+                ["surname", "Player surname + date of birth"],
+                ["chesssa", "Player Chess SA ID"],
               ] as const
             ).map(([method, label]) => (
               <button
@@ -770,7 +769,7 @@ export default function RegisterPage() {
           <form onSubmit={handleSearch} className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-200">
-                {searchMethod === "surname" ? "Surname" : "Chess SA ID"}
+                {searchMethod === "surname" ? "Player surname" : "Player Chess SA ID"}
               </label>
 
               <input
@@ -781,7 +780,7 @@ export default function RegisterPage() {
                 placeholder={
                   searchMethod === "surname"
                     ? "Enter your surname"
-                    : "Enter your Chess SA ID"
+                    : "Enter the player's Chess SA ID"
                 }
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
               />
@@ -809,7 +808,7 @@ export default function RegisterPage() {
                 disabled={searching}
                 className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {searching ? "Searching..." : "Find My Chess SA Profile"}
+                {searching ? "Searching..." : "Find Profile"}
               </button>
             </div>
           </form>
@@ -1018,30 +1017,37 @@ export default function RegisterPage() {
           <form onSubmit={handleRegistration} className="mt-6 space-y-6">
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
               <h2 className="text-xl font-bold md:text-2xl">2. Contact details</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-400">
+                These can belong to the player or the person helping with the
+                registration. We use them for entry updates, payment checks and
+                tournament communication.
+              </p>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
-                    Email address
+                    Contact email
                   </label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
+                    placeholder="Email address"
                     className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                   />
                 </div>
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
-                    Phone number
+                    Contact phone number
                   </label>
                   <input
                     type="tel"
                     required
                     value={phone}
                     onChange={(event) => setPhone(event.target.value)}
+                    placeholder="Phone number"
                     className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
                   />
                 </div>
@@ -1323,6 +1329,10 @@ export default function RegisterPage() {
 
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
               <h3 className="text-xl font-bold md:text-2xl">4. Payment option</h3>
+              <p className="mt-2 text-sm leading-6 text-gray-400">
+                You can submit the entry first and pay later, or upload proof if
+                payment has already been made.
+              </p>
 
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <button
@@ -1339,7 +1349,8 @@ export default function RegisterPage() {
                 >
                   <span className="font-semibold">Pay later</span>
                   <span className="mt-1 block text-sm text-gray-400">
-                    Submit your entry first. Payment will remain pending.
+                    Submit the entry now. The organiser will still see payment
+                    as pending.
                   </span>
                 </button>
 
@@ -1354,7 +1365,8 @@ export default function RegisterPage() {
                 >
                   <span className="font-semibold">Upload proof of payment</span>
                   <span className="mt-1 block text-sm text-gray-400">
-                    Upload a clear payment confirmation for admin review.
+                    Use this if you already paid and have a clear payment
+                    confirmation.
                   </span>
                 </button>
               </div>
@@ -1427,7 +1439,7 @@ export default function RegisterPage() {
                 {submittingRegistration && (
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 )}
-                {submittingRegistration ? "Submitting entry..." : "Submit Tournament Entry"}
+                {submittingRegistration ? "Submitting entry..." : "Submit Registration"}
               </button>
 
               {registrationMessage && (

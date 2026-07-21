@@ -29,6 +29,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   const [allowed, setAllowed] = useState(false);
   const [checking, setChecking] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
 
   useEffect(() => {
     async function checkAdmin() {
@@ -42,6 +43,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
 
       const { data: roleData } = await supabase.rpc("current_admin_role");
       let isAdmin = typeof roleData === "string" && roleData.length > 0;
+      const resolvedRole = isAdmin ? (roleData as string) : null;
 
       const { data: adminRow, error } = await supabase
         .from("admin_users")
@@ -57,6 +59,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         return;
       }
 
+      setCurrentRole(resolvedRole ?? (adminRow ? "admin" : null));
       setAllowed(true);
       setChecking(false);
     }
@@ -90,6 +93,52 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
 
   if (!allowed) return null;
 
+  const navItems = primaryNav.filter((item) => {
+    if (currentRole === "super_admin") return true;
+    if (currentRole === "admin") return item.href !== "/admin/admin-access";
+    if (currentRole === "organisation_admin") {
+      return [
+        "/admin/home",
+        "/admin/tournaments",
+        "/admin/organisations",
+        "/admin/registrations",
+        "/admin/payments",
+      ].includes(item.href);
+    }
+    if (currentRole === "tournament_staff") {
+      return ["/admin/home", "/admin/tournaments", "/admin/registrations"].includes(
+        item.href
+      );
+    }
+    if (currentRole === "finance_viewer") {
+      return ["/admin/home", "/admin/registrations", "/admin/payments"].includes(
+        item.href
+      );
+    }
+
+    return item.href === "/admin/home";
+  });
+  const visibleToolNav =
+    currentRole === "super_admin" || currentRole === "admin"
+      ? toolNav
+      : toolNav.filter((item) => item.href === "/admin/search");
+  const roleLabel =
+    currentRole === "super_admin"
+      ? "Super Admin"
+      : currentRole === "admin"
+        ? "Admin"
+        : currentRole === "organisation_admin"
+          ? "Organisation Admin"
+          : currentRole === "tournament_staff"
+            ? "Tournament Staff"
+            : currentRole === "finance_viewer"
+              ? "Finance Viewer"
+              : "Admin";
+  const canCreateEvent =
+    currentRole === "super_admin" ||
+    currentRole === "admin" ||
+    currentRole === "organisation_admin";
+
   return (
     <>
       <header className="fixed left-0 right-0 top-0 z-50 border-b border-white/10 bg-zinc-950/90 text-white shadow-2xl shadow-black/20 backdrop-blur-xl">
@@ -104,7 +153,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
           </Link>
 
           <nav className="hidden items-center gap-1 xl:flex">
-            {[...primaryNav, ...toolNav].map((item) => (
+            {[...navItems, ...visibleToolNav].map((item) => (
               <AdminNavLink
                 key={item.href}
                 href={item.href}
@@ -115,12 +164,17 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="hidden items-center gap-2 lg:flex">
-            <Link
-              href="/admin/tournaments/new"
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
-            >
-              New Event
-            </Link>
+            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-zinc-300">
+              {roleLabel}
+            </span>
+            {canCreateEvent && (
+              <Link
+                href="/admin/tournaments/new"
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                New Event
+              </Link>
+            )}
             <button
               type="button"
               onClick={signOut}
@@ -144,7 +198,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         {menuOpen && (
           <div className="border-t border-white/10 bg-zinc-950 px-4 py-4 xl:hidden">
             <div className="mx-auto grid max-w-7xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[...primaryNav, ...toolNav].map((item) => (
+              {[...navItems, ...visibleToolNav].map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -158,13 +212,15 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
                   {item.label}
                 </Link>
               ))}
-              <Link
-                href="/admin/tournaments/new"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-lg bg-red-600 px-4 py-3 text-center text-sm font-bold text-white"
-              >
-                New Event
-              </Link>
+              {canCreateEvent && (
+                <Link
+                  href="/admin/tournaments/new"
+                  onClick={() => setMenuOpen(false)}
+                  className="rounded-lg bg-red-600 px-4 py-3 text-center text-sm font-bold text-white"
+                >
+                  New Event
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={signOut}

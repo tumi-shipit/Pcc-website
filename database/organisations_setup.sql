@@ -99,48 +99,24 @@ create policy "Admins can manage organisations"
 on public.organisations
 for all
 to authenticated
-using (
-  exists (
-    select 1 from public.admin_users where admin_users.user_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1 from public.admin_users where admin_users.user_id = auth.uid()
-  )
-);
+using (public.can_edit_organisation(id))
+with check (public.can_edit_organisation(id));
 
 drop policy if exists "Admins can manage organisation committee members" on public.organisation_committee_members;
 create policy "Admins can manage organisation committee members"
 on public.organisation_committee_members
 for all
 to authenticated
-using (
-  exists (
-    select 1 from public.admin_users where admin_users.user_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1 from public.admin_users where admin_users.user_id = auth.uid()
-  )
-);
+using (public.can_edit_organisation(organisation_id))
+with check (public.can_edit_organisation(organisation_id));
 
 drop policy if exists "Admins can manage tournament organisations" on public.tournament_organisations;
 create policy "Admins can manage tournament organisations"
 on public.tournament_organisations
 for all
 to authenticated
-using (
-  exists (
-    select 1 from public.admin_users where admin_users.user_id = auth.uid()
-  )
-)
-with check (
-  exists (
-    select 1 from public.admin_users where admin_users.user_id = auth.uid()
-  )
-);
+using (public.can_edit_organisation(organisation_id))
+with check (public.can_edit_organisation(organisation_id));
 
 drop policy if exists "Admins can create player profiles" on public.players;
 create policy "Admins can create player profiles"

@@ -514,7 +514,7 @@ export default function TournamentHubPage() {
                   fill
                   priority
                   sizes="(max-width: 768px) 100vw, 360px"
-                  className="object-cover"
+                  className="object-contain"
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-gray-500">
@@ -600,7 +600,7 @@ export default function TournamentHubPage() {
             {!isCompleted && (
               <div className="mt-6 grid gap-3 sm:grid-cols-3">
                 <NextStep label="1. Check details" text="Confirm date, venue, section and fee." />
-                <NextStep label="2. Register" text="Use the tournament registration form when open." />
+                <NextStep label="2. Register" text="Use the registration form when entries are open." />
                 <NextStep label="3. Follow updates" text="Results and completed event material appear here." />
               </div>
             )}
