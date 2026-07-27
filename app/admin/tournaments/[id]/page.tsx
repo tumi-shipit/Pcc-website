@@ -612,12 +612,20 @@ export default function AdminTournamentDashboardPage() {
               </span>
             </div>
 
-            <div className="mt-8 grid gap-4 sm:grid-cols-4">
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
               <div className="rounded-xl bg-zinc-950 p-4">
                 <p className="text-sm text-gray-400">Total</p>
                 <p className="mt-2 text-3xl font-bold">
                   {stats?.total_registrations ?? 0}
                 </p>
+              </div>
+
+              <div className="rounded-xl bg-zinc-950 p-4">
+                <p className="text-sm text-gray-400">Played</p>
+                <p className="mt-2 text-3xl font-bold text-green-300">
+                  {results.length}
+                </p>
+                <p className="mt-1 text-xs text-gray-500">Final ranking rows</p>
               </div>
 
               <div className="rounded-xl bg-zinc-950 p-4">

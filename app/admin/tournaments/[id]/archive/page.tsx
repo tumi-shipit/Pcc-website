@@ -41,6 +41,7 @@ type ImportedStanding = {
   name: string;
   rating: number | null;
   federation: string | null;
+  chess_sa_id: string | null;
   points: number | null;
   tieBreak: string | null;
   player_id: string | null;
@@ -52,6 +53,7 @@ type ImportedStanding = {
 type SectionPlayer = {
   player_id: string;
   full_name: string;
+  chess_sa_id: string | null;
 };
 
 type ImportSummary = {
@@ -346,9 +348,41 @@ function parseStartingRankRows(rows: unknown[][]) {
 function findBestSectionPlayer(
   rankingName: string,
   rankingStartingNumber: number | null,
+  rankingChessSaId: string | null,
   sectionPlayers: SectionPlayer[],
   importedPlayers: ImportedPlayer[]
 ) {
+  const cleanRankingChessSaId = rankingChessSaId?.trim() || null;
+
+  if (cleanRankingChessSaId) {
+    const chessSaSectionMatch = sectionPlayers.find(
+      (player) => player.chess_sa_id?.trim() === cleanRankingChessSaId
+    );
+
+    if (chessSaSectionMatch) {
+      return {
+        player_id: chessSaSectionMatch.player_id,
+        full_name: chessSaSectionMatch.full_name,
+        confidence: 100,
+        reason: "Matched by Chess SA ID",
+      };
+    }
+
+    const chessSaImportMatch = importedPlayers.find(
+      (player) =>
+        player.chess_sa_id?.trim() === cleanRankingChessSaId && player.player_id
+    );
+
+    if (chessSaImportMatch?.player_id) {
+      return {
+        player_id: chessSaImportMatch.player_id,
+        full_name: chessSaImportMatch.name,
+        confidence: 100,
+        reason: "Matched by Chess SA ID from section player import",
+      };
+    }
+  }
+
   if (rankingStartingNumber !== null) {
     const startingNumberMatch = importedPlayers.find(
       (player) =>
@@ -446,6 +480,24 @@ function parseFinalRankingRows(
     "Federation",
   ]);
 
+  const chessSaIdIndex = getFlexibleColumnIndex(headers, [
+    "Chess SA ID",
+    "ChessSA ID",
+    "ChessSAID",
+    "Chessa ID",
+    "ChessSA",
+    "CSA ID",
+    "CSAID",
+    "CHESSA",
+    "Unique No",
+    "UNIQUE_NO",
+    "Unique Number",
+    "Member ID",
+    "Membership Number",
+    "Player ID",
+    "Code",
+  ]);
+
   const pointsIndex = getFlexibleColumnIndex(headers, [
     "Pts",
     "Pts.",
@@ -469,10 +521,13 @@ function parseFinalRankingRows(
 
       const startingNumber =
         startingNumberIndex >= 0 ? toNumber(row[startingNumberIndex]) : null;
+      const chessSaId =
+        chessSaIdIndex >= 0 ? cleanImportedId(row[chessSaIdIndex]) : null;
 
       const matchedPlayer = findBestSectionPlayer(
         name,
         startingNumber,
+        chessSaId,
         sectionPlayers,
         importedPlayers
       );
@@ -486,6 +541,7 @@ function parseFinalRankingRows(
           federationIndex >= 0 && row[federationIndex] !== ""
             ? String(row[federationIndex]).trim()
             : null,
+        chess_sa_id: chessSaId,
         points: toNumber(row[pointsIndex]),
         tieBreak:
           tieBreakIndex >= 0 && row[tieBreakIndex] !== ""
@@ -580,7 +636,7 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data, error } = await supabase
       .from("registrations")
-      .select("player_id, players(id, full_name)")
+      .select("player_id, players(id, full_name, chess_sa_id)")
       .eq("tournament_id", tournamentId)
       .eq("section_id", sectionId)
       .limit(10000);
@@ -593,8 +649,8 @@ export default function TournamentArchiveContinuationPage() {
     const rows = (data ?? []) as unknown as {
       player_id: string;
       players:
-        | { id: string; full_name: string }
-        | { id: string; full_name: string }[]
+        | { id: string; full_name: string; chess_sa_id: string | null }
+        | { id: string; full_name: string; chess_sa_id: string | null }[]
         | null;
     }[];
 
@@ -609,6 +665,7 @@ export default function TournamentArchiveContinuationPage() {
         return {
           player_id: row.player_id,
           full_name: player.full_name,
+          chess_sa_id: player.chess_sa_id ?? null,
         } as SectionPlayer;
       })
       .filter(Boolean) as SectionPlayer[];
@@ -712,7 +769,7 @@ export default function TournamentArchiveContinuationPage() {
   async function fetchSectionPlayers(sectionId: string) {
     const { data, error } = await supabase
       .from("registrations")
-      .select("player_id, players(id, full_name)")
+      .select("player_id, players(id, full_name, chess_sa_id)")
       .eq("tournament_id", tournamentId)
       .eq("section_id", sectionId)
       .limit(10000);
@@ -729,6 +786,7 @@ export default function TournamentArchiveContinuationPage() {
         return {
           player_id: row.player_id,
           full_name: player.full_name,
+          chess_sa_id: player.chess_sa_id ?? null,
         } as SectionPlayer;
       })
       .filter(Boolean) as SectionPlayer[];
@@ -1132,6 +1190,7 @@ export default function TournamentArchiveContinuationPage() {
             name: row.name,
             rating: row.rating,
             federation: row.federation,
+            chess_sa_id: row.chess_sa_id,
             points: row.points,
             tieBreak: row.tieBreak,
             section_id: selectedSectionId,
@@ -1480,6 +1539,7 @@ function RankingReviewTable({
             <th className="p-3">Imported name</th>
             <th className="p-3">Rtg</th>
             <th className="p-3">FED</th>
+            <th className="p-3">Chess SA ID</th>
             <th className="p-3">Matched PCC player</th>
             <th className="p-3">Points</th>
             <th className="p-3">Tie-break</th>
@@ -1498,6 +1558,7 @@ function RankingReviewTable({
               <td className="p-3 font-semibold text-white">{row.name}</td>
               <td className="p-3 text-gray-300">{row.rating ?? "-"}</td>
               <td className="p-3 text-gray-300">{row.federation ?? "-"}</td>
+              <td className="p-3 text-gray-300">{row.chess_sa_id ?? "-"}</td>
               <td className="p-3">
                 <select
                   value={row.player_id ?? ""}

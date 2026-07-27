@@ -609,12 +609,20 @@ export default function TournamentHubPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
-        <div className="grid gap-5 md:grid-cols-4">
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
             <p className="text-sm text-gray-400">Registered players</p>
             <p className="mt-2 text-3xl font-bold">
               {stats?.total_registrations ?? 0}
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
+            <p className="text-sm text-gray-400">Played</p>
+            <p className="mt-2 text-3xl font-bold text-green-300">
+              {results.length}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">From final ranking</p>
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">

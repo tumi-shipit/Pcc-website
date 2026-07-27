@@ -514,6 +514,42 @@ export default function RegisterPage() {
     );
   }
 
+  async function findExistingProfilesForNewPlayer() {
+    if (!newPlayer.date_of_birth) return [];
+
+    const nameTokens = [
+      newPlayer.surname,
+      ...newPlayer.first_names.split(/\s+/),
+    ]
+      .map((value) => value.trim())
+      .filter((value) => value.length > 1);
+    const uniqueTokens = Array.from(new Set(nameTokens));
+    const foundProfiles: ChessSaPlayer[] = [];
+    const foundIds = new Set<string>();
+
+    for (const token of uniqueTokens) {
+      const { data, error } = await supabase.rpc(
+        "find_chessa_player_for_registration",
+        {
+          p_search_method: "surname",
+          p_search_value: token,
+          p_birth_date: newPlayer.date_of_birth,
+        }
+      );
+
+      if (error) continue;
+
+      for (const profile of (data ?? []) as ChessSaPlayer[]) {
+        if (!foundIds.has(profile.chess_sa_id)) {
+          foundIds.add(profile.chess_sa_id);
+          foundProfiles.push(profile);
+        }
+      }
+    }
+
+    return foundProfiles;
+  }
+
   async function handleRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setRegistrationSubmitted(false);
@@ -540,6 +576,19 @@ export default function RegisterPage() {
         setRegistrationMessage(
           "Please enter the new player's first name, surname, date of birth and gender."
         );
+        return;
+      }
+
+      const existingProfiles = await findExistingProfilesForNewPlayer();
+
+      if (existingProfiles.length > 0) {
+        setMatches(existingProfiles);
+        setSelectedChessSaPlayer(null);
+        setNewPlayerMode(false);
+        setSearchMessage(
+          "A Chess SA profile may already exist for this player. Please select the correct profile below instead of registering as a new player."
+        );
+        setRegistrationMessage("");
         return;
       }
     }

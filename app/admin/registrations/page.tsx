@@ -47,7 +47,8 @@ type StatusTab =
   | "Rejected"
   | "Paid"
   | "Awaiting Payment"
-  | "Approved Unpaid";
+  | "Approved Unpaid"
+  | "Needs Chess SA";
 
 type SortOption =
   | "Newest first"
@@ -70,6 +71,7 @@ type RegistrationStats = {
   paid: number;
   awaitingPayment: number;
   approvedAwaitingPayment: number;
+  needsChessSa: number;
 };
 
 const emptyStats: RegistrationStats = {
@@ -81,6 +83,7 @@ const emptyStats: RegistrationStats = {
   paid: 0,
   awaitingPayment: 0,
   approvedAwaitingPayment: 0,
+  needsChessSa: 0,
 };
 
 function formatDate(date: string | null) {
@@ -201,6 +204,11 @@ function RegistrationsPageContent() {
         .eq("registration_status", "Approved")
         .not("payment_status", "eq", "Paid");
     }
+    if (tab === "Needs Chess SA") {
+      return query
+        .or("chess_sa_id.is.null,chess_sa_id.eq.")
+        .not("registration_status", "in", "(Rejected,Withdrawn)");
+    }
 
     return query;
   }
@@ -253,6 +261,7 @@ function RegistrationsPageContent() {
       paid,
       awaitingPayment,
       approvedAwaitingPayment,
+      needsChessSa,
     ] = await Promise.all([
       countForTab("All"),
       countForTab("Pending"),
@@ -262,6 +271,7 @@ function RegistrationsPageContent() {
       countForTab("Paid"),
       countForTab("Awaiting Payment"),
       countForTab("Approved Unpaid"),
+      countForTab("Needs Chess SA"),
     ]);
 
     setStats({
@@ -273,6 +283,7 @@ function RegistrationsPageContent() {
       paid,
       awaitingPayment,
       approvedAwaitingPayment,
+      needsChessSa,
     });
   }
 
@@ -706,6 +717,18 @@ function RegistrationsPageContent() {
     URL.revokeObjectURL(url);
   }
 
+  function confirmMissingChessSaExport(players: RegistrationDetail[]) {
+    const missingChessSa = players.filter((player) => !player.chess_sa_id);
+
+    if (missingChessSa.length === 0) return true;
+
+    return window.confirm(
+      `${missingChessSa.length} approved player${
+        missingChessSa.length === 1 ? " is" : "s are"
+      } missing Chess SA ID.\n\nUse the "Needs Chess SA" filter before rating exports, or continue only if this is intentional. Continue export?`
+    );
+  }
+
   async function exportSwissManagerXlsx() {
     setMessage("");
 
@@ -725,6 +748,12 @@ function RegistrationsPageContent() {
 
     if (approvedPlayers.length === 0) {
       setMessage("No approved players found in the current filter.");
+      return;
+    }
+
+    if (!confirmMissingChessSaExport(approvedPlayers)) {
+      setActiveTab("Needs Chess SA");
+      setMessage("Export stopped. Review entries missing Chess SA IDs first.");
       return;
     }
 
@@ -762,6 +791,12 @@ function RegistrationsPageContent() {
 
     if (approvedPlayers.length === 0) {
       setMessage("No approved players found in the current filter.");
+      return;
+    }
+
+    if (!confirmMissingChessSaExport(approvedPlayers)) {
+      setActiveTab("Needs Chess SA");
+      setMessage("Export stopped. Review entries missing Chess SA IDs first.");
       return;
     }
 
@@ -816,6 +851,7 @@ function RegistrationsPageContent() {
     { label: "Paid", count: stats.paid },
     { label: "Awaiting Payment", count: stats.awaitingPayment },
     { label: "Approved Unpaid", count: stats.approvedAwaitingPayment },
+    { label: "Needs Chess SA", count: stats.needsChessSa },
   ];
 
   return (
@@ -881,7 +917,7 @@ function RegistrationsPageContent() {
             </div>
           </div>
 
-          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div className="rounded-xl border border-white/10 bg-zinc-900 p-4">
               <p className="text-sm text-gray-400">Total entries</p>
               <p className="mt-2 text-3xl font-bold">{stats.all}</p>
@@ -917,6 +953,17 @@ function RegistrationsPageContent() {
               <p className="text-sm text-gray-400">Approved not paid</p>
               <p className="mt-2 text-3xl font-bold text-blue-300">
                 {stats.approvedAwaitingPayment}
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("Needs Chess SA")}
+              className="rounded-xl border border-white/10 bg-zinc-900 p-4 text-left transition hover:border-red-400/60"
+            >
+              <p className="text-sm text-gray-400">Needs Chess SA</p>
+              <p className="mt-2 text-3xl font-bold text-red-300">
+                {stats.needsChessSa}
               </p>
             </button>
 
@@ -1513,7 +1560,19 @@ function RegistrationsPageContent() {
                       >
                         Payment: {selectedRegistration.payment_status}
                       </span>
+                      {!selectedRegistration.chess_sa_id && (
+                        <span className="rounded-full bg-red-500/10 px-3 py-1 font-semibold text-red-200">
+                          Needs Chess SA
+                        </span>
+                      )}
                     </div>
+
+                    {!selectedRegistration.chess_sa_id && (
+                      <p className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm leading-6 text-red-100">
+                        This entry has no Chess SA ID. Link or update the player
+                        before exporting for rating.
+                      </p>
+                    )}
 
                     <div className="mt-5 space-y-3 text-sm text-gray-300">
                       <p>
