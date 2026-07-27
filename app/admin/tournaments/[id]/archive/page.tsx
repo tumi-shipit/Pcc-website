@@ -46,14 +46,20 @@ type ImportedStanding = {
   tieBreak: string | null;
   player_id: string | null;
   matchedPlayerName: string | null;
+  matchedRegistrationId: string | null;
+  matchedSectionId: string | null;
+  matchedSectionName: string | null;
   status: "Ready" | "Imported" | "Failed" | "Unmatched";
   message: string;
 };
 
 type SectionPlayer = {
+  registration_id: string | null;
   player_id: string;
   full_name: string;
   chess_sa_id: string | null;
+  section_id: string | null;
+  section_name: string | null;
 };
 
 type ImportSummary = {
@@ -350,6 +356,7 @@ function findBestSectionPlayer(
   rankingStartingNumber: number | null,
   rankingChessSaId: string | null,
   sectionPlayers: SectionPlayer[],
+  tournamentPlayers: SectionPlayer[],
   importedPlayers: ImportedPlayer[]
 ) {
   const cleanRankingChessSaId = rankingChessSaId?.trim() || null;
@@ -363,20 +370,36 @@ function findBestSectionPlayer(
       return {
         player_id: chessSaSectionMatch.player_id,
         full_name: chessSaSectionMatch.full_name,
+        registration_id: chessSaSectionMatch.registration_id,
+        section_id: chessSaSectionMatch.section_id,
+        section_name: chessSaSectionMatch.section_name,
         confidence: 100,
         reason: "Matched by Chess SA ID",
       };
     }
+  }
 
+  if (cleanRankingChessSaId) {
     const chessSaImportMatch = importedPlayers.find(
       (player) =>
         player.chess_sa_id?.trim() === cleanRankingChessSaId && player.player_id
     );
 
     if (chessSaImportMatch?.player_id) {
+      const registrationMatch =
+        sectionPlayers.find(
+          (player) => player.player_id === chessSaImportMatch.player_id
+        ) ??
+        tournamentPlayers.find(
+          (player) => player.player_id === chessSaImportMatch.player_id
+        );
+
       return {
         player_id: chessSaImportMatch.player_id,
         full_name: chessSaImportMatch.name,
+        registration_id: registrationMatch?.registration_id ?? null,
+        section_id: registrationMatch?.section_id ?? null,
+        section_name: registrationMatch?.section_name ?? null,
         confidence: 100,
         reason: "Matched by Chess SA ID from section player import",
       };
@@ -390,9 +413,20 @@ function findBestSectionPlayer(
     );
 
     if (startingNumberMatch?.player_id) {
+      const registrationMatch =
+        sectionPlayers.find(
+          (player) => player.player_id === startingNumberMatch.player_id
+        ) ??
+        tournamentPlayers.find(
+          (player) => player.player_id === startingNumberMatch.player_id
+        );
+
       return {
         player_id: startingNumberMatch.player_id,
         full_name: startingNumberMatch.name,
+        registration_id: registrationMatch?.registration_id ?? null,
+        section_id: registrationMatch?.section_id ?? null,
+        section_name: registrationMatch?.section_name ?? null,
         confidence: 100,
         reason: "Matched by Swiss Manager starting number",
       };
@@ -419,8 +453,57 @@ function findBestSectionPlayer(
     return {
       player_id: best.player_id,
       full_name: best.full_name,
+      registration_id: best.registration_id,
+      section_id: best.section_id,
+      section_name: best.section_name,
       confidence: best.confidence,
       reason: `Matched by name (${best.confidence}%)`,
+    };
+  }
+
+  if (cleanRankingChessSaId) {
+    const chessSaTournamentMatch = tournamentPlayers.find(
+      (player) => player.chess_sa_id?.trim() === cleanRankingChessSaId
+    );
+
+    if (chessSaTournamentMatch) {
+      return {
+        player_id: chessSaTournamentMatch.player_id,
+        full_name: chessSaTournamentMatch.full_name,
+        registration_id: chessSaTournamentMatch.registration_id,
+        section_id: chessSaTournamentMatch.section_id,
+        section_name: chessSaTournamentMatch.section_name,
+        confidence: 100,
+        reason: `Matched by Chess SA ID in ${chessSaTournamentMatch.section_name ?? "another section"}`,
+      };
+    }
+  }
+
+  const tournamentCandidates = tournamentPlayers
+    .map((player) => ({
+      ...player,
+      confidence: Math.round(
+        nameSimilarity(rankingName, player.full_name) * 100
+      ),
+    }))
+    .sort((a, b) => b.confidence - a.confidence);
+
+  const tournamentBest = tournamentCandidates[0];
+  const tournamentSecond = tournamentCandidates[1];
+
+  if (
+    tournamentBest &&
+    tournamentBest.confidence >= 78 &&
+    (!tournamentSecond || tournamentBest.confidence - tournamentSecond.confidence >= 8)
+  ) {
+    return {
+      player_id: tournamentBest.player_id,
+      full_name: tournamentBest.full_name,
+      registration_id: tournamentBest.registration_id,
+      section_id: tournamentBest.section_id,
+      section_name: tournamentBest.section_name,
+      confidence: tournamentBest.confidence,
+      reason: `Matched by name in ${tournamentBest.section_name ?? "another section"} (${tournamentBest.confidence}%)`,
     };
   }
 
@@ -430,6 +513,7 @@ function findBestSectionPlayer(
 function parseFinalRankingRows(
   rows: unknown[][],
   sectionPlayers: SectionPlayer[],
+  tournamentPlayers: SectionPlayer[],
   importedPlayers: ImportedPlayer[]
 ) {
   const headerRowIndex = findHeaderRowByColumns(rows, [
@@ -529,6 +613,7 @@ function parseFinalRankingRows(
         startingNumber,
         chessSaId,
         sectionPlayers,
+        tournamentPlayers,
         importedPlayers
       );
 
@@ -549,6 +634,9 @@ function parseFinalRankingRows(
             : null,
         player_id: matchedPlayer?.player_id ?? null,
         matchedPlayerName: matchedPlayer?.full_name ?? null,
+        matchedRegistrationId: matchedPlayer?.registration_id ?? null,
+        matchedSectionId: matchedPlayer?.section_id ?? null,
+        matchedSectionName: matchedPlayer?.section_name ?? null,
         status: matchedPlayer?.player_id ? "Ready" : "Unmatched",
         message:
           matchedPlayer?.reason ??
@@ -567,6 +655,7 @@ export default function TournamentArchiveContinuationPage() {
   const [selectedSectionId, setSelectedSectionId] = useState("");
 
   const [sectionPlayers, setSectionPlayers] = useState<SectionPlayer[]>([]);
+  const [tournamentPlayers, setTournamentPlayers] = useState<SectionPlayer[]>([]);
   const [playerRows, setPlayerRows] = useState<ImportedPlayer[]>([]);
   const [rankingRows, setRankingRows] = useState<ImportedStanding[]>([]);
 
@@ -636,7 +725,7 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data, error } = await supabase
       .from("registrations")
-      .select("player_id, players(id, full_name, chess_sa_id)")
+      .select("id, section_id, player_id, players(id, full_name, chess_sa_id), tournament_sections(id, section_name)")
       .eq("tournament_id", tournamentId)
       .eq("section_id", sectionId)
       .limit(10000);
@@ -647,10 +736,16 @@ export default function TournamentArchiveContinuationPage() {
     }
 
     const rows = (data ?? []) as unknown as {
+      id: string;
+      section_id: string | null;
       player_id: string;
       players:
         | { id: string; full_name: string; chess_sa_id: string | null }
         | { id: string; full_name: string; chess_sa_id: string | null }[]
+        | null;
+      tournament_sections:
+        | { id: string; section_name: string }
+        | { id: string; section_name: string }[]
         | null;
     }[];
 
@@ -663,14 +758,71 @@ export default function TournamentArchiveContinuationPage() {
         if (!row.player_id || !player?.full_name) return null;
 
         return {
+          registration_id: row.id,
           player_id: row.player_id,
           full_name: player.full_name,
           chess_sa_id: player.chess_sa_id ?? null,
+          section_id: row.section_id,
+          section_name: Array.isArray(row.tournament_sections)
+            ? row.tournament_sections[0]?.section_name ?? null
+            : row.tournament_sections?.section_name ?? null,
         } as SectionPlayer;
       })
       .filter(Boolean) as SectionPlayer[];
 
     setSectionPlayers(loadedPlayers);
+    return loadedPlayers;
+  }
+
+  async function loadTournamentPlayers() {
+    const { data, error } = await supabase
+      .from("registrations")
+      .select("id, section_id, player_id, players(id, full_name, chess_sa_id), tournament_sections(id, section_name)")
+      .eq("tournament_id", tournamentId)
+      .limit(10000);
+
+    if (error) {
+      setMessage(`Could not load tournament players: ${error.message}`);
+      setTournamentPlayers([]);
+      return [] as SectionPlayer[];
+    }
+
+    const rows = (data ?? []) as unknown as {
+      id: string;
+      section_id: string | null;
+      player_id: string;
+      players:
+        | { id: string; full_name: string; chess_sa_id: string | null }
+        | { id: string; full_name: string; chess_sa_id: string | null }[]
+        | null;
+      tournament_sections:
+        | { id: string; section_name: string }
+        | { id: string; section_name: string }[]
+        | null;
+    }[];
+
+    const loadedPlayers = rows
+      .map((row) => {
+        const player = Array.isArray(row.players)
+          ? row.players[0]
+          : row.players;
+
+        if (!row.player_id || !player?.full_name) return null;
+
+        return {
+          registration_id: row.id,
+          player_id: row.player_id,
+          full_name: player.full_name,
+          chess_sa_id: player.chess_sa_id ?? null,
+          section_id: row.section_id,
+          section_name: Array.isArray(row.tournament_sections)
+            ? row.tournament_sections[0]?.section_name ?? null
+            : row.tournament_sections?.section_name ?? null,
+        } as SectionPlayer;
+      })
+      .filter(Boolean) as SectionPlayer[];
+
+    setTournamentPlayers(loadedPlayers);
     return loadedPlayers;
   }
 
@@ -682,6 +834,7 @@ export default function TournamentArchiveContinuationPage() {
   useEffect(() => {
     if (selectedSectionId) {
       loadSectionPlayers(selectedSectionId);
+      loadTournamentPlayers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSectionId]);
@@ -702,6 +855,23 @@ export default function TournamentArchiveContinuationPage() {
       unmatched: rankingRows.filter((row) => row.status === "Unmatched").length,
     };
   }, [rankingRows]);
+
+  const rankingMatchPlayers = useMemo(() => {
+    const playersByRegistration = new Map<string, SectionPlayer>();
+
+    [...tournamentPlayers, ...sectionPlayers].forEach((player) => {
+      const key = player.registration_id ?? player.player_id;
+      if (!playersByRegistration.has(key)) {
+        playersByRegistration.set(key, player);
+      }
+    });
+
+    return Array.from(playersByRegistration.values()).sort((a, b) =>
+      `${a.section_name ?? ""} ${a.full_name}`.localeCompare(
+        `${b.section_name ?? ""} ${b.full_name}`
+      )
+    );
+  }, [sectionPlayers, tournamentPlayers]);
 
   async function parsePlayerFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -741,11 +911,15 @@ export default function TournamentArchiveContinuationPage() {
     setMessage("Reading final ranking file...");
 
     try {
-      const freshSectionPlayers = await loadSectionPlayers(selectedSectionId);
+      const [freshSectionPlayers, freshTournamentPlayers] = await Promise.all([
+        loadSectionPlayers(selectedSectionId),
+        loadTournamentPlayers(),
+      ]);
       const rows = await readExcelRows(file);
       const parsed = parseFinalRankingRows(
         rows,
         freshSectionPlayers,
+        freshTournamentPlayers,
         playerRows
       );
 
@@ -755,7 +929,7 @@ export default function TournamentArchiveContinuationPage() {
       const unmatched = parsed.length - matched;
 
       setMessage(
-        `Parsed ${parsed.length} ranking rows from ${file.name}. ${matched} matched from registered section players${
+        `Parsed ${parsed.length} ranking rows from ${file.name}. ${matched} matched from registered tournament players${
           playerRows.length > 0 ? " and the optional player list" : ""
         }, ${unmatched} need review.`
       );
@@ -771,7 +945,7 @@ export default function TournamentArchiveContinuationPage() {
   async function fetchSectionPlayers(sectionId: string) {
     const { data, error } = await supabase
       .from("registrations")
-      .select("player_id, players(id, full_name, chess_sa_id)")
+      .select("id, section_id, player_id, players(id, full_name, chess_sa_id), tournament_sections(id, section_name)")
       .eq("tournament_id", tournamentId)
       .eq("section_id", sectionId)
       .limit(10000);
@@ -786,9 +960,14 @@ export default function TournamentArchiveContinuationPage() {
         if (!row.player_id || !player?.full_name) return null;
 
         return {
+          registration_id: row.id ?? null,
           player_id: row.player_id,
           full_name: player.full_name,
           chess_sa_id: player.chess_sa_id ?? null,
+          section_id: row.section_id ?? null,
+          section_name: Array.isArray(row.tournament_sections)
+            ? row.tournament_sections[0]?.section_name ?? null
+            : row.tournament_sections?.section_name ?? null,
         } as SectionPlayer;
       })
       .filter(Boolean) as SectionPlayer[];
@@ -1028,6 +1207,7 @@ export default function TournamentArchiveContinuationPage() {
     });
 
     await loadSectionPlayers(selectedSectionId);
+    await loadTournamentPlayers();
 
     setImportingPlayers(false);
     setMessage("Section player import completed. You can now import this section's final ranking.");
@@ -1035,10 +1215,12 @@ export default function TournamentArchiveContinuationPage() {
 
   function assignRankingPlayer(
     rowIndex: number,
-    playerId: string
+    playerKey: string
   ) {
     const selectedPlayer = sectionPlayers.find(
-      (player) => player.player_id === playerId
+      (player) => (player.registration_id ?? player.player_id) === playerKey
+    ) ?? tournamentPlayers.find(
+      (player) => (player.registration_id ?? player.player_id) === playerKey
     );
 
     setRankingRows((current) =>
@@ -1048,9 +1230,16 @@ export default function TournamentArchiveContinuationPage() {
               ...row,
               player_id: selectedPlayer?.player_id ?? null,
               matchedPlayerName: selectedPlayer?.full_name ?? null,
+              matchedRegistrationId: selectedPlayer?.registration_id ?? null,
+              matchedSectionId: selectedPlayer?.section_id ?? null,
+              matchedSectionName: selectedPlayer?.section_name ?? null,
               status: selectedPlayer ? "Ready" : "Unmatched",
               message: selectedPlayer
-                ? "Manually reviewed and matched"
+                ? `Manually reviewed and matched${
+                    selectedPlayer.section_name
+                      ? ` from ${selectedPlayer.section_name}`
+                      : ""
+                  }`
                 : "Choose the correct section player manually before importing",
             }
           : row
@@ -1108,6 +1297,24 @@ export default function TournamentArchiveContinuationPage() {
       }
 
       try {
+        let movedRegistration = false;
+
+        if (
+          row.matchedRegistrationId &&
+          row.matchedSectionId !== selectedSectionId
+        ) {
+          const { error: moveError } = await supabase
+            .from("registrations")
+            .update({
+              section_id: selectedSectionId,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", row.matchedRegistrationId);
+
+          if (moveError) throw moveError;
+          movedRegistration = true;
+        }
+
         const { error } = await supabase.from("tournament_results").insert({
           tournament_id: tournament.id,
           player_id: row.player_id,
@@ -1136,7 +1343,13 @@ export default function TournamentArchiveContinuationPage() {
         updatedRows.push({
           ...row,
           status: "Imported",
-          message: "Section ranking imported",
+          matchedSectionId: selectedSectionId,
+          matchedSectionName:
+            sections.find((section) => section.id === selectedSectionId)
+              ?.section_name ?? row.matchedSectionName,
+          message: movedRegistration
+            ? `Section ranking imported and registration moved from ${row.matchedSectionName ?? "previous section"}`
+            : "Section ranking imported",
         });
       } catch (error) {
         updatedRows.push({
@@ -1198,6 +1411,9 @@ export default function TournamentArchiveContinuationPage() {
             points: row.points,
             tieBreak: row.tieBreak,
             section_id: selectedSectionId,
+            matched_registration_id: row.matchedRegistrationId,
+            matched_section_id: row.matchedSectionId,
+            matched_section_name: row.matchedSectionName,
           },
         }))
       );
@@ -1218,6 +1434,8 @@ export default function TournamentArchiveContinuationPage() {
     });
 
     setImportingRankings(false);
+    await loadSectionPlayers(selectedSectionId);
+    await loadTournamentPlayers();
     setMessage("Section final ranking import completed.");
   }
 
@@ -1473,7 +1691,7 @@ export default function TournamentArchiveContinuationPage() {
 
               <RankingReviewTable
                 rows={rankingRows}
-                sectionPlayers={sectionPlayers}
+                sectionPlayers={rankingMatchPlayers}
                 onAssign={assignRankingPlayer}
               />
             </section>
@@ -1546,6 +1764,7 @@ function RankingReviewTable({
             <th className="p-3">FED</th>
             <th className="p-3">Chess SA ID</th>
             <th className="p-3">Matched PCC player</th>
+            <th className="p-3">Registered section</th>
             <th className="p-3">Points</th>
             <th className="p-3">Tie-break</th>
             <th className="p-3">Status</th>
@@ -1566,7 +1785,7 @@ function RankingReviewTable({
               <td className="p-3 text-gray-300">{row.chess_sa_id ?? "-"}</td>
               <td className="p-3">
                 <select
-                  value={row.player_id ?? ""}
+                  value={row.matchedRegistrationId ?? row.player_id ?? ""}
                   onChange={(event) =>
                     onAssign(rowIndex, event.target.value)
                   }
@@ -1574,11 +1793,18 @@ function RankingReviewTable({
                 >
                   <option value="">Select player...</option>
                   {sectionPlayers.map((player) => (
-                    <option key={player.player_id} value={player.player_id}>
+                    <option
+                      key={player.registration_id ?? player.player_id}
+                      value={player.registration_id ?? player.player_id}
+                    >
                       {player.full_name}
+                      {player.section_name ? ` - ${player.section_name}` : ""}
                     </option>
                   ))}
                 </select>
+              </td>
+              <td className="p-3 text-gray-300">
+                {row.matchedSectionName ?? "-"}
               </td>
               <td className="p-3 text-gray-300">{row.points ?? "-"}</td>
               <td className="p-3 text-gray-300">{row.tieBreak ?? "-"}</td>
