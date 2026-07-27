@@ -755,7 +755,9 @@ export default function TournamentArchiveContinuationPage() {
       const unmatched = parsed.length - matched;
 
       setMessage(
-        `Parsed ${parsed.length} ranking rows from ${file.name}. ${matched} matched, ${unmatched} need review.`
+        `Parsed ${parsed.length} ranking rows from ${file.name}. ${matched} matched from registered section players${
+          playerRows.length > 0 ? " and the optional player list" : ""
+        }, ${unmatched} need review.`
       );
     } catch (error) {
       setMessage(
@@ -1070,7 +1072,9 @@ export default function TournamentArchiveContinuationPage() {
     const rowsToImport = rankingRows.filter((row) => row.player_id);
 
     if (rowsToImport.length === 0) {
-      setMessage("No matched ranking rows to import. Import this section's players first.");
+      setMessage(
+        "No matched ranking rows to import. Review the player matches below or upload the optional player list if this tournament did not use website registrations."
+      );
       return;
     }
 
@@ -1252,9 +1256,9 @@ export default function TournamentArchiveContinuationPage() {
                 </h1>
 
                 <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base">
-                  Build the public completed page one section at a time. Load the
-                  player list first, then import the final ranking for that same
-                  section.
+                  Build the public completed page one section at a time. For
+                  website registrations, import the final ranking directly; use
+                  the player list only when you need extra matching help.
                 </p>
               </div>
 
@@ -1266,7 +1270,7 @@ export default function TournamentArchiveContinuationPage() {
                   {sectionPlayers.length}
                 </p>
                 <p className="mt-2 text-xs leading-5 text-gray-400">
-                  Refresh after changing section or after importing players.
+                  These registered players are used to match the final ranking.
                 </p>
               </div>
             </div>
@@ -1321,19 +1325,20 @@ export default function TournamentArchiveContinuationPage() {
           </section>
 
           <section className="mt-8 grid gap-6 lg:grid-cols-2">
-            <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <section className="order-2 rounded-xl border border-white/10 bg-zinc-900 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
-                    Step 1
+                    Optional
                   </p>
 
                   <h2 className="mt-2 text-2xl font-black">
-                    Section players
+                    Player list helper
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-gray-400">
-                    Upload the Starting Rank List for the selected section.
+                    Upload a Starting Rank List only when the final ranking
+                    names do not match the website registrations cleanly.
                   </p>
                 </div>
 
@@ -1376,7 +1381,7 @@ export default function TournamentArchiveContinuationPage() {
               </div>
 
               <PreviewTable
-                emptyText="Upload this section's Starting Rank List."
+                emptyText="Optional: upload this section's Starting Rank List for extra matching help."
                 headers={[
                   "SNo",
                   "Name",
@@ -1402,11 +1407,11 @@ export default function TournamentArchiveContinuationPage() {
               />
             </section>
 
-            <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <section className="order-1 rounded-xl border border-white/10 bg-zinc-900 p-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
-                    Step 2
+                    Main import
                   </p>
 
                   <h2 className="mt-2 text-2xl font-black">
@@ -1414,8 +1419,8 @@ export default function TournamentArchiveContinuationPage() {
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-gray-400">
-                    Upload the Final Ranking List. Existing results for this
-                    section will be replaced.
+                    Upload the Final Ranking List for the selected section.
+                    Existing results for this section will be replaced.
                   </p>
                 </div>
 
