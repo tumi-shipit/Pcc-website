@@ -112,6 +112,12 @@ function statusClass(status: string) {
   return "bg-yellow-500/10 text-yellow-200";
 }
 
+function playedClass(status: string) {
+  if (status === "Played") return "bg-green-500/10 text-green-200";
+  if (status === "Not in final ranking") return "bg-orange-500/10 text-orange-200";
+  return "bg-zinc-800 text-gray-300";
+}
+
 function proofPaymentHref(path: string) {
   if (path.startsWith("http://") || path.startsWith("https://")) {
     return path;
@@ -140,6 +146,9 @@ function RegistrationsPageContent() {
   const searchParams = useSearchParams();
   const requestedTournament = searchParams.get("tournament");
   const [registrations, setRegistrations] = useState<RegistrationDetail[]>([]);
+  const [playedStatusByRegistration, setPlayedStatusByRegistration] = useState<
+    Record<string, string>
+  >({});
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
@@ -362,18 +371,94 @@ function RegistrationsPageContent() {
       ),
     ]);
 
+    const loadedRegistrations = (data ?? []) as unknown as RegistrationDetail[];
+
     if (error) {
       setMessage(`Could not load registrations: ${error.message}`);
+      setPlayedStatusByRegistration({});
     } else if (statsResult.error) {
       setMessage(`Could not load registration counts: ${statsResult.error.message}`);
-      setRegistrations((data ?? []) as unknown as RegistrationDetail[]);
+      setRegistrations(loadedRegistrations);
       setTotalCount(count ?? 0);
+      await loadPlayedRegistrationIds(loadedRegistrations);
     } else {
-      setRegistrations((data ?? []) as unknown as RegistrationDetail[]);
+      setRegistrations(loadedRegistrations);
       setTotalCount(count ?? 0);
+      await loadPlayedRegistrationIds(loadedRegistrations);
     }
 
     setLoading(false);
+  }
+
+  async function loadPlayedRegistrationIds(rows: RegistrationDetail[]) {
+    const registrationIds = rows.map((row) => row.registration_id).filter(Boolean);
+
+    if (registrationIds.length === 0) {
+      setPlayedStatusByRegistration({});
+      return;
+    }
+
+    const { data: registrationRows, error: registrationError } = await supabase
+      .from("registrations")
+      .select("id, player_id, tournament_id")
+      .in("id", registrationIds);
+
+    if (registrationError) {
+      setPlayedStatusByRegistration({});
+      return;
+    }
+
+    const linkedRows = ((registrationRows ?? []) as {
+      id: string;
+      player_id: string | null;
+      tournament_id: string | null;
+    }[]).filter((row) => row.player_id && row.tournament_id);
+
+    const playerIds = Array.from(
+      new Set(linkedRows.map((row) => row.player_id).filter(Boolean))
+    ) as string[];
+    const tournamentIds = Array.from(
+      new Set(linkedRows.map((row) => row.tournament_id).filter(Boolean))
+    ) as string[];
+
+    if (playerIds.length === 0 || tournamentIds.length === 0) {
+      setPlayedStatusByRegistration({});
+      return;
+    }
+
+    const { data: resultRows, error: resultError } = await supabase
+      .from("tournament_results")
+      .select("player_id, tournament_id")
+      .in("player_id", playerIds)
+      .in("tournament_id", tournamentIds);
+
+    if (resultError) {
+      setPlayedStatusByRegistration({});
+      return;
+    }
+
+    const cleanResultRows = ((resultRows ?? []) as {
+      player_id: string | null;
+      tournament_id: string | null;
+    }[]).filter((row) => row.player_id && row.tournament_id);
+    const playedKeys = new Set(
+      cleanResultRows.map((row) => `${row.tournament_id}:${row.player_id}`)
+    );
+    const tournamentsWithResults = new Set(
+      cleanResultRows.map((row) => row.tournament_id)
+    );
+
+    setPlayedStatusByRegistration(
+      linkedRows.reduce<Record<string, string>>((statuses, row) => {
+        const key = `${row.tournament_id}:${row.player_id}`;
+        statuses[row.id] = playedKeys.has(key)
+          ? "Played"
+          : tournamentsWithResults.has(row.tournament_id)
+          ? "Not in final ranking"
+          : "No final ranking yet";
+        return statuses;
+      }, {})
+    );
   }
 
   useEffect(() => {
@@ -1316,7 +1401,12 @@ function RegistrationsPageContent() {
 
               <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
                 <div className="space-y-3 lg:hidden">
-                {currentPageRegistrations.map((item) => (
+                {currentPageRegistrations.map((item) => {
+                  const playedStatus =
+                    playedStatusByRegistration[item.registration_id] ??
+                    "No final ranking yet";
+
+                  return (
                   <article
                     key={item.registration_id}
                     className={`rounded-2xl border border-white/10 bg-zinc-900 p-4 ${
@@ -1367,6 +1457,13 @@ function RegistrationsPageContent() {
                       >
                         Entry: {item.registration_status}
                       </span>
+                      <span
+                        className={`rounded-full px-3 py-2 font-semibold ${playedClass(
+                          playedStatus
+                        )}`}
+                      >
+                        Result: {playedStatus}
+                      </span>
                     </div>
 
                     <div className="mt-4 grid gap-2">
@@ -1405,7 +1502,8 @@ function RegistrationsPageContent() {
                       </div>
                     </div>
                   </article>
-                ))}
+                  );
+                })}
 
                 {totalCount === 0 && (
                   <p className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-center text-sm text-gray-400">
@@ -1449,7 +1547,12 @@ function RegistrationsPageContent() {
                     </thead>
 
                     <tbody className="divide-y divide-white/10 bg-zinc-950">
-                      {currentPageRegistrations.map((item) => (
+                      {currentPageRegistrations.map((item) => {
+                        const playedStatus =
+                          playedStatusByRegistration[item.registration_id] ??
+                          "No final ranking yet";
+
+                        return (
                         <tr
                           key={item.registration_id}
                           className={
@@ -1505,6 +1608,13 @@ function RegistrationsPageContent() {
                             >
                               Entry: {item.registration_status}
                             </p>
+                            <p
+                              className={`mt-2 inline-block rounded-full px-3 py-1 text-xs font-semibold ${playedClass(
+                                playedStatus
+                              )}`}
+                            >
+                              Result: {playedStatus}
+                            </p>
                           </td>
 
                           <td className="px-4 py-4 align-top">
@@ -1517,7 +1627,8 @@ function RegistrationsPageContent() {
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
 
                       {totalCount === 0 && (
                         <tr>
@@ -1537,6 +1648,14 @@ function RegistrationsPageContent() {
               <aside className="rounded-2xl border border-white/10 bg-zinc-900 p-6 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
                 {selectedRegistration ? (
                   <>
+                    {(() => {
+                      const selectedPlayedStatus =
+                        playedStatusByRegistration[
+                          selectedRegistration.registration_id
+                        ] ?? "No final ranking yet";
+
+                      return (
+                        <>
                     <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
                       Review Entry
                     </p>
@@ -1559,6 +1678,13 @@ function RegistrationsPageContent() {
                         )}`}
                       >
                         Payment: {selectedRegistration.payment_status}
+                      </span>
+                      <span
+                        className={`rounded-full px-3 py-1 font-semibold ${playedClass(
+                          selectedPlayedStatus
+                        )}`}
+                      >
+                        Result: {selectedPlayedStatus}
                       </span>
                       {!selectedRegistration.chess_sa_id && (
                         <span className="rounded-full bg-red-500/10 px-3 py-1 font-semibold text-red-200">
@@ -1715,6 +1841,9 @@ function RegistrationsPageContent() {
                         </p>
                       </div>
                     )}
+                        </>
+                      );
+                    })()}
                   </>
                 ) : (
                   <div className="flex min-h-96 items-center justify-center text-center text-gray-400">

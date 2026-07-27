@@ -30,6 +30,8 @@ type TournamentStats = {
 type SectionStat = {
   section_name: string;
   total: number;
+  played: number;
+  not_played: number;
   approved: number;
   paid: number;
   pending: number;
@@ -267,11 +269,13 @@ export default function AdminTournamentDashboardPage() {
         const section = item.section_name ?? "No section";
         const current =
           groups[section] ??
-          {
-            section_name: section,
-            total: 0,
-            approved: 0,
-            paid: 0,
+            {
+              section_name: section,
+              total: 0,
+              played: 0,
+              not_played: 0,
+              approved: 0,
+              paid: 0,
             pending: 0,
             proof_submitted: 0,
             missing_chess_sa: 0,
@@ -378,13 +382,19 @@ export default function AdminTournamentDashboardPage() {
           .map((section) => {
             const configuredSection = (
               (archiveSectionsData ?? []) as {
+                id: string;
                 section_name: string;
                 maximum_players: number | null;
               }[]
             ).find((item) => item.section_name === section.section_name);
+            const playedCount = configuredSection
+              ? resultCounts[configuredSection.id] ?? 0
+              : 0;
 
             return {
               ...section,
+              played: playedCount,
+              not_played: Math.max(section.total - playedCount, 0),
               maximum_players: configuredSection?.maximum_players ?? null,
             };
           })
@@ -869,7 +879,9 @@ export default function AdminTournamentDashboardPage() {
                     <tr>
                       {[
                         "Section",
-                        "Entries",
+                        "Registered",
+                        "Played",
+                        "Not in final",
                         "Approved",
                         "Paid",
                         "Needs review",
@@ -896,6 +908,12 @@ export default function AdminTournamentDashboardPage() {
                           {section.maximum_players
                             ? ` / ${section.maximum_players}`
                             : ""}
+                        </td>
+                        <td className="px-4 py-4 text-green-300">
+                          {section.played}
+                        </td>
+                        <td className="px-4 py-4 text-orange-300">
+                          {section.not_played}
                         </td>
                         <td className="px-4 py-4 text-green-300">
                           {section.approved}
@@ -934,6 +952,8 @@ export default function AdminTournamentDashboardPage() {
                       </span>
                     </div>
                     <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                      <QueueMini label="Played" value={section.played} />
+                      <QueueMini label="Not in final" value={section.not_played} />
                       <QueueMini label="Approved" value={section.approved} />
                       <QueueMini label="Paid" value={section.paid} />
                       <QueueMini label="Review" value={section.pending} />
@@ -956,7 +976,7 @@ export default function AdminTournamentDashboardPage() {
                 </p>
                 <h2 className="mt-2 text-2xl font-bold">Section import progress</h2>
                 <p className="mt-2 text-sm leading-6 text-gray-400">
-                  Each section keeps its own players and final rankings.
+                  Each final ranking marks who actually played in that section.
                 </p>
               </div>
 
@@ -975,18 +995,18 @@ export default function AdminTournamentDashboardPage() {
             ) : (
               <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 {sectionArchiveStatus.map((section) => {
-                  const playersDone = section.player_count > 0;
                   const resultsDone = section.result_count > 0;
-                  const complete = playersDone && resultsDone;
+                  const noShows = Math.max(
+                    section.player_count - section.result_count,
+                    0
+                  );
 
                   return (
                     <div
                       key={section.id}
                       className={`rounded-2xl border p-5 ${
-                        complete
+                        resultsDone
                           ? "border-green-500/30 bg-green-500/10"
-                          : playersDone
-                          ? "border-yellow-500/30 bg-yellow-500/10"
                           : "border-white/10 bg-zinc-950"
                       }`}
                     >
@@ -996,41 +1016,33 @@ export default function AdminTournamentDashboardPage() {
                             {section.section_name}
                           </h3>
                           <p className="mt-1 text-xs text-gray-400">
-                            {complete
-                              ? "Completed"
-                              : playersDone
-                              ? "Final ranking still required"
-                              : "Player import not started"}
+                            {resultsDone
+                              ? `${section.result_count} played, ${noShows} not in final ranking`
+                              : "Final ranking not imported yet"}
                           </p>
                         </div>
 
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-black ${
-                            complete
+                            resultsDone
                               ? "bg-green-500/20 text-green-200"
-                              : playersDone
-                              ? "bg-yellow-500/20 text-yellow-200"
                               : "bg-zinc-800 text-gray-400"
                           }`}
                         >
-                          {complete
-                            ? "Complete"
-                            : playersDone
-                            ? "In progress"
-                            : "Not started"}
+                          {resultsDone ? "Played marked" : "Waiting"}
                         </span>
                       </div>
 
                       <div className="mt-5 grid grid-cols-2 gap-3">
                         <div className="rounded-xl bg-black/30 p-3">
-                          <p className="text-xs text-gray-500">Players</p>
+                          <p className="text-xs text-gray-500">Registered</p>
                           <p className="mt-1 text-2xl font-black text-white">
                             {section.player_count}
                           </p>
                         </div>
 
                         <div className="rounded-xl bg-black/30 p-3">
-                          <p className="text-xs text-gray-500">Results</p>
+                          <p className="text-xs text-gray-500">Played</p>
                           <p className="mt-1 text-2xl font-black text-white">
                             {section.result_count}
                           </p>
@@ -1038,11 +1050,11 @@ export default function AdminTournamentDashboardPage() {
                       </div>
 
                       <div className="mt-4 space-y-2 text-sm">
-                        <p className={playersDone ? "text-green-300" : "text-gray-500"}>
-                          {playersDone ? "Done: " : ""} Starting Rank players
+                        <p className="text-gray-400">
+                          Not in final ranking: {noShows}
                         </p>
                         <p className={resultsDone ? "text-green-300" : "text-gray-500"}>
-                          {resultsDone ? "Done: " : ""} Final ranking results
+                          {resultsDone ? "Done: " : ""} Final ranking imported
                         </p>
                       </div>
 
@@ -1050,7 +1062,7 @@ export default function AdminTournamentDashboardPage() {
                         href={`/admin/tournaments/${tournamentId}/archive?section=${section.id}`}
                         className="mt-5 block rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
                       >
-                        {complete ? "Review / Re-import" : playersDone ? "Import Results" : "Start Section"}
+                        {resultsDone ? "Review / Re-import" : "Import Final Ranking"}
                       </Link>
                     </div>
                   );
