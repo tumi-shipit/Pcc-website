@@ -1007,7 +1007,7 @@ function TournamentCredits({
         </p>
       </div>
 
-      <div className="mt-6 flex gap-4 overflow-x-auto pb-2 md:flex-wrap md:overflow-visible">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {organisations.map((assignment) => {
           const organisation = assignment.organisation;
           const representative =
@@ -1016,7 +1016,7 @@ function TournamentCredits({
             organisation?.representative_name;
 
           const card = (
-            <div className="flex h-full min-w-[260px] items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500/60 md:min-w-[300px]">
+            <div className="flex h-full min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500/60">
               {organisation?.logo_url ? (
                 <img
                   src={organisation.logo_url}
@@ -1056,7 +1056,9 @@ function TournamentCredits({
               {card}
             </a>
           ) : (
-            <div key={assignment.id}>{card}</div>
+            <div key={assignment.id} className="min-w-0">
+              {card}
+            </div>
           );
         })}
 
@@ -1076,7 +1078,7 @@ function TournamentCredits({
           return (
             <div
               key={`${official.id}-${official.role}`}
-              className="flex min-w-[260px] items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:min-w-[300px]"
+              className="flex min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4"
             >
               {hasPublicProfile ? (
                 <Link href={`/players/${player.id}`} className="shrink-0">
@@ -1532,14 +1534,14 @@ function FinalRankingTable({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[360px] border-collapse text-left text-xs">
+                <table className="w-full min-w-[320px] border-collapse text-left text-[11px] sm:text-xs">
                   <thead className="bg-black/25 text-[10px] uppercase tracking-[0.14em] text-gray-500">
                     <tr>
-                      <th className="border border-white/10 px-3 py-3">Rk</th>
-                      <th className="border border-white/10 px-3 py-3">Name</th>
-                      <th className="border border-white/10 px-3 py-3">Rtg</th>
-                      <th className="border border-white/10 px-3 py-3">FED</th>
-                      <th className="border border-white/10 px-3 py-3">Pts</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Rk</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Name</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Rtg</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">FED</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Pts</th>
                     </tr>
                   </thead>
 
@@ -1549,10 +1551,10 @@ function FinalRankingTable({
 
                       return (
                         <tr key={result.id} className="transition hover:bg-white/[0.03]">
-                          <td className="border border-white/10 px-3 py-3 font-black text-red-300">
+                          <td className="border border-white/10 px-2 py-3 font-black text-red-300 sm:px-3">
                             {position}
                           </td>
-                          <td className="border border-white/10 px-3 py-3 font-bold text-white">
+                          <td className="border border-white/10 px-2 py-3 font-bold text-white sm:px-3">
                             {result.player ? (
                               <Link
                                 href={`/players/${result.player.id}`}
@@ -1573,13 +1575,13 @@ function FinalRankingTable({
                               </span>
                             )}
                           </td>
-                          <td className="border border-white/10 px-3 py-3 text-gray-300">
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
                             {publicResultRating(result) ?? "-"}
                           </td>
-                          <td className="border border-white/10 px-3 py-3 text-gray-300">
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
                             {publicResultFederation(result)}
                           </td>
-                          <td className="border border-white/10 px-3 py-3 text-gray-300">
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
                             {result.points ?? "-"}
                           </td>
                         </tr>

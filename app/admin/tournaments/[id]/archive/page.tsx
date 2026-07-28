@@ -29,6 +29,7 @@ type ImportedPlayer = {
   rating: number | null;
   federation: string | null;
   club: string | null;
+  date_of_birth: string | null;
   chess_sa_id: string | null;
   fide_id: string | null;
   player_id: string | null;
@@ -176,6 +177,64 @@ function toNumber(value: unknown) {
   return Number.isFinite(number) ? number : null;
 }
 
+function formatDateParts(year: number, month: number, day: number) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return [
+    String(year).padStart(4, "0"),
+    String(month).padStart(2, "0"),
+    String(day).padStart(2, "0"),
+  ].join("-");
+}
+
+function normalizeImportedDate(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return formatDateParts(
+      value.getFullYear(),
+      value.getMonth() + 1,
+      value.getDate()
+    );
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    return parsed ? formatDateParts(parsed.y, parsed.m, parsed.d) : null;
+  }
+
+  const text = String(value).trim();
+  if (!text || text.toLowerCase() === "nan") return null;
+
+  const dateOnly = text.split(/\s+/)[0]?.replace(/[.]/g, "-") ?? "";
+  const isoMatch = dateOnly.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    return formatDateParts(
+      Number(isoMatch[1]),
+      Number(isoMatch[2]),
+      Number(isoMatch[3])
+    );
+  }
+
+  const localMatch = dateOnly.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (!localMatch) return null;
+
+  const first = Number(localMatch[1]);
+  const second = Number(localMatch[2]);
+  const year = Number(localMatch[3]);
+  const day = first > 12 ? first : second > 12 ? second : first;
+  const month = first > 12 ? second : second > 12 ? first : second;
+
+  return formatDateParts(year, month, day);
+}
+
 function normalizeHeaderName(value: string) {
   return String(value ?? "")
     .toLowerCase()
@@ -291,6 +350,18 @@ function parseStartingRankRows(rows: unknown[][]) {
 
   const clubIndex = getFlexibleColumnIndex(headers, ["Club", "Team", "School"]);
 
+  const dateOfBirthIndex = getFlexibleColumnIndex(headers, [
+    "Date of Birth",
+    "DOB",
+    "D.O.B.",
+    "Birth Date",
+    "Birthdate",
+    "BDate",
+    "B-Date",
+    "Birthday",
+    "Born",
+  ]);
+
   const chessSaIdIndex = getFlexibleColumnIndex(headers, [
     "Chess SA ID",
     "ChessSA ID",
@@ -340,6 +411,10 @@ function parseStartingRankRows(rows: unknown[][]) {
         club:
           clubIndex >= 0 && row[clubIndex]
             ? String(row[clubIndex]).trim()
+            : null,
+        date_of_birth:
+          dateOfBirthIndex >= 0
+            ? normalizeImportedDate(row[dateOfBirthIndex])
             : null,
         chess_sa_id:
           chessSaIdIndex >= 0 ? cleanImportedId(row[chessSaIdIndex]) : null,
@@ -979,38 +1054,68 @@ export default function TournamentArchiveContinuationPage() {
     const normalizedName = normalizeName(row.name);
     const cleanChessSaId = row.chess_sa_id?.trim() || null;
     const cleanFideId = row.fide_id?.trim() || null;
+    const cleanDateOfBirth = row.date_of_birth;
+
+    async function fillMissingDateOfBirth(
+      playerId: string,
+      existingDateOfBirth: string | null | undefined
+    ) {
+      if (!cleanDateOfBirth || existingDateOfBirth) return;
+
+      const { error: updateError } = await supabase
+        .from("players")
+        .update({
+          date_of_birth: cleanDateOfBirth,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", playerId);
+
+      if (updateError) throw new Error(updateError.message);
+    }
 
     if (cleanChessSaId) {
       const { data: chessSaPlayer, error: chessSaError } = await supabase
         .from("players")
-        .select("id")
+        .select("id, date_of_birth")
         .eq("chess_sa_id", cleanChessSaId)
         .maybeSingle();
 
       if (chessSaError) throw new Error(chessSaError.message);
-      if (chessSaPlayer) return (chessSaPlayer as { id: string }).id;
+      if (chessSaPlayer) {
+        const player = chessSaPlayer as { id: string; date_of_birth: string | null };
+        await fillMissingDateOfBirth(player.id, player.date_of_birth);
+        return player.id;
+      }
     }
 
     if (cleanFideId) {
       const { data: fidePlayer, error: fideError } = await supabase
         .from("players")
-        .select("id")
+        .select("id, date_of_birth")
         .eq("fide_id", cleanFideId)
         .maybeSingle();
 
       if (fideError) throw new Error(fideError.message);
-      if (fidePlayer) return (fidePlayer as { id: string }).id;
+      if (fidePlayer) {
+        const player = fidePlayer as { id: string; date_of_birth: string | null };
+        await fillMissingDateOfBirth(player.id, player.date_of_birth);
+        return player.id;
+      }
     }
 
     const { data: existingPlayers, error: searchError } = await supabase
       .from("players")
-      .select("id, full_name")
+      .select("id, full_name, date_of_birth")
       .limit(10000);
 
     if (searchError) throw new Error(searchError.message);
 
     const existingPlayer = (
-      (existingPlayers ?? []) as { id: string; full_name: string }[]
+      (existingPlayers ?? []) as {
+        id: string;
+        full_name: string;
+        date_of_birth: string | null;
+      }[]
     ).find((player) => normalizeName(player.full_name) === normalizedName);
 
     if (existingPlayer) {
@@ -1030,6 +1135,10 @@ export default function TournamentArchiveContinuationPage() {
         updatePayload.fide_id = cleanFideId;
       }
 
+      if (cleanDateOfBirth && !existingPlayer.date_of_birth) {
+        updatePayload.date_of_birth = cleanDateOfBirth;
+      }
+
       const { error: updateError } = await supabase
         .from("players")
         .update(updatePayload)
@@ -1045,7 +1154,7 @@ export default function TournamentArchiveContinuationPage() {
         full_name: row.name,
         fide_id: cleanFideId,
         chess_sa_id: cleanChessSaId,
-        date_of_birth: null,
+        date_of_birth: cleanDateOfBirth,
         gender: "Not supplied",
         club: row.club,
         province: row.federation || null,
@@ -1386,6 +1495,7 @@ export default function TournamentArchiveContinuationPage() {
             rating: row.rating,
             federation: row.federation,
             club: row.club,
+            date_of_birth: row.date_of_birth,
             chess_sa_id: row.chess_sa_id,
             fide_id: row.fide_id,
             section_id: selectedSectionId,
@@ -1805,6 +1915,7 @@ export default function TournamentArchiveContinuationPage() {
                   "SNo",
                   "Name",
                   "Rating",
+                  "DOB",
                   "Chess SA ID",
                   "FIDE ID",
                   "FED",
@@ -1816,6 +1927,7 @@ export default function TournamentArchiveContinuationPage() {
                   row.starting_number ?? "-",
                   row.name,
                   row.rating ?? "-",
+                  row.date_of_birth ?? "-",
                   row.chess_sa_id ?? "-",
                   row.fide_id ?? "-",
                   row.federation ?? "-",
