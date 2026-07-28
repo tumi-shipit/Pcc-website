@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 
 type Player = {
   id: string;
+  pcc_id: string | null;
   full_name: string;
   chess_sa_id: string | null;
   fide_id: string | null;
@@ -109,7 +110,7 @@ export default function PublicPlayerProfilePage({
       const { data: playerData, error: playerError } = await supabase
         .from("players")
         .select(
-          "id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, biography, title"
+          "id, pcc_id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, biography, title"
         )
         .eq("id", playerId)
         .maybeSingle();
@@ -125,6 +126,7 @@ export default function PublicPlayerProfilePage({
         if (memberProfile && memberProfile.id === playerId) {
           loadedPlayer = {
             id: memberProfile.id,
+            pcc_id: memberProfile.pcc_id,
             full_name: memberProfile.full_name,
             chess_sa_id: memberProfile.chess_sa_id,
             fide_id: memberProfile.fide_id,
@@ -148,7 +150,7 @@ export default function PublicPlayerProfilePage({
 
       const { data: relatedPlayerData } = await supabase
         .from("players")
-        .select("id, full_name, chess_sa_id, verification_status")
+        .select("id, pcc_id, full_name, chess_sa_id, verification_status")
         .neq("id", playerId)
         .limit(10000);
 
@@ -281,6 +283,7 @@ export default function PublicPlayerProfilePage({
                   {valueOrDash(player.province)}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2">
+                  <Tag label={`PCC ID: ${valueOrDash(player.pcc_id)}`} />
                   <Tag label={`Chess SA: ${valueOrDash(player.chess_sa_id)}`} />
                   <Tag label={`FIDE: ${valueOrDash(player.fide_id)}`} />
                   <Tag label={`Rating: ${valueOrDash(player.rating)}`} />

@@ -3,10 +3,11 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
-type SearchMethod = "surname" | "chesssa";
+type SearchMethod = "pccid" | "surname" | "chesssa";
 
 type ChessSaPlayer = {
-  chess_sa_id: string;
+  pcc_id: string | null;
+  chess_sa_id: string | null;
   full_name: string;
   date_of_birth: string | null;
   gender: string | null;
@@ -15,6 +16,10 @@ type ChessSaPlayer = {
   standard_rating: number | null;
   rapid_rating: number | null;
   blitz_rating: number | null;
+  email?: string | null;
+  phone?: string | null;
+  club?: string | null;
+  province?: string | null;
 };
 
 type PlayerCentreContact = {
@@ -237,6 +242,36 @@ function getBestChessSaRating(player: ChessSaPlayer | null) {
   return player.standard_rating ?? player.rapid_rating ?? player.blitz_rating ?? null;
 }
 
+function playerLookupKey(player: ChessSaPlayer) {
+  return (
+    player.pcc_id ||
+    player.chess_sa_id ||
+    `${player.full_name}:${player.date_of_birth ?? ""}`
+  );
+}
+
+function uniqueLookupPlayers(players: ChessSaPlayer[]) {
+  const playerMap = new Map<string, ChessSaPlayer>();
+
+  players.forEach((player) => {
+    const key = playerLookupKey(player);
+    const existing = playerMap.get(key);
+
+    playerMap.set(key, {
+      ...existing,
+      ...player,
+      pcc_id: existing?.pcc_id ?? player.pcc_id ?? null,
+      chess_sa_id: existing?.chess_sa_id ?? player.chess_sa_id ?? null,
+      email: existing?.email ?? player.email ?? null,
+      phone: existing?.phone ?? player.phone ?? null,
+      club: existing?.club ?? player.club ?? null,
+      province: existing?.province ?? player.province ?? null,
+    });
+  });
+
+  return Array.from(playerMap.values());
+}
+
 const southAfricanProvinces = [
   "Eastern Cape",
   "Free State",
@@ -350,7 +385,7 @@ export default function RegisterPage() {
           openTournaments.some((tournament) => tournament.id === requestedTournamentId)
         ) {
           setSelectedTournamentId(requestedTournamentId);
-          setSearchMessage("Tournament selected. Find your Chess SA profile to continue.");
+          setSearchMessage("Tournament selected. Find your player profile to continue.");
         } else if (requestedTournamentId) {
           setSearchMessage(
             "That tournament is not currently open for registration. Please choose another open tournament below."
@@ -408,27 +443,105 @@ export default function RegisterPage() {
     setSelectedChessSaPlayer(null);
     setNewPlayerMode(false);
 
-    const { data, error } = await supabase.rpc(
-      "find_chessa_player_for_registration",
-      {
-        p_search_method: searchMethod,
-        p_search_value: searchValue.trim(),
-        p_birth_date: searchMethod === "surname" ? searchBirthDate : null,
-      }
-    );
+    const lookupResults: ChessSaPlayer[] = [];
+    const cleanSearch = searchValue.trim();
 
-    if (error) {
-      setSearchMessage(`Search failed: ${error.message}`);
-      setSearching(false);
-      return;
+    if (searchMethod === "pccid") {
+      const { data, error } = await supabase.rpc(
+        "find_pcc_player_for_registration",
+        {
+          p_search_method: "pccid",
+          p_search_value: cleanSearch,
+          p_birth_date: null,
+        }
+      );
+
+      if (error) {
+        setSearchMessage(`Search failed: ${error.message}`);
+        setSearching(false);
+        return;
+      }
+
+      lookupResults.push(...((data ?? []) as ChessSaPlayer[]));
     }
 
-    const results = (data ?? []) as ChessSaPlayer[];
+    if (searchMethod === "surname") {
+      const { data: pccData, error: pccError } = await supabase.rpc(
+        "find_pcc_player_for_registration",
+        {
+          p_search_method: "surname",
+          p_search_value: cleanSearch,
+          p_birth_date: searchBirthDate || null,
+        }
+      );
+
+      if (!pccError) {
+        lookupResults.push(...((pccData ?? []) as ChessSaPlayer[]));
+      }
+
+      if (searchBirthDate) {
+        const { data: chessSaData, error: chessSaError } = await supabase.rpc(
+          "find_chessa_player_for_registration",
+          {
+            p_search_method: "surname",
+            p_search_value: cleanSearch,
+            p_birth_date: searchBirthDate,
+          }
+        );
+
+        if (!chessSaError) {
+          lookupResults.push(
+            ...((chessSaData ?? []) as ChessSaPlayer[]).map((player) => ({
+              ...player,
+              pcc_id: player.pcc_id ?? null,
+            }))
+          );
+        }
+
+        if (pccError && chessSaError) {
+          setSearchMessage(`Search failed: ${pccError.message}`);
+          setSearching(false);
+          return;
+        }
+      } else if (pccError) {
+        setSearchMessage(`Search failed: ${pccError.message}`);
+        setSearching(false);
+        return;
+      }
+    }
+
+    if (searchMethod === "chesssa") {
+      const { data, error } = await supabase.rpc(
+        "find_chessa_player_for_registration",
+        {
+          p_search_method: "chesssa",
+          p_search_value: cleanSearch,
+          p_birth_date: null,
+        }
+      );
+
+      if (error) {
+        setSearchMessage(`Search failed: ${error.message}`);
+        setSearching(false);
+        return;
+      }
+
+      lookupResults.push(
+        ...((data ?? []) as ChessSaPlayer[]).map((player) => ({
+          ...player,
+          pcc_id: player.pcc_id ?? null,
+        }))
+      );
+    }
+
+    const results = uniqueLookupPlayers(lookupResults);
 
     if (results.length === 0) {
       setSearchMessage(
-        searchMethod === "surname"
-          ? "No matching Chess SA player was found. Check the surname and date of birth."
+        searchMethod === "pccid"
+          ? "No matching PCC player was found. Check the PCC ID."
+          : searchMethod === "surname"
+          ? "No matching player was found. Previous PCC players can be found by name; Chess SA search needs date of birth."
           : "No matching Chess SA player was found. Check the Chess SA ID."
       );
       setSearching(false);
@@ -442,8 +555,8 @@ export default function RegisterPage() {
       const filledDetails = await fillContactDetailsFromPlayerCentre(results[0]);
       setSearchMessage(
         filledDetails
-          ? "Chess SA player found. Saved Player Centre details were filled in. Please check them before submitting."
-          : "Chess SA player found. Please confirm your details."
+          ? "Player found. Saved Player Centre details were filled in. Please check them before submitting."
+          : "Player found. Please confirm your details."
       );
     } else {
       setSearchMessage(
@@ -455,14 +568,44 @@ export default function RegisterPage() {
   }
 
   async function fillContactDetailsFromPlayerCentre(player: ChessSaPlayer) {
-    if (!player.chess_sa_id) return false;
+    if (player.email || player.phone || player.club || player.province) {
+      let filledCount = 0;
 
-    const { data, error } = await supabase
+      if (!email.trim() && player.email) {
+        setEmail(player.email);
+        filledCount += 1;
+      }
+
+      if (!phone.trim() && player.phone) {
+        setPhone(player.phone);
+        filledCount += 1;
+      }
+
+      if (!club.trim() && player.club) {
+        setClub(player.club);
+        filledCount += 1;
+      }
+
+      if (!province.trim() && player.province) {
+        setProvince(player.province);
+        filledCount += 1;
+      }
+
+      if (filledCount > 0) return true;
+    }
+
+    if (!player.chess_sa_id && !player.pcc_id) return false;
+
+    let query = supabase
       .from("players")
       .select("email, phone, club, province")
-      .eq("chess_sa_id", player.chess_sa_id)
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+
+    query = player.chess_sa_id
+      ? query.eq("chess_sa_id", player.chess_sa_id)
+      : query.eq("pcc_id", player.pcc_id);
+
+    const { data, error } = await query.maybeSingle();
 
     if (error || !data) return false;
 
@@ -499,8 +642,8 @@ export default function RegisterPage() {
     const filledDetails = await fillContactDetailsFromPlayerCentre(player);
     setSearchMessage(
       filledDetails
-        ? "Chess SA player selected. Saved Player Centre details were filled in. Please check them before submitting."
-        : "Chess SA player selected. Continue with registration."
+        ? "Player selected. Saved Player Centre details were filled in. Please check them before submitting."
+        : "Player selected. Continue with registration."
     );
   }
 
@@ -528,6 +671,23 @@ export default function RegisterPage() {
     const foundIds = new Set<string>();
 
     for (const token of uniqueTokens) {
+      const { data: pccData } = await supabase.rpc(
+        "find_pcc_player_for_registration",
+        {
+          p_search_method: "surname",
+          p_search_value: token,
+          p_birth_date: newPlayer.date_of_birth,
+        }
+      );
+
+      for (const profile of (pccData ?? []) as ChessSaPlayer[]) {
+        const key = playerLookupKey(profile);
+        if (!foundIds.has(key)) {
+          foundIds.add(key);
+          foundProfiles.push(profile);
+        }
+      }
+
       const { data, error } = await supabase.rpc(
         "find_chessa_player_for_registration",
         {
@@ -540,9 +700,10 @@ export default function RegisterPage() {
       if (error) continue;
 
       for (const profile of (data ?? []) as ChessSaPlayer[]) {
-        if (!foundIds.has(profile.chess_sa_id)) {
-          foundIds.add(profile.chess_sa_id);
-          foundProfiles.push(profile);
+        const key = playerLookupKey({ ...profile, pcc_id: profile.pcc_id ?? null });
+        if (!foundIds.has(key)) {
+          foundIds.add(key);
+          foundProfiles.push({ ...profile, pcc_id: profile.pcc_id ?? null });
         }
       }
     }
@@ -556,7 +717,7 @@ export default function RegisterPage() {
 
     if (!selectedChessSaPlayer && !newPlayerMode) {
       setRegistrationMessage(
-        "Please find a Chess SA profile or choose new player registration."
+        "Please find a player profile or choose new player registration."
       );
       return;
     }
@@ -623,7 +784,10 @@ export default function RegisterPage() {
 
       if (paymentChoice === "proof" && proofFile) {
         const safeFileName = proofFile.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-        const fileOwner = selectedChessSaPlayer?.chess_sa_id ?? "new-player";
+        const fileOwner =
+          selectedChessSaPlayer?.chess_sa_id ??
+          selectedChessSaPlayer?.pcc_id ??
+          "new-player";
         const filePath = `${fileOwner}/${selectedTournamentId}/${Date.now()}-${safeFileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -644,6 +808,7 @@ export default function RegisterPage() {
         p_full_name: selectedChessSaPlayer
           ? selectedChessSaPlayer.full_name
           : newPlayerFullName,
+        p_pcc_id: selectedChessSaPlayer ? selectedChessSaPlayer.pcc_id : null,
         p_chess_sa_id: selectedChessSaPlayer
           ? selectedChessSaPlayer.chess_sa_id
           : null,
@@ -744,7 +909,7 @@ export default function RegisterPage() {
               [
                 "1",
                 "Find profile",
-                "Search using the player's Chess SA ID or the player's surname and date of birth.",
+                "Search using PCC ID, Chess SA ID, or a previous PCC player name.",
               ],
               [
                 "2",
@@ -778,18 +943,19 @@ export default function RegisterPage() {
       <section className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
         <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
           <h2 className="text-xl font-bold md:text-2xl">
-            1. Find the Chess SA profile
+            1. Find the player profile
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Use the player's surname and date of birth. If you know the
-            player's Chess SA ID, you can use that instead.
+            Use the player's PCC ID, Chess SA ID, or search by name/surname if
+            the player has entered a previous tournament on this site.
           </p>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {(
               [
-                ["surname", "Player surname + date of birth"],
+                ["pccid", "Player PCC ID"],
+                ["surname", "Name or surname"],
                 ["chesssa", "Player Chess SA ID"],
               ] as const
             ).map(([method, label]) => (
@@ -818,7 +984,11 @@ export default function RegisterPage() {
           <form onSubmit={handleSearch} className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-200">
-                {searchMethod === "surname" ? "Player surname" : "Player Chess SA ID"}
+                {searchMethod === "pccid"
+                  ? "Player PCC ID"
+                  : searchMethod === "surname"
+                  ? "Player name or surname"
+                  : "Player Chess SA ID"}
               </label>
 
               <input
@@ -828,7 +998,9 @@ export default function RegisterPage() {
                 onChange={(event) => setSearchValue(event.target.value)}
                 placeholder={
                   searchMethod === "surname"
-                    ? "Enter your surname"
+                    ? "Enter name or surname"
+                    : searchMethod === "pccid"
+                    ? "Example: PCC-000123"
                     : "Enter the player's Chess SA ID"
                 }
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
@@ -839,11 +1011,13 @@ export default function RegisterPage() {
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-200">
                   Date of birth
+                  <span className="ml-1 text-xs font-normal text-gray-500">
+                    optional
+                  </span>
                 </label>
 
                 <input
                   type="date"
-                  required
                   value={searchBirthDate}
                   onChange={(event) => setSearchBirthDate(event.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
@@ -893,14 +1067,15 @@ export default function RegisterPage() {
             <div className="mt-6 grid gap-4">
               {matches.map((match) => (
                 <button
-                  key={match.chess_sa_id}
+                  key={playerLookupKey(match)}
                   type="button"
                   onClick={() => choosePlayer(match)}
                   className="rounded-xl border border-white/10 bg-zinc-950 p-5 text-left transition hover:border-red-500"
                 >
                   <p className="font-bold">{match.full_name}</p>
                   <p className="mt-2 text-sm text-gray-400">
-                    Chess SA ID: {match.chess_sa_id}
+                    PCC ID: {match.pcc_id ?? "Not assigned"}  -  Chess SA ID:{" "}
+                    {match.chess_sa_id ?? "Not recorded"}
                   </p>
                   <p className="mt-1 text-sm text-gray-400">
                     Standard: {match.standard_rating ?? "Not rated"}  -  Rapid:{" "}
@@ -1011,7 +1186,7 @@ export default function RegisterPage() {
         {selectedChessSaPlayer && (
           <div className="mt-6 rounded-2xl border border-green-500/30 bg-green-500/10 p-4 md:p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-green-300">
-              Chess SA profile found
+              Player profile found
             </p>
 
             <h2 className="mt-3 text-xl font-bold md:text-2xl">
@@ -1020,8 +1195,13 @@ export default function RegisterPage() {
 
             <div className="mt-6 grid gap-4 text-sm text-gray-200 sm:grid-cols-2">
               <p>
+                <span className="font-semibold text-white">PCC ID:</span>{" "}
+                {selectedChessSaPlayer.pcc_id ?? "Not assigned"}
+              </p>
+
+              <p>
                 <span className="font-semibold text-white">Chess SA ID:</span>{" "}
-                {selectedChessSaPlayer.chess_sa_id}
+                {selectedChessSaPlayer.chess_sa_id ?? "Not recorded"}
               </p>
 
               <p>
@@ -1505,7 +1685,7 @@ export default function RegisterPage() {
 
           <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
-              ["1", "Search", "Find your Chess SA profile or use New Player."],
+              ["1", "Search", "Find your PCC/Chess SA profile or use New Player."],
               ["2", "Confirm", "Confirm that the player found is you."],
               ["3", "Choose", "Select the tournament and section."],
               ["4", "Submit", "Submit your entry for admin review."],

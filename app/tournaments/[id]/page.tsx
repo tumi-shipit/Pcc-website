@@ -609,6 +609,12 @@ export default function TournamentHubPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
+        <TournamentCredits
+          organisations={organisations}
+          officials={officials}
+          fallbackArbiter={arbiter}
+        />
+
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-5">
           <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
             <p className="text-sm text-gray-400">Registered players</p>
@@ -650,9 +656,6 @@ export default function TournamentHubPage() {
             </p>
           </div>
         </div>
-
-        <TournamentTeam officials={officials} fallbackArbiter={arbiter} />
-        <TournamentOrganisations organisations={organisations} />
 
         {isCompleted && (
           <ArchiveContent
@@ -858,8 +861,9 @@ function TournamentTeam({
     const role = official.role.toLowerCase();
     if (official.roleGroup === "Organiser" || role.includes("organiser")) return 0;
     if (role === "chief arbiter") return 1;
-    if (role.includes("arbiter")) return 2;
-    return 3;
+    if (role === "deputy chief arbiter") return 2;
+    if (role.includes("arbiter")) return 3;
+    return 4;
   };
   const visibleTeam = team
     .filter((official) => official.player)
@@ -943,6 +947,170 @@ function TournamentTeam({
                   {official.notes}
                 </p>
               )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function TournamentCredits({
+  organisations,
+  officials,
+  fallbackArbiter,
+}: {
+  organisations: PublicTournamentOrganisation[];
+  officials: PublicOfficial[];
+  fallbackArbiter: Player | null;
+}) {
+  const team = [...officials];
+  const hasChiefArbiter = team.some(
+    (official) => official.role.toLowerCase() === "chief arbiter"
+  );
+
+  if (fallbackArbiter && !hasChiefArbiter) {
+    team.unshift({
+      id: `legacy-chief-arbiter-${fallbackArbiter.id}`,
+      tournament_id: "",
+      player_id: fallbackArbiter.id,
+      role: "Chief Arbiter",
+      notes: null,
+      player: fallbackArbiter,
+    });
+  }
+
+  const rolePriority = (official: PublicOfficial) => {
+    const role = official.role.toLowerCase();
+    if (official.roleGroup === "Organiser" || role.includes("organiser")) return 0;
+    if (role === "chief arbiter") return 1;
+    if (role === "deputy chief arbiter") return 2;
+    if (role.includes("arbiter")) return 3;
+    return 4;
+  };
+
+  const visibleTeam = team
+    .filter((official) => official.player)
+    .sort((a, b) => rolePriority(a) - rolePriority(b));
+
+  if (organisations.length === 0 && visibleTeam.length === 0) return null;
+
+  return (
+    <section className="mb-6 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Tournament Team
+          </p>
+          <h2 className="mt-2 text-2xl font-black md:text-3xl">
+            Organising team
+          </h2>
+        </div>
+        <p className="text-sm text-gray-400">
+          Organisation, organiser and arbiters
+        </p>
+      </div>
+
+      <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
+        {organisations.map((assignment) => {
+          const organisation = assignment.organisation;
+          const representative =
+            assignment.representative_name ||
+            assignment.representative?.full_name ||
+            organisation?.representative_name;
+
+          const card = (
+            <div className="flex h-full min-w-[260px] items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500/60 md:min-w-[300px]">
+              {organisation?.logo_url ? (
+                <img
+                  src={organisation.logo_url}
+                  alt={`${organisation.name} logo`}
+                  className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
+                />
+              ) : (
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-lg font-black text-red-200">
+                  {(organisation?.name ?? "OR").slice(0, 2).toUpperCase()}
+                </div>
+              )}
+
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
+                  {assignment.role || "Organising organisation"}
+                </p>
+                <p className="mt-1 truncate text-lg font-black text-white">
+                  {organisation?.name ?? "Organisation"}
+                </p>
+                {representative && (
+                  <p className="mt-1 truncate text-xs text-gray-400">
+                    Representative: {representative}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+
+          return organisation?.website_url ? (
+            <a
+              key={assignment.id}
+              href={organisation.website_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block"
+            >
+              {card}
+            </a>
+          ) : (
+            <div key={assignment.id}>{card}</div>
+          );
+        })}
+
+        {visibleTeam.map((official) => {
+          const player = official.player as Player;
+          const hasPublicProfile =
+            Boolean(official.player_id) && player.id === official.player_id;
+          const avatar = (
+            <PlayerAvatar
+              name={player.full_name}
+              photoUrl={player.profile_photo_url}
+              size="lg"
+              className="border-red-500/30"
+            />
+          );
+
+          return (
+            <div
+              key={`${official.id}-${official.role}`}
+              className="flex min-w-[260px] items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 md:min-w-[300px]"
+            >
+              {hasPublicProfile ? (
+                <Link href={`/players/${player.id}`} className="shrink-0">
+                  {avatar}
+                </Link>
+              ) : (
+                <div className="shrink-0">{avatar}</div>
+              )}
+
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
+                  {official.role}
+                </p>
+                {hasPublicProfile ? (
+                  <Link
+                    href={`/players/${player.id}`}
+                    className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
+                  >
+                    {player.full_name}
+                  </Link>
+                ) : (
+                  <span className="mt-1 block truncate text-lg font-black text-white">
+                    {player.full_name}
+                  </span>
+                )}
+                <p className="mt-1 truncate text-xs text-gray-400">
+                  {player.club ?? "Chess official"}
+                  {player.province ? ` - ${player.province}` : ""}
+                </p>
+              </div>
             </div>
           );
         })}
@@ -1161,7 +1329,11 @@ function ArchiveContent({
         <PlayerOfTournamentSection result={playerOfTournament} />
       </div>
 
-      <FinalRankingTable results={results} sections={sections} />
+      <FinalRankingTable
+        results={results}
+        sections={sections}
+        chessResultsUrl={tournament.chess_results_url}
+      />
     </div>
   );
 }
@@ -1338,9 +1510,11 @@ function groupResultsBySection(
 function FinalRankingTable({
   results,
   sections,
+  chessResultsUrl,
 }: {
   results: ResultWithPlayer[];
   sections: TournamentSection[];
+  chessResultsUrl: string | null;
 }) {
   const sectionEntries = groupResultsBySection(results, sections);
 
@@ -1375,94 +1549,129 @@ function FinalRankingTable({
             Final Ranking
           </p>
           <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            Full standings by section
+            Top 10 by section
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Public rankings show only Rk, Name, Rtg, FED and Pts from the
-            imported final ranking file.
+            Public rankings show the top 10 players from each imported final
+            ranking. Use Chess-Results for the full list.
           </p>
         </div>
 
-        <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
-          {sectionEntries.length} section
-          {sectionEntries.length === 1 ? "" : "s"}
-        </span>
+        <div className="flex flex-wrap gap-2">
+          <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+            Top 10 list
+          </span>
+          {chessResultsUrl && (
+            <a
+              href={chessResultsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-full border border-white/10 bg-zinc-950 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Full results
+            </a>
+          )}
+        </div>
       </div>
 
       <div className="mt-8 grid gap-4 lg:grid-cols-3">
-        {sectionEntries.map((section) => (
-          <div
-            key={section.sectionName}
-            className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
-          >
-            <div className="border-b border-white/10 bg-black/40 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
-                Section
-              </p>
-              <h3 className="mt-2 text-lg font-black text-white">
-                {section.sectionName}
-              </h3>
-            </div>
+        {sectionEntries.map((section) => {
+          const topResults = section.results.slice(0, 10);
+          const hiddenCount = Math.max(section.results.length - topResults.length, 0);
 
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[360px] text-left text-xs">
-                <thead className="bg-black/25 text-[10px] uppercase tracking-[0.14em] text-gray-500">
-                  <tr>
-                    <th className="px-3 py-3">Rk</th>
-                    <th className="px-3 py-3">Name</th>
-                    <th className="px-3 py-3">Rtg</th>
-                    <th className="px-3 py-3">FED</th>
-                    <th className="px-3 py-3">Pts</th>
-                  </tr>
-                </thead>
+          return (
+            <div
+              key={section.sectionName}
+              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
+            >
+              <div className="border-b border-white/10 bg-black/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                  Section
+                </p>
+                <h3 className="mt-2 text-lg font-black text-white">
+                  {section.sectionName}
+                </h3>
+              </div>
 
-                <tbody className="divide-y divide-white/10">
-                  {section.results.map((result, index) => {
-                    const position = result.final_position ?? index + 1;
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[360px] text-left text-xs">
+                  <thead className="bg-black/25 text-[10px] uppercase tracking-[0.14em] text-gray-500">
+                    <tr>
+                      <th className="px-3 py-3">Rk</th>
+                      <th className="px-3 py-3">Name</th>
+                      <th className="px-3 py-3">Rtg</th>
+                      <th className="px-3 py-3">FED</th>
+                      <th className="px-3 py-3">Pts</th>
+                    </tr>
+                  </thead>
 
-                    return (
-                      <tr key={result.id}>
-                        <td className="px-3 py-3 font-black text-red-300">
-                          {position}
-                        </td>
-                        <td className="px-3 py-3 font-bold text-white">
-                          {result.player ? (
-                            <Link
-                              href={`/players/${result.player.id}`}
-                              className="flex min-w-0 items-center gap-2 transition hover:text-red-300"
-                            >
-                              <PlayerAvatar
-                                name={publicResultName(result)}
-                                photoUrl={result.player.profile_photo_url}
-                                size="xs"
-                              />
-                              <span className="line-clamp-2">
+                  <tbody className="divide-y divide-white/10">
+                    {topResults.map((result, index) => {
+                      const position = result.final_position ?? index + 1;
+
+                      return (
+                        <tr key={result.id}>
+                          <td className="px-3 py-3 font-black text-red-300">
+                            {position}
+                          </td>
+                          <td className="px-3 py-3 font-bold text-white">
+                            {result.player ? (
+                              <Link
+                                href={`/players/${result.player.id}`}
+                                className="flex min-w-0 items-center gap-2 transition hover:text-red-300"
+                              >
+                                <PlayerAvatar
+                                  name={publicResultName(result)}
+                                  photoUrl={result.player.profile_photo_url}
+                                  size="xs"
+                                />
+                                <span className="line-clamp-2">
+                                  {publicResultName(result)}
+                                </span>
+                              </Link>
+                            ) : (
+                              <span className="line-clamp-2 pl-10">
                                 {publicResultName(result)}
                               </span>
-                            </Link>
-                          ) : (
-                            <span className="line-clamp-2 pl-10">
-                              {publicResultName(result)}
-                            </span>
-                          )}
-                        </td>
-                        <td className="px-3 py-3 text-gray-300">
-                          {publicResultRating(result) ?? "-"}
-                        </td>
-                        <td className="px-3 py-3 text-gray-300">
-                          {publicResultFederation(result)}
-                        </td>
-                        <td className="px-3 py-3 text-gray-300">
-                          {result.points ?? "-"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                            )}
+                          </td>
+                          <td className="px-3 py-3 text-gray-300">
+                            {publicResultRating(result) ?? "-"}
+                          </td>
+                          <td className="px-3 py-3 text-gray-300">
+                            {publicResultFederation(result)}
+                          </td>
+                          <td className="px-3 py-3 text-gray-300">
+                            {result.points ?? "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {hiddenCount > 0 && (
+                <div className="border-t border-white/10 bg-black/25 p-4 text-xs text-gray-400">
+                  {hiddenCount} more player{hiddenCount === 1 ? "" : "s"} in
+                  this section.{" "}
+                  {chessResultsUrl ? (
+                    <a
+                      href={chessResultsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-red-300 transition hover:text-red-200"
+                    >
+                      View full list on Chess-Results.
+                    </a>
+                  ) : (
+                    "Full Chess-Results link will be added by the organiser."
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </section>
   );

@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 
 type Player = {
   id: string;
+  pcc_id: string | null;
   full_name: string;
   chess_sa_id: string | null;
   fide_id: string | null;
@@ -41,7 +42,7 @@ type PlayerSearchIdentity = {
 };
 
 const playerSelect =
-  "id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, title";
+  "id, pcc_id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, title";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
@@ -152,7 +153,7 @@ export default function PublicPlayersDirectoryPage() {
         .from("players")
         .select(playerSelect)
         .or(
-          `full_name.ilike.${pattern},chess_sa_id.ilike.${pattern},fide_id.ilike.${pattern},club.ilike.${pattern},province.ilike.${pattern},title.ilike.${pattern},email.ilike.${pattern}`
+          `full_name.ilike.${pattern},pcc_id.ilike.${pattern},chess_sa_id.ilike.${pattern},fide_id.ilike.${pattern},club.ilike.${pattern},province.ilike.${pattern},title.ilike.${pattern},email.ilike.${pattern}`
         )
         .order("full_name", { ascending: true })
         .limit(50);
@@ -361,6 +362,7 @@ export default function PublicPlayersDirectoryPage() {
     const searchMatches = (player: Player) =>
       !text ||
       player.full_name.toLowerCase().includes(text) ||
+      (player.pcc_id ?? "").toLowerCase().includes(text) ||
       (player.chess_sa_id ?? "").toLowerCase().includes(text) ||
       (player.fide_id ?? "").toLowerCase().includes(text) ||
       (player.club ?? "").toLowerCase().includes(text) ||
@@ -463,7 +465,7 @@ export default function PublicPlayersDirectoryPage() {
                 Find PCC players fast
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-300 md:text-base">
-                Search verified club profiles by name, club, Chess SA ID,
+                Search verified club profiles by name, PCC ID, club, Chess SA ID,
                 FIDE ID, province, tournament activity and official roles.
                 Rankings are handled by Limpopo Chess Academy.
               </p>
@@ -502,7 +504,7 @@ export default function PublicPlayersDirectoryPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Name, ID, club..."
+              placeholder="Name, PCC ID, club..."
               className={inputClass}
             />
 
@@ -645,6 +647,8 @@ export default function PublicPlayersDirectoryPage() {
                             </span>
                           </td>
                           <td className="p-4 text-xs text-zinc-500">
+                            PCC: {valueOrDash(player.pcc_id)}
+                            <br />
                             Chess SA: {valueOrDash(player.chess_sa_id)}
                             <br />
                             FIDE: {valueOrDash(player.fide_id)}
@@ -704,6 +708,9 @@ function PlayerMobileCard({
         <MiniStat label="Wins" value={stats?.wins ?? 0} />
         <MiniStat label="Podiums" value={stats?.podiums ?? 0} />
       </div>
+      <p className="mt-3 text-xs text-zinc-500">
+        PCC ID: {valueOrDash(player.pcc_id)}
+      </p>
     </Link>
   );
 }

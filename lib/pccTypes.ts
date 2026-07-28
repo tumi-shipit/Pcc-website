@@ -4,6 +4,7 @@ export type UUID = string;
 
 export type Player = {
   id: UUID;
+  pcc_id: string | null;
   full_name: string;
   chess_sa_id: string | null;
   fide_id: string | null;
@@ -25,6 +26,7 @@ export type Player = {
 export type PlayerLite = Pick<
   Player,
   | "id"
+  | "pcc_id"
   | "full_name"
   | "chess_sa_id"
   | "fide_id"

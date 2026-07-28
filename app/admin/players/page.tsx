@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 
 type Player = {
   id: string;
+  pcc_id: string | null;
   full_name: string;
   fide_id: string | null;
   chess_sa_id: string | null;
@@ -111,7 +112,7 @@ export default function AdminPlayersPage() {
     const { data: playerData, error: playerError } = await supabase
       .from("players")
       .select(
-        "id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, created_at, updated_at"
+        "id, pcc_id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, created_at, updated_at"
       )
       .order("full_name", { ascending: true })
       .limit(5000);
@@ -216,6 +217,7 @@ export default function AdminPlayersPage() {
       const searchMatch =
         !text ||
         player.full_name.toLowerCase().includes(text) ||
+        (player.pcc_id ?? "").toLowerCase().includes(text) ||
         (player.chess_sa_id ?? "").toLowerCase().includes(text) ||
         (player.fide_id ?? "").toLowerCase().includes(text) ||
         (player.club ?? "").toLowerCase().includes(text) ||
@@ -424,6 +426,7 @@ export default function AdminPlayersPage() {
                     </div>
 
                     <div className="mt-4 grid gap-2 text-sm text-zinc-400">
+                      <p>PCC ID: {valueOrDash(player.pcc_id)}</p>
                       <p>Chess SA: {valueOrDash(player.chess_sa_id)}</p>
                       <p>Rating: {valueOrDash(player.rating)}</p>
                       <p>
@@ -485,6 +488,8 @@ export default function AdminPlayersPage() {
                           </div>
                         </td>
                         <td className="p-4 text-xs text-zinc-400">
+                          PCC: {valueOrDash(player.pcc_id)}
+                          <br />
                           Chess SA: {valueOrDash(player.chess_sa_id)}
                           <br />
                           FIDE: {valueOrDash(player.fide_id)}

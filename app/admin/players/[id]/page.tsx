@@ -9,6 +9,7 @@ import { supabase } from "@/lib/supabase";
 
 type Player = {
   id: string;
+  pcc_id: string | null;
   full_name: string;
   chess_sa_id: string | null;
   fide_id: string | null;
@@ -150,7 +151,7 @@ export default function AdminPlayerProfilePage({
     const { data: playerData, error: playerError } = await supabase
       .from("players")
       .select(
-        "id, full_name, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
+        "id, pcc_id, full_name, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
       )
       .eq("id", playerId)
       .single();
@@ -419,6 +420,9 @@ export default function AdminPlayerProfilePage({
                   </p>
 
                   <div className="mt-4 flex flex-wrap gap-2">
+                    <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
+                      PCC ID: {valueOrDash(player.pcc_id)}
+                    </span>
                     <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
                       Chess SA: {valueOrDash(player.chess_sa_id)}
                     </span>

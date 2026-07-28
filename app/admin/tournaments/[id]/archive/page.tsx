@@ -1061,6 +1061,185 @@ export default function TournamentArchiveContinuationPage() {
     return (newPlayer as { id: string }).id;
   }
 
+  async function findOrCreatePlayerFromStanding(row: ImportedStanding) {
+    const normalizedName = normalizeName(row.name);
+    const cleanChessSaId = row.chess_sa_id?.trim() || null;
+
+    if (cleanChessSaId) {
+      const { data: chessSaPlayer, error: chessSaError } = await supabase
+        .from("players")
+        .select("id")
+        .eq("chess_sa_id", cleanChessSaId)
+        .maybeSingle();
+
+      if (chessSaError) throw new Error(chessSaError.message);
+      if (chessSaPlayer) return (chessSaPlayer as { id: string }).id;
+    }
+
+    const { data: existingPlayers, error: searchError } = await supabase
+      .from("players")
+      .select("id, full_name")
+      .limit(10000);
+
+    if (searchError) throw new Error(searchError.message);
+
+    const existingPlayer = (
+      (existingPlayers ?? []) as { id: string; full_name: string }[]
+    ).find((player) => normalizeName(player.full_name) === normalizedName);
+
+    if (existingPlayer) {
+      const updatePayload: Record<string, unknown> = {
+        rating: row.rating,
+        province: row.federation || null,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (cleanChessSaId) {
+        updatePayload.chess_sa_id = cleanChessSaId;
+        updatePayload.verification_status = "Verified";
+      }
+
+      const { error: updateError } = await supabase
+        .from("players")
+        .update(updatePayload)
+        .eq("id", existingPlayer.id);
+
+      if (updateError) throw new Error(updateError.message);
+      return existingPlayer.id;
+    }
+
+    const { data: newPlayer, error: insertError } = await supabase
+      .from("players")
+      .insert({
+        full_name: row.name,
+        chess_sa_id: cleanChessSaId,
+        date_of_birth: null,
+        gender: "Not supplied",
+        club: null,
+        province: row.federation || null,
+        rating: row.rating,
+        email: null,
+        phone: null,
+        verification_status: cleanChessSaId ? "Verified" : "Pending",
+      })
+      .select("id")
+      .single();
+
+    if (insertError) throw new Error(insertError.message);
+    if (!newPlayer) throw new Error("Player was not returned after insert.");
+
+    return (newPlayer as { id: string }).id;
+  }
+
+  async function ensureFinalRankingRegistration(
+    row: ImportedStanding,
+    playerId: string
+  ) {
+    const selectedSectionName =
+      sections.find((section) => section.id === selectedSectionId)?.section_name ??
+      null;
+
+    if (row.matchedRegistrationId) {
+      if (row.matchedSectionId !== selectedSectionId) {
+        const { error: moveError } = await supabase
+          .from("registrations")
+          .update({
+            section_id: selectedSectionId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.matchedRegistrationId);
+
+        if (moveError) throw moveError;
+
+        return {
+          registrationId: row.matchedRegistrationId,
+          moved: true,
+          createdLate: false,
+          previousSectionName: row.matchedSectionName,
+          sectionName: selectedSectionName,
+        };
+      }
+
+      return {
+        registrationId: row.matchedRegistrationId,
+        moved: false,
+        createdLate: false,
+        previousSectionName: row.matchedSectionName,
+        sectionName: row.matchedSectionName ?? selectedSectionName,
+      };
+    }
+
+    const { data: existingRegistration, error: existingRegistrationError } =
+      await supabase
+        .from("registrations")
+        .select("id, section_id, tournament_sections(section_name)")
+        .eq("player_id", playerId)
+        .eq("tournament_id", tournamentId)
+        .maybeSingle();
+
+    if (existingRegistrationError) throw existingRegistrationError;
+
+    const existing = existingRegistration as
+      | {
+          id: string;
+          section_id: string | null;
+          tournament_sections:
+            | { section_name: string | null }
+            | { section_name: string | null }[]
+            | null;
+        }
+      | null;
+
+    if (existing) {
+      const previousSectionName = Array.isArray(existing.tournament_sections)
+        ? existing.tournament_sections[0]?.section_name ?? null
+        : existing.tournament_sections?.section_name ?? null;
+
+      if (existing.section_id !== selectedSectionId) {
+        const { error: moveError } = await supabase
+          .from("registrations")
+          .update({
+            section_id: selectedSectionId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", existing.id);
+
+        if (moveError) throw moveError;
+      }
+
+      return {
+        registrationId: existing.id,
+        moved: existing.section_id !== selectedSectionId,
+        createdLate: false,
+        previousSectionName,
+        sectionName: selectedSectionName,
+      };
+    }
+
+    const { data: newRegistration, error: registrationError } = await supabase
+      .from("registrations")
+      .insert({
+        player_id: playerId,
+        tournament_id: tournamentId,
+        section_id: selectedSectionId,
+        payment_status: "Pending",
+        proof_of_payment_url: null,
+        registration_status: "Approved",
+      })
+      .select("id")
+      .single();
+
+    if (registrationError) throw registrationError;
+
+    return {
+      registrationId: (newRegistration as { id: string }).id,
+      moved: false,
+      createdLate: true,
+      previousSectionName: null,
+      sectionName: selectedSectionName,
+    };
+  }
+
   async function importPlayersForSection() {
     if (!tournament) {
       setMessage("Completed tournament data not loaded.");
@@ -1258,11 +1437,11 @@ export default function TournamentArchiveContinuationPage() {
       return;
     }
 
-    const rowsToImport = rankingRows.filter((row) => row.player_id);
+    const rowsToImport = rankingRows.filter((row) => row.name.trim());
 
     if (rowsToImport.length === 0) {
       setMessage(
-        "No matched ranking rows to import. Review the player matches below or upload the optional player list if this tournament did not use website registrations."
+        "No ranking rows to import. Upload this section's Final Ranking List first."
       );
       return;
     }
@@ -1291,33 +1470,17 @@ export default function TournamentArchiveContinuationPage() {
     const updatedRows: ImportedStanding[] = [];
 
     for (const row of rankingRows) {
-      if (!row.player_id) {
-        updatedRows.push(row);
-        continue;
-      }
-
       try {
-        let movedRegistration = false;
-
-        if (
-          row.matchedRegistrationId &&
-          row.matchedSectionId !== selectedSectionId
-        ) {
-          const { error: moveError } = await supabase
-            .from("registrations")
-            .update({
-              section_id: selectedSectionId,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", row.matchedRegistrationId);
-
-          if (moveError) throw moveError;
-          movedRegistration = true;
-        }
+        const playerId =
+          row.player_id ?? (await findOrCreatePlayerFromStanding(row));
+        const registrationResult = await ensureFinalRankingRegistration(
+          row,
+          playerId
+        );
 
         const { error } = await supabase.from("tournament_results").insert({
           tournament_id: tournament.id,
-          player_id: row.player_id,
+          player_id: playerId,
           section_id: selectedSectionId,
           final_position: row.rank,
           imported_name: row.name,
@@ -1342,13 +1505,18 @@ export default function TournamentArchiveContinuationPage() {
 
         updatedRows.push({
           ...row,
-          status: "Imported",
+          player_id: playerId,
+          matchedRegistrationId: registrationResult.registrationId,
           matchedSectionId: selectedSectionId,
-          matchedSectionName:
-            sections.find((section) => section.id === selectedSectionId)
-              ?.section_name ?? row.matchedSectionName,
-          message: movedRegistration
-            ? `Section ranking imported and registration moved from ${row.matchedSectionName ?? "previous section"}`
+          matchedSectionName: registrationResult.sectionName,
+          matchedPlayerName: row.matchedPlayerName ?? row.name,
+          status: "Imported",
+          message: registrationResult.createdLate
+            ? "Section ranking imported and late registration created"
+            : registrationResult.moved
+            ? `Section ranking imported and registration moved from ${
+                registrationResult.previousSectionName ?? "previous section"
+              }`
             : "Section ranking imported",
         });
       } catch (error) {
@@ -1370,6 +1538,9 @@ export default function TournamentArchiveContinuationPage() {
     const importedCount = updatedRows.filter((row) => row.status === "Imported").length;
     const failedCount = updatedRows.filter((row) => row.status === "Failed").length;
     const unmatchedCount = updatedRows.filter((row) => row.status === "Unmatched").length;
+    const lateRegistrationCount = updatedRows.filter((row) =>
+      row.message.toLowerCase().includes("late registration created")
+    ).length;
 
     try {
       const importSession = await createImportSession({
@@ -1387,7 +1558,8 @@ export default function TournamentArchiveContinuationPage() {
         failed_rows: failedCount,
         summary: {
           section_id: selectedSectionId,
-          note: "Imported final ranking rows into tournament_results for one section.",
+          late_registrations_created: lateRegistrationCount,
+          note: "Imported final ranking rows into tournament_results for one section. Ranking-only players were added as late registrations.",
         },
       });
 
@@ -1425,7 +1597,7 @@ export default function TournamentArchiveContinuationPage() {
       total_rows: rankingRows.length,
       matched_rows: importedCount,
       unmatched_rows: unmatchedCount,
-      created_rows: importedCount,
+        created_rows: importedCount,
       updated_rows: 0,
       skipped_rows: unmatchedCount,
       failed_rows: failedCount,
@@ -1436,7 +1608,13 @@ export default function TournamentArchiveContinuationPage() {
     setImportingRankings(false);
     await loadSectionPlayers(selectedSectionId);
     await loadTournamentPlayers();
-    setMessage("Section final ranking import completed.");
+    setMessage(
+      lateRegistrationCount > 0
+        ? `Section final ranking import completed. ${lateRegistrationCount} late registration${
+            lateRegistrationCount === 1 ? "" : "s"
+          } created from the final ranking.`
+        : "Section final ranking import completed."
+    );
   }
 
   if (loading) {
