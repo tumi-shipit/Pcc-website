@@ -21,6 +21,39 @@ function confidenceClass(confidence: string) {
   return "bg-red-500/10 text-red-300";
 }
 
+function profileStrength(player: IdentityPlayer) {
+  let score = 0;
+
+  if (player.verification_status === "Verified") score += 50;
+  if (player.chess_sa_id) score += 40;
+  if (player.fide_id) score += 35;
+  if (player.date_of_birth) score += 20;
+  if (player.email) score += 12;
+  if (player.phone) score += 12;
+  if (player.club) score += 8;
+  if (player.province) score += 8;
+  if (player.rating) score += 5;
+
+  return score;
+}
+
+function chooseBulkPrimary(match: IdentityMatch) {
+  const playerAStrength = profileStrength(match.playerA);
+  const playerBStrength = profileStrength(match.playerB);
+
+  if (playerAStrength > playerBStrength) {
+    return { primary: match.playerA, duplicate: match.playerB };
+  }
+
+  if (playerBStrength > playerAStrength) {
+    return { primary: match.playerB, duplicate: match.playerA };
+  }
+
+  return match.playerA.full_name.localeCompare(match.playerB.full_name) <= 0
+    ? { primary: match.playerA, duplicate: match.playerB }
+    : { primary: match.playerB, duplicate: match.playerA };
+}
+
 export default function PlayerDuplicatesPage() {
   const [players, setPlayers] = useState<IdentityPlayer[]>([]);
   const [ignoredRows, setIgnoredRows] = useState<IgnoreRow[]>([]);
@@ -28,6 +61,9 @@ export default function PlayerDuplicatesPage() {
   const [minimumScore, setMinimumScore] = useState(70);
   const [loading, setLoading] = useState(true);
   const [mergingKey, setMergingKey] = useState("");
+  const [selectedPairKeys, setSelectedPairKeys] = useState<Set<string>>(
+    () => new Set()
+  );
   const [message, setMessage] = useState("");
 
   async function loadData() {
@@ -36,7 +72,7 @@ export default function PlayerDuplicatesPage() {
 
     const { data: playerData, error: playerError } = await supabase
       .from("players")
-      .select("id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating")
+      .select("id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, verification_status")
       .order("full_name", { ascending: true })
       .limit(10000);
 
@@ -75,6 +111,52 @@ export default function PlayerDuplicatesPage() {
     });
   }, [matches, search]);
 
+  const selectedMatches = useMemo(
+    () =>
+      matches.filter((match) =>
+        selectedPairKeys.has(makePairKey(match.playerA.id, match.playerB.id))
+      ),
+    [matches, selectedPairKeys]
+  );
+
+  function togglePairSelection(pairKey: string) {
+    setSelectedPairKeys((current) => {
+      const next = new Set(current);
+
+      if (next.has(pairKey)) {
+        next.delete(pairKey);
+      } else {
+        next.add(pairKey);
+      }
+
+      return next;
+    });
+  }
+
+  function selectFilteredMatches() {
+    setSelectedPairKeys(
+      new Set(
+        filteredMatches.map((match) =>
+          makePairKey(match.playerA.id, match.playerB.id)
+        )
+      )
+    );
+  }
+
+  function selectHighConfidenceMatches() {
+    setSelectedPairKeys(
+      new Set(
+        filteredMatches
+          .filter((match) => match.confidence === "High")
+          .map((match) => makePairKey(match.playerA.id, match.playerB.id))
+      )
+    );
+  }
+
+  function clearSelection() {
+    setSelectedPairKeys(new Set());
+  }
+
   async function mergePlayers(match: IdentityMatch, primaryId: string, duplicateId: string) {
     const primary = match.playerA.id === primaryId ? match.playerA : match.playerB;
     const duplicate = match.playerA.id === duplicateId ? match.playerA : match.playerB;
@@ -99,6 +181,7 @@ export default function PlayerDuplicatesPage() {
 
     setMessage(`Merged "${duplicate.full_name}" into "${primary.full_name}".`);
     setMergingKey("");
+    setSelectedPairKeys(new Set());
     await loadData();
   }
 
@@ -123,6 +206,103 @@ export default function PlayerDuplicatesPage() {
     }
 
     setMessage("Marked as not the same person. This pair will not be suggested again.");
+    setSelectedPairKeys((current) => {
+      const next = new Set(current);
+      next.delete(makePairKey(match.playerA.id, match.playerB.id));
+      return next;
+    });
+    await loadData();
+  }
+
+  async function ignoreSelectedPairs() {
+    if (selectedMatches.length === 0 || mergingKey) return;
+
+    const confirmed = window.confirm(
+      `Mark ${selectedMatches.length} selected duplicate suggestion(s) as not the same person?`
+    );
+    if (!confirmed) return;
+
+    setMergingKey("bulk-ignore");
+    setMessage("Marking selected pairs as not duplicates...");
+
+    const { error } = await supabase.from("player_duplicate_ignores").insert(
+      selectedMatches.map((match) => ({
+        player_a: match.playerA.id,
+        player_b: match.playerB.id,
+        reason: `Bulk marked not duplicate. Score: ${match.score}. Reasons: ${match.reasons.join(", ")}`,
+      }))
+    );
+
+    if (error) {
+      setMessage(`Could not mark selected pairs: ${error.message}`);
+      setMergingKey("");
+      return;
+    }
+
+    setMessage(`${selectedMatches.length} selected pair(s) marked as not duplicates.`);
+    setSelectedPairKeys(new Set());
+    setMergingKey("");
+    await loadData();
+  }
+
+  async function mergeSelectedPairs() {
+    if (selectedMatches.length === 0 || mergingKey) return;
+
+    const seenPlayerIds = new Set<string>();
+    const overlappingMatches = selectedMatches.filter((match) => {
+      const hasOverlap =
+        seenPlayerIds.has(match.playerA.id) || seenPlayerIds.has(match.playerB.id);
+
+      seenPlayerIds.add(match.playerA.id);
+      seenPlayerIds.add(match.playerB.id);
+
+      return hasOverlap;
+    });
+
+    if (overlappingMatches.length > 0) {
+      setMessage(
+        "Some selected pairs share the same player. Clear the selection and choose only pairs where each player appears once."
+      );
+      return;
+    }
+
+    const mergePlan = selectedMatches.map((match) => ({
+      match,
+      ...chooseBulkPrimary(match),
+    }));
+
+    const confirmed = window.confirm(
+      `Bulk merge ${mergePlan.length} selected pair(s)?\n\nThe page will keep the stronger profile in each pair and move history/results into it.`
+    );
+    if (!confirmed) return;
+
+    setMergingKey("bulk-merge");
+    setMessage(`Bulk merging ${mergePlan.length} pair(s)...`);
+
+    let merged = 0;
+
+    for (const item of mergePlan) {
+      const { error } = await supabase.rpc("merge_players", {
+        primary_player_id: item.primary.id,
+        duplicate_player_id: item.duplicate.id,
+        reason: `Duplicate Centre bulk merge. Score: ${item.match.score}. Reasons: ${item.match.reasons.join(", ")}`,
+      });
+
+      if (error) {
+        setMessage(
+          `Bulk merge stopped after ${merged} merge(s). Could not merge "${item.duplicate.full_name}" into "${item.primary.full_name}": ${error.message}`
+        );
+        setMergingKey("");
+        await loadData();
+        return;
+      }
+
+      merged += 1;
+    }
+
+    setMessage(`Bulk merged ${merged} duplicate pair(s).`);
+    setSelectedPairKeys(new Set());
+    setMergingKey("");
     await loadData();
   }
 
@@ -164,6 +344,64 @@ export default function PlayerDuplicatesPage() {
             </div>
           </section>
 
+          {!loading && filteredMatches.length > 0 && (
+            <section className="mt-6 rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.22em] text-red-400">
+                    Bulk Options
+                  </p>
+                  <p className="mt-2 text-sm text-gray-400">
+                    {selectedMatches.length} selected from {filteredMatches.length} visible suggestion{filteredMatches.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                  <button
+                    type="button"
+                    onClick={selectFilteredMatches}
+                    disabled={Boolean(mergingKey)}
+                    className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500 disabled:opacity-50"
+                  >
+                    Select visible
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectHighConfidenceMatches}
+                    disabled={Boolean(mergingKey)}
+                    className="rounded-xl border border-green-500/30 bg-green-500/10 px-4 py-3 text-sm font-bold text-green-100 transition hover:bg-green-500/20 disabled:opacity-50"
+                  >
+                    Select high
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    disabled={Boolean(mergingKey) || selectedMatches.length === 0}
+                    className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500 disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={ignoreSelectedPairs}
+                    disabled={Boolean(mergingKey) || selectedMatches.length === 0}
+                    className="rounded-xl border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm font-bold text-yellow-100 transition hover:bg-yellow-500/20 disabled:opacity-50"
+                  >
+                    Not duplicates
+                  </button>
+                  <button
+                    type="button"
+                    onClick={mergeSelectedPairs}
+                    disabled={Boolean(mergingKey) || selectedMatches.length === 0}
+                    className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
+                  >
+                    Merge selected
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
           {loading ? (
             <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">Scanning player database...</p>
           ) : filteredMatches.length === 0 ? (
@@ -172,17 +410,39 @@ export default function PlayerDuplicatesPage() {
             <section className="mt-8 space-y-5">
               {filteredMatches.map((match) => {
                 const pairKey = makePairKey(match.playerA.id, match.playerB.id);
+                const selected = selectedPairKeys.has(pairKey);
+
                 return (
-                  <article key={pairKey} className="rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+                  <article
+                    key={pairKey}
+                    className={`rounded-3xl border bg-zinc-900 p-5 md:p-6 ${
+                      selected ? "border-red-500" : "border-white/10"
+                    }`}
+                  >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div>
-                        <div className="flex flex-wrap gap-2">
-                          <span className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(match.confidence)}`}>{match.confidence} confidence</span>
-                          <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">{match.score}% match</span>
+                      <div className="flex gap-4">
+                        <label className="mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-zinc-950">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => togglePairSelection(pairKey)}
+                            className="h-5 w-5 accent-red-600"
+                            aria-label={`Select duplicate pair ${match.playerA.full_name} and ${match.playerB.full_name}`}
+                          />
+                        </label>
+
+                        <div>
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(match.confidence)}`}>{match.confidence} confidence</span>
+                            <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">{match.score}% match</span>
+                            <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
+                              Bulk keeps {chooseBulkPrimary(match).primary.full_name}
+                            </span>
+                          </div>
+                          <p className="mt-4 text-sm text-gray-400">{match.reasons.join("  -  ")}</p>
                         </div>
-                        <p className="mt-4 text-sm text-gray-400">{match.reasons.join("  -  ")}</p>
                       </div>
-                      <button type="button" onClick={() => ignorePair(match)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500">Not same person</button>
+                      <button type="button" disabled={Boolean(mergingKey)} onClick={() => ignorePair(match)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500 disabled:opacity-50">Not same person</button>
                     </div>
 
                     <div className="mt-6 grid gap-4 lg:grid-cols-2">

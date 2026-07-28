@@ -37,6 +37,7 @@ type SectionForm = {
   gender_restriction: GenderRestriction;
   entry_fee_override: string;
   maximum_players: string;
+  chess_results_url: string;
 };
 
 const emptyForm: TournamentForm = {
@@ -72,20 +73,20 @@ const provinces = [
 ];
 
 const quickSectionTemplates: SectionForm[] = [
-  { section_name: "U8", minimum_birth_year: "2019", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U10", minimum_birth_year: "2017", maximum_birth_year: "2018", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U12", minimum_birth_year: "2015", maximum_birth_year: "2016", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U14", minimum_birth_year: "2013", maximum_birth_year: "2014", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U1800", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1799", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U1600", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1599", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U1400", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1399", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "U1200", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1199", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
-  { section_name: "Ladies", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "Female", entry_fee_override: "", maximum_players: "" },
-  { section_name: "Custom", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "" },
+  { section_name: "U8", minimum_birth_year: "2019", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U10", minimum_birth_year: "2017", maximum_birth_year: "2018", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U12", minimum_birth_year: "2015", maximum_birth_year: "2016", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U14", minimum_birth_year: "2013", maximum_birth_year: "2014", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U1800", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1799", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U1600", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1599", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U1400", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1399", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "U1200", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1199", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "Ladies", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "Female", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "Custom", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
 ];
 
 const inputClass =
@@ -116,6 +117,7 @@ function createBlankSection(): SectionForm {
     gender_restriction: "All",
     entry_fee_override: "",
     maximum_players: "",
+    chess_results_url: "",
   };
 }
 
@@ -165,6 +167,17 @@ export default function NewTournamentPage() {
         ? [createBlankSection()]
         : current.filter((_, sectionIndex) => sectionIndex !== index)
     );
+  }
+
+  function moveSection(index: number, direction: "up" | "down") {
+    setSections((current) => {
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= current.length) return current;
+
+      const next = [...current];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
   }
 
   async function handlePosterUpload(event: ChangeEvent<HTMLInputElement>) {
@@ -252,7 +265,7 @@ export default function NewTournamentPage() {
       return;
     }
 
-    const sectionRows = cleanedSections.map((section) => ({
+    const sectionRows = cleanedSections.map((section, index) => ({
       tournament_id: data.id,
       section_name: section.section_name,
       minimum_birth_year: cleanOptionalNumber(section.minimum_birth_year),
@@ -262,6 +275,8 @@ export default function NewTournamentPage() {
       gender_restriction: section.gender_restriction,
       entry_fee_override: cleanOptionalNumber(section.entry_fee_override),
       maximum_players: cleanOptionalNumber(section.maximum_players),
+      chess_results_url: section.chess_results_url.trim() || null,
+      display_order: index + 1,
     }));
 
     const { error: sectionError } = await supabase
@@ -560,23 +575,43 @@ export default function NewTournamentPage() {
                     key={section.id ?? index}
                     className="rounded-xl border border-white/10 bg-zinc-900 p-4"
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <h3 className="font-bold">
                         Section {index + 1}
                         {section.section_name ? `  -  ${section.section_name}` : ""}
                       </h3>
 
-                      <button
-                        type="button"
-                        onClick={() => removeSection(index)}
-                        className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/10"
-                      >
-                        Remove
-                      </button>
+                      <div className="grid grid-cols-3 gap-2 sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={() => moveSection(index, "up")}
+                          disabled={index === 0}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:border-red-500 disabled:opacity-30"
+                        >
+                          Up
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => moveSection(index, "down")}
+                          disabled={index === sections.length - 1}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-white transition hover:border-red-500 disabled:opacity-30"
+                        >
+                          Down
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removeSection(index)}
+                          className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/10"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-4 grid gap-4 md:grid-cols-4">
-                      <div className="md:col-span-3">
+                      <div className="md:col-span-2">
                         <label className="mb-2 block text-sm font-semibold">
                           Section name
                         </label>
@@ -610,6 +645,25 @@ export default function NewTournamentPage() {
                             )
                           }
                           placeholder="e.g. 2013"
+                          className={inputClass}
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="mb-2 block text-sm font-semibold">
+                          Section Chess-Results link
+                        </label>
+                        <input
+                          type="url"
+                          value={section.chess_results_url}
+                          onChange={(event) =>
+                            updateSection(
+                              index,
+                              "chess_results_url",
+                              event.target.value
+                            )
+                          }
+                          placeholder="https://chess-results.com/..."
                           className={inputClass}
                         />
                       </div>

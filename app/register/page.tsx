@@ -66,6 +66,7 @@ type TournamentSection = {
   gender_restriction: string;
   entry_fee_override: number | null;
   maximum_players: number | null;
+  display_order: number | null;
 };
 
 function calculateAge(dateOfBirth: string | null) {
@@ -413,9 +414,10 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournament_sections")
         .select(
-          "id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, gender_restriction, entry_fee_override, maximum_players"
+          "id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, gender_restriction, entry_fee_override, maximum_players, display_order"
         )
         .eq("tournament_id", selectedTournamentId)
+        .order("display_order", { ascending: true, nullsFirst: false })
         .order("minimum_birth_year", { ascending: false, nullsFirst: false })
         .order("section_name", { ascending: true });
 

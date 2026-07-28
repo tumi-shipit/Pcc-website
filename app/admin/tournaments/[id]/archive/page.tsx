@@ -20,6 +20,7 @@ type Tournament = {
 type Section = {
   id: string;
   section_name: string;
+  display_order: number | null;
 };
 
 type ImportedPlayer = {
@@ -680,8 +681,9 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data: sectionData, error: sectionError } = await supabase
       .from("tournament_sections")
-      .select("id, section_name")
+      .select("id, section_name, display_order")
       .eq("tournament_id", tournamentId)
+      .order("display_order", { ascending: true, nullsFirst: false })
       .order("section_name", { ascending: true });
 
     if (tournamentError || !tournamentData) {

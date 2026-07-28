@@ -33,6 +33,7 @@ type TournamentStats = {
 
 type SectionStat = {
   section_name: string;
+  display_order: number | null;
   total: number;
   played: number;
   not_played: number;
@@ -283,6 +284,7 @@ export default function AdminTournamentDashboardPage() {
           groups[section] ??
             {
               section_name: section,
+              display_order: null,
               total: 0,
               played: 0,
               not_played: 0,
@@ -325,8 +327,9 @@ export default function AdminTournamentDashboardPage() {
       const { data: archiveSectionsData, error: archiveSectionsError } =
         await supabase
           .from("tournament_sections")
-          .select("id, section_name, maximum_players")
+          .select("id, section_name, maximum_players, display_order")
           .eq("tournament_id", tournamentId)
+          .order("display_order", { ascending: true, nullsFirst: false })
           .order("section_name", { ascending: true });
 
       const { data: archiveRegistrationsData, error: archiveRegistrationsError } =
@@ -397,6 +400,7 @@ export default function AdminTournamentDashboardPage() {
                 id: string;
                 section_name: string;
                 maximum_players: number | null;
+                display_order?: number | null;
               }[]
             ).find((item) => item.section_name === section.section_name);
             const playedCount = configuredSection
@@ -405,12 +409,18 @@ export default function AdminTournamentDashboardPage() {
 
             return {
               ...section,
+              display_order: configuredSection?.display_order ?? null,
               played: playedCount,
               not_played: Math.max(section.total - playedCount, 0),
               maximum_players: configuredSection?.maximum_players ?? null,
             };
           })
-          .sort((a, b) => a.section_name.localeCompare(b.section_name))
+          .sort((a, b) => {
+            const aOrder = a.display_order ?? 999999;
+            const bOrder = b.display_order ?? 999999;
+            if (aOrder !== bOrder) return aOrder - bOrder;
+            return a.section_name.localeCompare(b.section_name);
+          })
       );
 
       await loadGallery();

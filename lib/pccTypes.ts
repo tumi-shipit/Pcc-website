@@ -74,6 +74,8 @@ export type TournamentSection = {
   gender_restriction?: string | null;
   entry_fee_override: number | null;
   maximum_players: number | null;
+  chess_results_url?: string | null;
+  display_order?: number | null;
 };
 
 export type TournamentStats = {

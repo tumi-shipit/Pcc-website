@@ -33,6 +33,8 @@ type TournamentSection = {
   maximum_rating?: number | null;
   entry_fee_override: number | null;
   maximum_players: number | null;
+  chess_results_url: string | null;
+  display_order: number | null;
 };
 
 type TournamentStats = {
@@ -185,13 +187,6 @@ function statusLabel(status: string) {
   return "Registration Not Open";
 }
 
-function medal(position: number | null) {
-  if (position === 1) return "1st";
-  if (position === 2) return "2nd";
-  if (position === 3) return "3rd";
-  return "";
-}
-
 function publicResultName(result: ResultWithPlayer) {
   return result.imported_name?.trim() || result.player?.full_name || "Player";
 }
@@ -272,8 +267,9 @@ export default function TournamentHubPage() {
 
       const { data: sectionData } = await supabase
         .from("tournament_sections")
-        .select("id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, entry_fee_override, maximum_players")
+        .select("id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, entry_fee_override, maximum_players, chess_results_url, display_order")
         .eq("tournament_id", tournamentId)
+        .order("display_order", { ascending: true, nullsFirst: false })
         .order("section_name", { ascending: true });
 
       const loadedSections = (sectionData ?? []) as TournamentSection[];
@@ -1011,7 +1007,7 @@ function TournamentCredits({
         </p>
       </div>
 
-      <div className="mt-6 flex gap-4 overflow-x-auto pb-2">
+      <div className="mt-6 flex gap-4 overflow-x-auto pb-2 md:flex-wrap md:overflow-visible">
         {organisations.map((assignment) => {
           const organisation = assignment.organisation;
           const representative =
@@ -1322,8 +1318,6 @@ function ArchiveContent({
         )}
       </section>
 
-      <FinalStandingsSection results={results} sections={sections} />
-
       <div className="grid gap-8 lg:grid-cols-2">
         <UpsetsSection upsets={upsets} isShere={isShere} />
         <PlayerOfTournamentSection result={playerOfTournament} />
@@ -1335,71 +1329,6 @@ function ArchiveContent({
         chessResultsUrl={tournament.chess_results_url}
       />
     </div>
-  );
-}
-
-function FinalStandingsSection({
-  results,
-  sections,
-}: {
-  results: ResultWithPlayer[];
-  sections: TournamentSection[];
-}) {
-  const sectionEntries = groupResultsBySection(results, sections).map((section) => ({
-    ...section,
-    podium: section.results
-      .filter((result) => (result.final_position ?? 0) > 0)
-      .slice(0, 3),
-  }));
-
-  return (
-    <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
-      <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-        Final Standings
-      </p>
-      <h2 className="mt-3 text-2xl font-black md:text-4xl">
-        Confirmed standings by section
-      </h2>
-
-      {sectionEntries.length === 0 ? (
-        <p className="mt-4 text-sm leading-7 text-gray-400">
-          Final standings will appear here after results are imported.
-        </p>
-      ) : (
-        <div className="mt-6 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {sectionEntries.map((section) => (
-            <div
-              key={section.sectionName}
-              className="rounded-2xl border border-white/10 bg-zinc-950 p-5"
-            >
-              <h3 className="text-xl font-black text-white">
-                {section.sectionName}
-              </h3>
-
-              <div className="mt-4 space-y-3">
-                {section.podium.length > 0 ? (
-                  section.podium.map((result, index) => {
-                    const position = result.final_position ?? index + 1;
-
-                    return (
-                      <PlayerMiniCard
-                        key={`${section.sectionName}-${result.id}`}
-                        result={result}
-                        label={`${medal(position)} Place`}
-                      />
-                    );
-                  })
-                ) : (
-                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-gray-500">
-                    Standings will be confirmed.
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -1492,6 +1421,7 @@ function groupResultsBySection(
     return sections.map((section) => ({
       sectionId: section.id,
       sectionName: section.section_name,
+      chessResultsUrl: section.chess_results_url,
       results: sortResults(
         results.filter((result) => result.section_id === section.id)
       ),
@@ -1502,6 +1432,7 @@ function groupResultsBySection(
     {
       sectionId: "overall",
       sectionName: "Overall",
+      chessResultsUrl: null,
       results: sortResults(results.filter((result) => !result.section_id)),
     },
   ];
@@ -1578,6 +1509,8 @@ function FinalRankingTable({
         {sectionEntries.map((section) => {
           const topResults = section.results.slice(0, 10);
           const hiddenCount = Math.max(section.results.length - topResults.length, 0);
+          const sectionChessResultsUrl =
+            section.chessResultsUrl || chessResultsUrl;
 
           return (
             <div
@@ -1585,12 +1518,27 @@ function FinalRankingTable({
               className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
             >
               <div className="border-b border-white/10 bg-black/40 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
-                  Section
-                </p>
-                <h3 className="mt-2 text-lg font-black text-white">
-                  {section.sectionName}
-                </h3>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                      Section
+                    </p>
+                    <h3 className="mt-2 text-lg font-black text-white">
+                      {section.sectionName}
+                    </h3>
+                  </div>
+
+                  {sectionChessResultsUrl && (
+                    <a
+                      href={sectionChessResultsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-full border border-white/10 px-3 py-2 text-[11px] font-bold text-white transition hover:border-red-500"
+                    >
+                      Full results
+                    </a>
+                  )}
+                </div>
               </div>
 
               <div className="overflow-x-auto">
@@ -1655,9 +1603,9 @@ function FinalRankingTable({
                 <div className="border-t border-white/10 bg-black/25 p-4 text-xs text-gray-400">
                   {hiddenCount} more player{hiddenCount === 1 ? "" : "s"} in
                   this section.{" "}
-                  {chessResultsUrl ? (
+                  {sectionChessResultsUrl ? (
                     <a
-                      href={chessResultsUrl}
+                      href={sectionChessResultsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-bold text-red-300 transition hover:text-red-200"
