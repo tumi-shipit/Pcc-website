@@ -21,6 +21,10 @@ type Section = {
   id: string;
   section_name: string;
   display_order: number | null;
+  minimum_birth_year: number | null;
+  maximum_birth_year: number | null;
+  minimum_rating: number | null;
+  maximum_rating: number | null;
 };
 
 type ImportedPlayer = {
@@ -32,6 +36,8 @@ type ImportedPlayer = {
   date_of_birth: string | null;
   chess_sa_id: string | null;
   fide_id: string | null;
+  assigned_section_id?: string | null;
+  assigned_section_name?: string | null;
   player_id: string | null;
   status: "Ready" | "Imported" | "Failed";
   message: string;
@@ -233,6 +239,134 @@ function normalizeImportedDate(value: unknown) {
   const month = first > 12 ? second : second > 12 ? first : second;
 
   return formatDateParts(year, month, day);
+}
+
+function getBirthYearFromDate(dateOfBirth: string | null) {
+  if (!dateOfBirth) return null;
+  const year = Number(dateOfBirth.slice(0, 4));
+  return Number.isFinite(year) ? year : null;
+}
+
+function sectionHasAgeRule(section: Section) {
+  return (
+    section.minimum_birth_year !== null ||
+    section.maximum_birth_year !== null
+  );
+}
+
+function sectionHasRatingRule(section: Section) {
+  return section.minimum_rating !== null || section.maximum_rating !== null;
+}
+
+function importedPlayerQualifiesForSection(
+  row: ImportedPlayer,
+  section: Section
+) {
+  const birthYear = getBirthYearFromDate(row.date_of_birth);
+
+  if (sectionHasAgeRule(section)) {
+    if (!birthYear) return false;
+
+    if (
+      section.minimum_birth_year !== null &&
+      section.minimum_birth_year !== undefined &&
+      birthYear < section.minimum_birth_year
+    ) {
+      return false;
+    }
+
+    if (
+      section.maximum_birth_year !== null &&
+      section.maximum_birth_year !== undefined &&
+      birthYear > section.maximum_birth_year
+    ) {
+      return false;
+    }
+  }
+
+  if (sectionHasRatingRule(section)) {
+    if (row.rating === null) return false;
+
+    if (
+      section.minimum_rating !== null &&
+      section.minimum_rating !== undefined &&
+      row.rating < section.minimum_rating
+    ) {
+      return false;
+    }
+
+    if (
+      section.maximum_rating !== null &&
+      section.maximum_rating !== undefined &&
+      row.rating > section.maximum_rating
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function chooseStartingRankSection(
+  row: ImportedPlayer,
+  sections: Section[],
+  fallbackSectionId: string
+) {
+  const fallbackSection =
+    sections.find((section) => section.id === fallbackSectionId) ??
+    sections[0] ??
+    null;
+  const birthYear = getBirthYearFromDate(row.date_of_birth);
+
+  if (birthYear) {
+    const ageSection = sections.find(
+      (section) => sectionHasAgeRule(section) && importedPlayerQualifiesForSection(row, section)
+    );
+
+    if (ageSection) {
+      return {
+        section: ageSection,
+        reason: `Auto-assigned by DOB to ${ageSection.section_name}`,
+      };
+    }
+  }
+
+  if (row.rating !== null) {
+    const ratingSection = sections.find(
+      (section) =>
+        !sectionHasAgeRule(section) &&
+        sectionHasRatingRule(section) &&
+        importedPlayerQualifiesForSection(row, section)
+    );
+
+    if (ratingSection) {
+      return {
+        section: ratingSection,
+        reason: `Auto-assigned by rating to ${ratingSection.section_name}`,
+      };
+    }
+  }
+
+  const openSection = sections.find(
+    (section) =>
+      !sectionHasAgeRule(section) &&
+      !sectionHasRatingRule(section) &&
+      section.section_name.toLowerCase().includes("open")
+  );
+
+  if (birthYear && openSection) {
+    return {
+      section: openSection,
+      reason: `Auto-assigned to ${openSection.section_name}`,
+    };
+  }
+
+  return {
+    section: fallbackSection,
+    reason: fallbackSection
+      ? `Used selected fallback section ${fallbackSection.section_name}`
+      : "No tournament section available",
+  };
 }
 
 function normalizeHeaderName(value: string) {
@@ -756,7 +890,7 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data: sectionData, error: sectionError } = await supabase
       .from("tournament_sections")
-      .select("id, section_name, display_order")
+      .select("id, section_name, display_order, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating")
       .eq("tournament_id", tournamentId)
       .order("display_order", { ascending: true, nullsFirst: false })
       .order("section_name", { ascending: true });
@@ -1396,6 +1530,16 @@ export default function TournamentArchiveContinuationPage() {
     for (const row of playerRows) {
       try {
         const playerId = await findOrCreatePlayer(row);
+        const targetSectionResult = chooseStartingRankSection(
+          row,
+          sections,
+          selectedSectionId
+        );
+        const targetSection = targetSectionResult.section;
+
+        if (!targetSection) {
+          throw new Error("No tournament section could be selected.");
+        }
 
         const { data: existingRegistration, error: existingRegistrationError } =
           await supabase
@@ -1411,7 +1555,7 @@ export default function TournamentArchiveContinuationPage() {
           const { error: updateRegistrationError } = await supabase
             .from("registrations")
             .update({
-              section_id: selectedSectionId,
+              section_id: targetSection.id,
               payment_status: "Paid",
               proof_of_payment_url: null,
               registration_status: "Approved",
@@ -1426,7 +1570,7 @@ export default function TournamentArchiveContinuationPage() {
             .insert({
               player_id: playerId,
               tournament_id: tournament.id,
-              section_id: selectedSectionId,
+              section_id: targetSection.id,
               payment_status: "Paid",
               proof_of_payment_url: null,
               registration_status: "Approved",
@@ -1437,9 +1581,11 @@ export default function TournamentArchiveContinuationPage() {
 
         updatedRows.push({
           ...row,
+          assigned_section_id: targetSection.id,
+          assigned_section_name: targetSection.section_name,
           player_id: playerId,
           status: "Imported",
-          message: "Player and section registration imported",
+          message: `Player registration imported. ${targetSectionResult.reason}.`,
         });
       } catch (error) {
         updatedRows.push({
@@ -1459,6 +1605,21 @@ export default function TournamentArchiveContinuationPage() {
 
     const importedCount = updatedRows.filter((row) => row.status === "Imported").length;
     const failedCount = updatedRows.filter((row) => row.status === "Failed").length;
+    const distributedCount = updatedRows.filter(
+      (row) =>
+        row.status === "Imported" &&
+        row.assigned_section_id &&
+        row.assigned_section_id !== selectedSectionId
+    ).length;
+    const assignedSectionCounts = updatedRows.reduce<Record<string, number>>(
+      (counts, row) => {
+        if (row.status !== "Imported") return counts;
+        const sectionName = row.assigned_section_name ?? "Unknown section";
+        counts[sectionName] = (counts[sectionName] ?? 0) + 1;
+        return counts;
+      },
+      {}
+    );
 
     try {
       const importSession = await createImportSession({
@@ -1476,7 +1637,9 @@ export default function TournamentArchiveContinuationPage() {
         failed_rows: failedCount,
         summary: {
           section_id: selectedSectionId,
-          note: "Imported section players and created or updated tournament registrations.",
+          distributed_rows: distributedCount,
+          assigned_sections: assignedSectionCounts,
+          note: "Imported starting rank players and auto-assigned registrations to qualifying sections where possible.",
         },
       });
 
@@ -1498,7 +1661,9 @@ export default function TournamentArchiveContinuationPage() {
             date_of_birth: row.date_of_birth,
             chess_sa_id: row.chess_sa_id,
             fide_id: row.fide_id,
-            section_id: selectedSectionId,
+            selected_fallback_section_id: selectedSectionId,
+            assigned_section_id: row.assigned_section_id ?? selectedSectionId,
+            assigned_section_name: row.assigned_section_name ?? null,
           },
         }))
       );
@@ -1522,7 +1687,13 @@ export default function TournamentArchiveContinuationPage() {
     await loadTournamentPlayers();
 
     setImportingPlayers(false);
-    setMessage("Section player import completed. You can now import this section's final ranking.");
+    setMessage(
+      distributedCount > 0
+        ? `Starting Rank import completed. ${distributedCount} player${
+            distributedCount === 1 ? "" : "s"
+          } were auto-distributed to qualifying sections.`
+        : "Starting Rank import completed. Players were registered in the selected fallback section."
+    );
   }
 
   function assignRankingPlayer(
@@ -1838,7 +2009,8 @@ export default function TournamentArchiveContinuationPage() {
                 </select>
 
                 <p className="mt-2 text-xs text-gray-500">
-                  Registered players currently loaded in this section:{" "}
+                  This section is used as the fallback when an imported row has
+                  no DOB/rating match. Registered players currently loaded here:{" "}
                   {sectionPlayers.length}
                 </p>
               </div>
@@ -1866,8 +2038,9 @@ export default function TournamentArchiveContinuationPage() {
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-gray-400">
-                    Upload a Starting Rank List only when the final ranking
-                    names do not match the website registrations cleanly.
+                    Upload one tournament Starting Rank List. Players with DOB
+                    or rating data are registered into the qualifying section
+                    automatically.
                   </p>
                 </div>
 
@@ -1910,12 +2083,13 @@ export default function TournamentArchiveContinuationPage() {
               </div>
 
               <PreviewTable
-                emptyText="Optional: upload this section's Starting Rank List for extra matching help."
+                emptyText="Optional: upload the tournament Starting Rank List to register and distribute players."
                 headers={[
                   "SNo",
                   "Name",
                   "Rating",
                   "DOB",
+                  "Target section",
                   "Chess SA ID",
                   "FIDE ID",
                   "FED",
@@ -1928,6 +2102,13 @@ export default function TournamentArchiveContinuationPage() {
                   row.name,
                   row.rating ?? "-",
                   row.date_of_birth ?? "-",
+                  row.assigned_section_name ??
+                    chooseStartingRankSection(
+                      row,
+                      sections,
+                      selectedSectionId
+                    ).section?.section_name ??
+                    "-",
                   row.chess_sa_id ?? "-",
                   row.fide_id ?? "-",
                   row.federation ?? "-",
