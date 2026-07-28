@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
-type SearchMethod = "pccid" | "surname" | "chesssa";
+type SearchMethod = "surname" | "chesssa";
 
 type ChessSaPlayer = {
   pcc_id: string | null;
@@ -448,26 +448,13 @@ export default function RegisterPage() {
     const lookupResults: ChessSaPlayer[] = [];
     const cleanSearch = searchValue.trim();
 
-    if (searchMethod === "pccid") {
-      const { data, error } = await supabase.rpc(
-        "find_pcc_player_for_registration",
-        {
-          p_search_method: "pccid",
-          p_search_value: cleanSearch,
-          p_birth_date: null,
-        }
-      );
-
-      if (error) {
-        setSearchMessage(`Search failed: ${error.message}`);
+    if (searchMethod === "surname") {
+      if (!searchBirthDate) {
+        setSearchMessage("Enter the player's surname and date of birth.");
         setSearching(false);
         return;
       }
 
-      lookupResults.push(...((data ?? []) as ChessSaPlayer[]));
-    }
-
-    if (searchMethod === "surname") {
       const { data: pccData, error: pccError } = await supabase.rpc(
         "find_pcc_player_for_registration",
         {
@@ -481,31 +468,25 @@ export default function RegisterPage() {
         lookupResults.push(...((pccData ?? []) as ChessSaPlayer[]));
       }
 
-      if (searchBirthDate) {
-        const { data: chessSaData, error: chessSaError } = await supabase.rpc(
-          "find_chessa_player_for_registration",
-          {
-            p_search_method: "surname",
-            p_search_value: cleanSearch,
-            p_birth_date: searchBirthDate,
-          }
+      const { data: chessSaData, error: chessSaError } = await supabase.rpc(
+        "find_chessa_player_for_registration",
+        {
+          p_search_method: "surname",
+          p_search_value: cleanSearch,
+          p_birth_date: searchBirthDate,
+        }
+      );
+
+      if (!chessSaError) {
+        lookupResults.push(
+          ...((chessSaData ?? []) as ChessSaPlayer[]).map((player) => ({
+            ...player,
+            pcc_id: player.pcc_id ?? null,
+          }))
         );
+      }
 
-        if (!chessSaError) {
-          lookupResults.push(
-            ...((chessSaData ?? []) as ChessSaPlayer[]).map((player) => ({
-              ...player,
-              pcc_id: player.pcc_id ?? null,
-            }))
-          );
-        }
-
-        if (pccError && chessSaError) {
-          setSearchMessage(`Search failed: ${pccError.message}`);
-          setSearching(false);
-          return;
-        }
-      } else if (pccError) {
+      if (pccError && chessSaError) {
         setSearchMessage(`Search failed: ${pccError.message}`);
         setSearching(false);
         return;
@@ -540,10 +521,8 @@ export default function RegisterPage() {
 
     if (results.length === 0) {
       setSearchMessage(
-        searchMethod === "pccid"
-          ? "No matching PCC player was found. Check the PCC ID."
-          : searchMethod === "surname"
-          ? "No matching player was found. Previous PCC players can be found by name; Chess SA search needs date of birth."
+        searchMethod === "surname"
+          ? "No matching player was found. Check the surname and date of birth, or try Chess SA ID."
           : "No matching Chess SA player was found. Check the Chess SA ID."
       );
       setSearching(false);
@@ -911,7 +890,7 @@ export default function RegisterPage() {
               [
                 "1",
                 "Find profile",
-                "Search using PCC ID, Chess SA ID, or a previous PCC player name.",
+                "Use Chess SA ID, or surname with date of birth.",
               ],
               [
                 "2",
@@ -949,18 +928,26 @@ export default function RegisterPage() {
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Use the player's PCC ID, Chess SA ID, or search by name/surname if
-            the player has entered a previous tournament on this site.
+            Choose one lookup method. Use Chess SA ID when you know it, or use
+            surname with date of birth when the player has played on this
+            platform before.
           </p>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
             {(
               [
-                ["pccid", "Player PCC ID"],
-                ["surname", "Name or surname"],
-                ["chesssa", "Player Chess SA ID"],
+                [
+                  "surname",
+                  "Surname + date of birth",
+                  "Best when you do not know the ID.",
+                ],
+                [
+                  "chesssa",
+                  "Chess SA ID",
+                  "Best when the player already has an ID.",
+                ],
               ] as const
-            ).map(([method, label]) => (
+            ).map(([method, label, helper]) => (
               <button
                 key={method}
                 type="button"
@@ -972,13 +959,20 @@ export default function RegisterPage() {
                   setSelectedChessSaPlayer(null);
                   setSearchMessage("");
                 }}
-                className={`rounded-lg border px-3 py-2.5 text-sm font-semibold transition ${
+                className={`rounded-lg border px-3 py-3 text-left text-sm transition ${
                   searchMethod === method
                     ? "border-red-500 bg-red-600 text-white"
                     : "border-white/10 bg-zinc-950 text-gray-300 hover:border-red-500/60"
                 }`}
               >
-                {label}
+                <span className="block font-bold">{label}</span>
+                <span
+                  className={`mt-1 block text-xs ${
+                    searchMethod === method ? "text-red-50/80" : "text-gray-500"
+                  }`}
+                >
+                  {helper}
+                </span>
               </button>
             ))}
           </div>
@@ -986,10 +980,8 @@ export default function RegisterPage() {
           <form onSubmit={handleSearch} className="mt-5 grid gap-4 md:grid-cols-2">
             <div>
               <label className="mb-2 block text-sm font-semibold text-gray-200">
-                {searchMethod === "pccid"
-                  ? "Player PCC ID"
-                  : searchMethod === "surname"
-                  ? "Player name or surname"
+                {searchMethod === "surname"
+                  ? "Player surname"
                   : "Player Chess SA ID"}
               </label>
 
@@ -1000,9 +992,7 @@ export default function RegisterPage() {
                 onChange={(event) => setSearchValue(event.target.value)}
                 placeholder={
                   searchMethod === "surname"
-                    ? "Enter name or surname"
-                    : searchMethod === "pccid"
-                    ? "Example: PCC-000123"
+                    ? "Enter surname only"
                     : "Enter the player's Chess SA ID"
                 }
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
@@ -1013,13 +1003,11 @@ export default function RegisterPage() {
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-200">
                   Date of birth
-                  <span className="ml-1 text-xs font-normal text-gray-500">
-                    optional
-                  </span>
                 </label>
 
                 <input
                   type="date"
+                  required
                   value={searchBirthDate}
                   onChange={(event) => setSearchBirthDate(event.target.value)}
                   className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
@@ -1687,7 +1675,7 @@ export default function RegisterPage() {
 
           <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
-              ["1", "Search", "Find your PCC/Chess SA profile or use New Player."],
+              ["1", "Search", "Use Chess SA ID, or surname with date of birth."],
               ["2", "Confirm", "Confirm that the player found is you."],
               ["3", "Choose", "Select the tournament and section."],
               ["4", "Submit", "Submit your entry for admin review."],

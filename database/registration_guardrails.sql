@@ -174,6 +174,9 @@ declare
   section_error text;
   section_limit integer;
   active_section_entries integer;
+  new_verification_status public.players.verification_status%type;
+  new_payment_status public.registrations.payment_status%type;
+  new_registration_status public.registrations.registration_status%type;
 begin
   clean_name := regexp_replace(trim(coalesce(p_full_name, '')), '\s+', ' ', 'g');
   clean_name_key := public.registration_name_key(clean_name);
@@ -197,7 +200,7 @@ begin
     select 1
     from public.tournaments
     where id = p_tournament_id
-      and registration_status = 'Open'
+      and registration_status::text = 'Open'
   ) then
     raise exception 'This tournament is not open for registration.';
   end if;
@@ -232,7 +235,7 @@ begin
     into active_section_entries
     from public.registrations
     where section_id = p_section_id
-      and coalesce(registration_status, 'Pending') not in ('Rejected', 'Withdrawn');
+      and coalesce(registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn');
 
     if active_section_entries >= section_limit then
       raise exception 'This section is already full.';
@@ -275,6 +278,12 @@ begin
         updated_at = now()
     where id = player_uuid;
   else
+    if clean_chess_sa_id is null then
+      new_verification_status := 'Pending';
+    else
+      new_verification_status := 'Verified';
+    end if;
+
     insert into public.players (
       full_name,
       chess_sa_id,
@@ -299,7 +308,7 @@ begin
       p_phone,
       nullif(trim(coalesce(p_club, '')), ''),
       nullif(trim(coalesce(p_province, '')), ''),
-      case when clean_chess_sa_id is null then 'Pending' else 'Verified' end,
+      new_verification_status,
       now(),
       now()
     )
@@ -311,7 +320,7 @@ begin
     from public.registrations existing_registration
     where existing_registration.tournament_id = p_tournament_id
       and existing_registration.player_id = player_uuid
-      and coalesce(existing_registration.registration_status, 'Pending') not in ('Rejected', 'Withdrawn')
+      and coalesce(existing_registration.registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn')
   ) then
     raise exception 'This player is already registered for this tournament.';
   end if;
@@ -321,7 +330,7 @@ begin
     from public.registrations existing_registration
     join public.players existing_player on existing_player.id = existing_registration.player_id
     where existing_registration.tournament_id = p_tournament_id
-      and coalesce(existing_registration.registration_status, 'Pending') not in ('Rejected', 'Withdrawn')
+      and coalesce(existing_registration.registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn')
       and (
         (
           p_date_of_birth is not null
@@ -340,6 +349,16 @@ begin
     raise exception 'A matching registration already exists for this tournament. Please contact the organiser if this entry needs changes.';
   end if;
 
+  if p_payment_status = 'Proof Submitted' then
+    new_payment_status := 'Proof Submitted';
+  elsif p_payment_status = 'Paid' then
+    new_payment_status := 'Paid';
+  else
+    new_payment_status := 'Pending';
+  end if;
+
+  new_registration_status := 'Pending';
+
   insert into public.registrations (
     player_id,
     tournament_id,
@@ -354,12 +373,9 @@ begin
     player_uuid,
     p_tournament_id,
     p_section_id,
-    case
-      when p_payment_status in ('Proof Submitted', 'Paid') then p_payment_status
-      else 'Pending'
-    end,
+    new_payment_status,
     nullif(trim(coalesce(p_proof_of_payment_url, '')), ''),
-    'Pending',
+    new_registration_status,
     now(),
     now()
   );
@@ -372,7 +388,7 @@ grant execute on function public.submit_tournament_registration(text, text, date
 
 create index if not exists registrations_tournament_player_guard_idx
 on public.registrations (tournament_id, player_id)
-where coalesce(registration_status, 'Pending') not in ('Rejected', 'Withdrawn');
+where coalesce(registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn');
 
 create index if not exists players_name_dob_guard_idx
 on public.players (date_of_birth, public.registration_name_key(full_name));

@@ -239,6 +239,7 @@ export default function AdminOfficialsPage() {
         (player?.full_name ?? "").toLowerCase().includes(text) ||
         (player?.chess_sa_id ?? "").toLowerCase().includes(text) ||
         (player?.fide_id ?? "").toLowerCase().includes(text) ||
+        (player?.title ?? "").toLowerCase().includes(text) ||
         (player?.club ?? "").toLowerCase().includes(text) ||
         (player?.province ?? "").toLowerCase().includes(text) ||
         (tournament?.tournament_name ?? "").toLowerCase().includes(text) ||
@@ -801,7 +802,7 @@ export default function AdminOfficialsPage() {
                           <div className="mt-2 grid gap-2 text-sm text-gray-400 md:grid-cols-3">
                             <p>Chess SA: {valueOrDash(player?.chess_sa_id)}</p>
                             <p>FIDE: {valueOrDash(player?.fide_id)}</p>
-                            <p>Title: {valueOrDash(player?.title)}</p>
+                            <p>Arbiter title: {valueOrDash(player?.title)}</p>
                             <p>Club: {valueOrDash(player?.club)}</p>
                             <p>Province: {valueOrDash(player?.province)}</p>
                             <p>Rating: {valueOrDash(player?.rating)}</p>

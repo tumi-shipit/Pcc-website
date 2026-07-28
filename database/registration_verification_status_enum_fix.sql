@@ -1,10 +1,7 @@
--- PCC player IDs and registration lookup.
--- Run this in Supabase SQL Editor before deploying UI that selects pcc_id.
-
-create sequence if not exists public.players_pcc_id_seq;
-
-alter table public.players
-add column if not exists pcc_id text;
+-- Emergency live registration repair.
+-- This script is self-contained. It does not depend on older helper functions
+-- being present, and it avoids text-to-enum errors by using column-typed
+-- status variables.
 
 create or replace function public.registration_name_key(p_name text)
 returns text
@@ -21,72 +18,6 @@ as $$
       where token <> ''
     ),
     ''
-  )
-$$;
-
-create or replace function public.next_pcc_id()
-returns text
-language plpgsql
-as $$
-declare
-  next_number bigint;
-  next_id text;
-begin
-  loop
-    next_number := nextval('public.players_pcc_id_seq');
-    next_id := 'PCC-' || lpad(next_number::text, 6, '0');
-
-    if not exists (
-      select 1
-      from public.players
-      where pcc_id = next_id
-    ) then
-      return next_id;
-    end if;
-  end loop;
-end;
-$$;
-
-alter table public.players
-alter column pcc_id set default public.next_pcc_id();
-
-update public.players
-set pcc_id = public.next_pcc_id()
-where pcc_id is null or pcc_id = '';
-
-create unique index if not exists players_pcc_id_unique_idx
-on public.players (pcc_id)
-where pcc_id is not null and pcc_id <> '';
-
-select setval(
-  'public.players_pcc_id_seq',
-  greatest(
-    coalesce(
-      (
-        select max(nullif(regexp_replace(pcc_id, '[^0-9]', '', 'g'), '')::bigint)
-        from public.players
-      ),
-      0
-    ),
-    1
-  ),
-  true
-);
-
-create or replace function public.player_has_pcc_activity(p_player_id uuid)
-returns boolean
-language sql
-stable
-as $$
-  select exists (
-    select 1
-    from public.registrations
-    where player_id = p_player_id
-  )
-  or exists (
-    select 1
-    from public.tournament_results
-    where player_id = p_player_id
   )
 $$;
 
@@ -147,12 +78,12 @@ begin
     end if;
   end if;
 
-  clean_gender := nullif(trim(coalesce(p_gender, '')), '');
+  clean_gender := lower(trim(coalesce(p_gender, '')));
 
   if section_record.gender_restriction is not null
     and section_record.gender_restriction <> ''
-    and section_record.gender_restriction <> 'All'
-    and clean_gender is distinct from section_record.gender_restriction then
+    and lower(section_record.gender_restriction) <> 'all'
+    and clean_gender <> lower(section_record.gender_restriction) then
     return format(
       '%s is restricted to %s players.',
       section_record.section_name,
@@ -164,7 +95,7 @@ begin
     or section_record.maximum_rating is not null then
     if p_rating is null then
       return format(
-        '%s requires a rating before choosing this section.',
+        '%s requires a Chess SA rating before choosing this section.',
         section_record.section_name
       );
     end if;
@@ -192,124 +123,8 @@ begin
 end;
 $$;
 
-create or replace function public.find_pcc_player_for_registration(
-  p_search_method text,
-  p_search_value text,
-  p_birth_date date default null
-)
-returns table (
-  pcc_id text,
-  chess_sa_id text,
-  full_name text,
-  date_of_birth date,
-  gender text,
-  title text,
-  federation text,
-  standard_rating integer,
-  rapid_rating integer,
-  blitz_rating integer,
-  email text,
-  phone text,
-  club text,
-  province text
-)
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  clean_method text := lower(trim(coalesce(p_search_method, '')));
-  clean_value text := trim(coalesce(p_search_value, ''));
-  search_pattern text := '%' || replace(trim(coalesce(p_search_value, '')), ',', ' ') || '%';
-begin
-  if clean_value = '' then
-    return;
-  end if;
-
-  if clean_method in ('pccid', 'pcc_id', 'pcc') then
-    return query
-    select
-      players.pcc_id,
-      players.chess_sa_id,
-      players.full_name,
-      players.date_of_birth,
-      players.gender,
-      players.title,
-      players.province as federation,
-      players.rating as standard_rating,
-      null::integer as rapid_rating,
-      null::integer as blitz_rating,
-      players.email,
-      players.phone,
-      players.club,
-      players.province
-    from public.players
-    where upper(players.pcc_id) = upper(clean_value)
-    limit 1;
-
-    return;
-  end if;
-
-  if clean_method in ('name', 'surname') then
-    return query
-    select
-      players.pcc_id,
-      players.chess_sa_id,
-      players.full_name,
-      players.date_of_birth,
-      players.gender,
-      players.title,
-      players.province as federation,
-      players.rating as standard_rating,
-      null::integer as rapid_rating,
-      null::integer as blitz_rating,
-      players.email,
-      players.phone,
-      players.club,
-      players.province
-    from public.players
-    where public.player_has_pcc_activity(players.id)
-      and (
-        players.full_name ilike search_pattern
-        or public.registration_name_key(players.full_name) ilike public.registration_name_key(clean_value) || '%'
-      )
-      and (
-        p_birth_date is null
-        or players.date_of_birth is null
-        or players.date_of_birth = p_birth_date
-      )
-    order by
-      case when players.date_of_birth = p_birth_date then 0 else 1 end,
-      case when players.chess_sa_id is not null and players.chess_sa_id <> '' then 0 else 1 end,
-      players.full_name
-    limit 20;
-
-    return;
-  end if;
-end;
-$$;
-
-grant execute on function public.find_pcc_player_for_registration(text, text, date)
-to anon, authenticated;
-
-grant execute on function public.registration_name_key(text) to anon, authenticated;
-grant execute on function public.registration_section_error(uuid, date, text, integer) to anon, authenticated;
-
 drop function if exists public.submit_tournament_registration(
-  text,
-  text,
-  text,
-  date,
-  text,
-  integer,
-  text,
-  text,
-  text,
-  text,
-  uuid,
-  uuid,
-  text,
-  text
+  text, text, text, date, text, integer, text, text, text, text, uuid, uuid, text, text
 );
 
 create or replace function public.submit_tournament_registration(
@@ -328,44 +143,40 @@ create or replace function public.submit_tournament_registration(
   p_payment_status text,
   p_proof_of_payment_url text
 )
-returns void
+returns uuid
 language plpgsql
 security definer
 set search_path = public
 as $$
 declare
-  clean_name text;
-  clean_name_key text;
-  clean_pcc_id text;
-  clean_chess_sa_id text;
-  clean_email text;
-  clean_phone text;
-  player_record record;
+  clean_name text := regexp_replace(trim(coalesce(p_full_name, '')), '\s+', ' ', 'g');
+  clean_name_key text := public.registration_name_key(coalesce(p_full_name, ''));
+  clean_pcc_id text := nullif(upper(trim(coalesce(p_pcc_id, ''))), '');
+  clean_chess_sa_id text := nullif(trim(coalesce(p_chess_sa_id, '')), '');
+  clean_email text := nullif(lower(trim(coalesce(p_email, ''))), '');
+  clean_phone text := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
   player_uuid uuid;
+  player_record public.players%rowtype;
+  section_record public.tournament_sections%rowtype;
+  tournament_section_count integer;
+  active_registration_count integer;
+  max_players integer;
+  new_registration_id uuid;
   section_error text;
-  section_limit integer;
-  active_section_entries integer;
   new_verification_status public.players.verification_status%type;
   new_payment_status public.registrations.payment_status%type;
   new_registration_status public.registrations.registration_status%type;
 begin
-  clean_name := regexp_replace(trim(coalesce(p_full_name, '')), '\s+', ' ', 'g');
-  clean_name_key := public.registration_name_key(clean_name);
-  clean_pcc_id := nullif(upper(trim(coalesce(p_pcc_id, ''))), '');
-  clean_chess_sa_id := nullif(trim(coalesce(p_chess_sa_id, '')), '');
-  clean_email := lower(trim(coalesce(p_email, '')));
-  clean_phone := regexp_replace(coalesce(p_phone, ''), '\D', '', 'g');
-
   if clean_name = '' then
     raise exception 'Player name is required.';
   end if;
 
-  if clean_email = '' or clean_phone = '' then
+  if clean_email is null or clean_phone = '' then
     raise exception 'Email and phone number are required.';
   end if;
 
-  if p_tournament_id is null or p_section_id is null then
-    raise exception 'Tournament and section are required.';
+  if p_tournament_id is null then
+    raise exception 'Tournament is required.';
   end if;
 
   if not exists (
@@ -377,40 +188,49 @@ begin
     raise exception 'This tournament is not open for registration.';
   end if;
 
-  if not exists (
-    select 1
+  select count(*)
+  into tournament_section_count
+  from public.tournament_sections
+  where tournament_id = p_tournament_id;
+
+  if tournament_section_count > 0 and p_section_id is null then
+    raise exception 'Section is required for this tournament.';
+  end if;
+
+  if p_section_id is not null then
+    select *
+    into section_record
     from public.tournament_sections
     where id = p_section_id
-      and tournament_id = p_tournament_id
-  ) then
-    raise exception 'Selected section does not belong to this tournament.';
-  end if;
+      and tournament_id = p_tournament_id;
 
-  section_error := public.registration_section_error(
-    p_section_id,
-    p_date_of_birth,
-    p_gender,
-    p_rating
-  );
+    if not found then
+      raise exception 'Selected section does not belong to this tournament.';
+    end if;
 
-  if section_error is not null then
-    raise exception '%', section_error;
-  end if;
+    section_error := public.registration_section_error(
+      p_section_id,
+      p_date_of_birth,
+      p_gender,
+      p_rating
+    );
 
-  select maximum_players
-  into section_limit
-  from public.tournament_sections
-  where id = p_section_id;
+    if section_error is not null then
+      raise exception '%', section_error;
+    end if;
 
-  if section_limit is not null then
-    select count(*)
-    into active_section_entries
-    from public.registrations
-    where section_id = p_section_id
-      and coalesce(registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn');
+    max_players := section_record.maximum_players;
 
-    if active_section_entries >= section_limit then
-      raise exception 'This section is already full.';
+    if max_players is not null then
+      select count(*)
+      into active_registration_count
+      from public.registrations
+      where section_id = p_section_id
+        and coalesce(registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn');
+
+      if active_registration_count >= max_players then
+        raise exception '% is full.', section_record.section_name;
+      end if;
     end if;
   end if;
 
@@ -420,17 +240,17 @@ begin
     from public.players
     where upper(pcc_id) = clean_pcc_id
     limit 1;
+  end if;
 
-    if not found then
-      raise exception 'PCC ID was not found. Please check the PCC ID or search by name.';
-    end if;
-  elsif clean_chess_sa_id is not null then
+  if player_record.id is null and clean_chess_sa_id is not null then
     select *
     into player_record
     from public.players
     where chess_sa_id = clean_chess_sa_id
     limit 1;
-  else
+  end if;
+
+  if player_record.id is null then
     select *
     into player_record
     from public.players
@@ -440,12 +260,15 @@ begin
     order by case when chess_sa_id is not null and chess_sa_id <> '' then 0 else 1 end
     limit 1;
 
-    if found and player_record.chess_sa_id is not null and player_record.chess_sa_id <> '' then
+    if player_record.id is not null
+      and player_record.chess_sa_id is not null
+      and player_record.chess_sa_id <> ''
+      and clean_chess_sa_id is null then
       raise exception 'This player appears to already have a Chess SA profile. Please search and register using the Chess SA profile instead of New Player.';
     end if;
   end if;
 
-  if found then
+  if player_record.id is not null then
     player_uuid := player_record.id;
 
     update public.players
@@ -561,9 +384,15 @@ begin
     new_registration_status,
     now(),
     now()
-  );
+  )
+  returning id into new_registration_id;
+
+  return new_registration_id;
 end;
 $$;
 
-grant execute on function public.submit_tournament_registration(text, text, text, date, text, integer, text, text, text, text, uuid, uuid, text, text)
-to anon, authenticated;
+grant execute on function public.registration_name_key(text) to anon, authenticated;
+grant execute on function public.registration_section_error(uuid, date, text, integer) to anon, authenticated;
+grant execute on function public.submit_tournament_registration(
+  text, text, text, date, text, integer, text, text, text, text, uuid, uuid, text, text
+) to anon, authenticated;

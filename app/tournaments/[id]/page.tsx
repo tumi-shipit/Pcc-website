@@ -62,6 +62,7 @@ type Player = {
   club: string | null;
   province: string | null;
   profile_photo_url: string | null;
+  title: string | null;
 };
 
 type TournamentResult = {
@@ -372,6 +373,7 @@ export default function TournamentHubPage() {
               club: role.club,
               province: role.province,
               profile_photo_url: role.profile_photo_url,
+              title: null,
             }
           : null,
       }));
@@ -380,7 +382,7 @@ export default function TournamentHubPage() {
         const { data: officialData } = await supabase
           .from("tournament_officials")
           .select(
-            "id, tournament_id, player_id, role, notes, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url)"
+            "id, tournament_id, player_id, role, notes, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url, title)"
           )
           .eq("tournament_id", tournamentId)
           .order("created_at", { ascending: true });
@@ -415,7 +417,7 @@ export default function TournamentHubPage() {
         const { data: playerData } = await supabase
           .from("players")
           .select(
-            "id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url"
+            "id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url, title"
           )
           .in("id", playerIds);
 
@@ -455,10 +457,21 @@ export default function TournamentHubPage() {
       setOfficials(
         loadedOfficials.map((official) => ({
           ...official,
-          player:
-            official.player ??
-            players.find((player) => player.id === official.player_id) ??
-            null,
+          player: (() => {
+            const playerFromList =
+              players.find((player) => player.id === official.player_id) ?? null;
+
+            if (!official.player) return playerFromList;
+            if (!playerFromList) return official.player;
+
+            return {
+              ...official.player,
+              ...playerFromList,
+              profile_photo_url:
+                official.player.profile_photo_url ?? playerFromList.profile_photo_url,
+              title: official.player.title ?? playerFromList.title,
+            };
+          })(),
         }))
       );
       setShowAllGallery(false);
@@ -931,6 +944,11 @@ function TournamentTeam({
                   ) : (
                     name
                   )}
+                  {player.title && (
+                    <p className="mt-1 w-fit rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-100">
+                      {player.title}
+                    </p>
+                  )}
                   <p className="mt-1 truncate text-xs text-gray-400">
                     {player.club ?? "Chess official"}
                     {player.province ? `  -  ${player.province}` : ""}
@@ -1103,6 +1121,11 @@ function TournamentCredits({
                   <span className="mt-1 block truncate text-lg font-black text-white">
                     {player.full_name}
                   </span>
+                )}
+                {player.title && (
+                  <p className="mt-1 w-fit rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-100">
+                    {player.title}
+                  </p>
                 )}
                 <p className="mt-1 truncate text-xs text-gray-400">
                   {player.club ?? "Chess official"}

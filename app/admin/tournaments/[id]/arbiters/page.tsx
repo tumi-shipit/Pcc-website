@@ -41,6 +41,7 @@ type Official = {
 
 type OfficialForm = {
   player_id: string;
+  title: string;
   role: string;
   notes: string;
 };
@@ -56,6 +57,7 @@ type QuickPlayerForm = {
 
 const emptyForm: OfficialForm = {
   player_id: "",
+  title: "",
   role: "Chief Arbiter",
   notes: "",
 };
@@ -118,6 +120,34 @@ function roleGroup(role: string) {
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+
+const arbiterTitleGroups = [
+  {
+    label: "South African qualifications",
+    titles: [
+      "School Supervisor (SS)",
+      "Tournament Supervisor (TS)",
+      "Candidate Provincial Arbiter (CPA)",
+    ],
+  },
+  {
+    label: "South African titles",
+    titles: ["Provincial Arbiter (PA)", "Senior Arbiter (SA)"],
+  },
+  {
+    label: "National title",
+    titles: ["National Arbiter (FIDE-recognised licence)"],
+  },
+  {
+    label: "FIDE titles",
+    titles: [
+      "FIDE Arbiter (FA)",
+      "International Arbiter (IA) - Level 1",
+      "International Arbiter (IA) - Level 2",
+      "International Arbiter (IA) - Level 3",
+    ],
+  },
+];
 
 function formatDate(value: string | null) {
   if (!value) return "TBA";
@@ -262,6 +292,7 @@ export default function TournamentArbitersPage({
     setEditingOfficialId(official.id);
     setForm({
       player_id: official.player_id,
+      title: official.players?.title ?? "",
       role: official.role,
       notes: official.notes ?? "",
     });
@@ -297,6 +328,23 @@ export default function TournamentArbitersPage({
       notes: form.notes.trim() || null,
       updated_at: new Date().toISOString(),
     };
+    const cleanTitle = form.title.trim() || null;
+
+    if (selectedPlayer && cleanTitle !== (selectedPlayer.title ?? null)) {
+      const { error: titleError } = await supabase
+        .from("players")
+        .update({
+          title: cleanTitle,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", form.player_id);
+
+      if (titleError) {
+        setMessage(`Could not save arbiter title: ${titleError.message}`);
+        setSaving(false);
+        return;
+      }
+    }
 
     if (editingOfficialId) {
       const { error } = await supabase
@@ -577,9 +625,16 @@ export default function TournamentArbitersPage({
                   <Field label="Selected player">
                     <select
                       value={form.player_id}
-                      onChange={(event) =>
-                        updateField("player_id", event.target.value)
-                      }
+                      onChange={(event) => {
+                        const playerId = event.target.value;
+                        const player = players.find((item) => item.id === playerId);
+
+                        setForm((current) => ({
+                          ...current,
+                          player_id: playerId,
+                          title: player?.title ?? "",
+                        }));
+                      }}
                       className={inputClass}
                       required
                     >
@@ -662,6 +717,17 @@ export default function TournamentArbitersPage({
                       </div>
                     </div>
                   )}
+
+                  <Field label="Arbiter title">
+                    <ArbiterTitleSelect
+                      value={form.title}
+                      onChange={(event) => updateField("title", event.target.value)}
+                    />
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      Saved on the Player Centre profile and shown on the public
+                      tournament page.
+                    </p>
+                  </Field>
 
                   <Field label="Role">
                     <select
@@ -790,7 +856,7 @@ export default function TournamentArbitersPage({
                               </Link>
 
                               <p className="mt-1 text-sm text-gray-400">
-                                {valueOrDash(player?.title)}  -  Chess SA:{" "}
+                                Arbiter title: {valueOrDash(player?.title)}  -  Chess SA:{" "}
                                 {valueOrDash(player?.chess_sa_id)}  -  FIDE:{" "}
                                 {valueOrDash(player?.fide_id)}
                               </p>
@@ -895,11 +961,9 @@ function QuickPlayerFormFields({
         />
       </div>
 
-      <input
+      <ArbiterTitleSelect
         value={form.title}
         onChange={(event) => onChange("title", event.target.value)}
-        placeholder="Title or role label"
-        className={inputClass}
       />
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -926,6 +990,29 @@ function QuickPlayerFormFields({
         {creating ? "Creating..." : "Create and select"}
       </button>
     </div>
+  );
+}
+
+function ArbiterTitleSelect({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
+}) {
+  return (
+    <select value={value} onChange={onChange} className={inputClass}>
+      <option value="">No arbiter title</option>
+      {arbiterTitleGroups.map((group) => (
+        <optgroup key={group.label} label={group.label}>
+          {group.titles.map((title) => (
+            <option key={title} value={title}>
+              {title}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
   );
 }
 
