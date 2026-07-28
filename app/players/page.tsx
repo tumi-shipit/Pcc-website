@@ -591,16 +591,16 @@ export default function PublicPlayersDirectoryPage() {
             </p>
           ) : (
             <>
-              <section className="hidden overflow-hidden rounded-xl border border-white/10 bg-zinc-900 lg:block">
-                <table className="w-full text-left text-sm">
+              <section className="hidden overflow-hidden rounded-xl border border-white/15 bg-zinc-900 lg:block">
+                <table className="w-full border-collapse text-left text-sm">
                   <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
                     <tr>
-                      <th className="p-4">Player</th>
-                      <th className="p-4">Rating</th>
-                      <th className="p-4">Club</th>
-                      <th className="p-4">Events</th>
-                      <th className="p-4">Record</th>
-                      <th className="p-4">IDs</th>
+                      <th className="border border-white/10 p-4">Player</th>
+                      <th className="border border-white/10 p-4">Rating</th>
+                      <th className="border border-white/10 p-4">Club</th>
+                      <th className="border border-white/10 p-4">Events</th>
+                      <th className="border border-white/10 p-4">Record</th>
+                      <th className="border border-white/10 p-4">IDs</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -608,8 +608,8 @@ export default function PublicPlayersDirectoryPage() {
                       const stats = displayPlayerStats.get(player.id);
 
                       return (
-                        <tr key={player.id} className="border-t border-white/10">
-                          <td className="p-4">
+                        <tr key={player.id} className="transition hover:bg-white/[0.03]">
+                          <td className="border border-white/10 p-4">
                             <Link
                               href={`/players/${player.id}`}
                               className="flex items-center gap-3 font-bold text-white transition hover:text-red-300"
@@ -628,25 +628,25 @@ export default function PublicPlayersDirectoryPage() {
                               </span>
                             </Link>
                           </td>
-                          <td className="p-4 font-black text-white">
+                          <td className="border border-white/10 p-4 font-black text-white">
                             {valueOrDash(player.rating)}
                           </td>
-                          <td className="p-4 text-zinc-300">
+                          <td className="border border-white/10 p-4 text-zinc-300">
                             {valueOrDash(player.club)}
                             <span className="block text-xs text-zinc-500">
                               {valueOrDash(player.province)}
                             </span>
                           </td>
-                          <td className="p-4 text-zinc-300">
+                          <td className="border border-white/10 p-4 text-zinc-300">
                             {stats?.events ?? 0}
                           </td>
-                          <td className="p-4 text-zinc-300">
+                          <td className="border border-white/10 p-4 text-zinc-300">
                             {stats?.wins ?? 0} wins
                             <span className="block text-xs text-zinc-500">
                               {stats?.podiums ?? 0} podiums
                             </span>
                           </td>
-                          <td className="p-4 text-xs text-zinc-500">
+                          <td className="border border-white/10 p-4 text-xs text-zinc-500">
                             PCC: {valueOrDash(player.pcc_id)}
                             <br />
                             Chess SA: {valueOrDash(player.chess_sa_id)}

@@ -1504,12 +1504,13 @@ function FinalRankingTable({
           return (
             <div
               key={section.sectionName}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
+              className="overflow-hidden rounded-2xl border border-red-500/25 bg-zinc-950 shadow-[0_18px_45px_rgba(0,0,0,0.28)]"
             >
-              <div className="border-b border-white/10 bg-black/40 p-4">
+              <div className="h-1 bg-gradient-to-r from-red-600 via-yellow-400 to-red-600" />
+              <div className="border-b border-red-500/20 bg-black/45 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-300">
                       Section
                     </p>
                     <h3 className="mt-2 text-lg font-black text-white">
@@ -1522,7 +1523,7 @@ function FinalRankingTable({
                       href={sectionChessResultsUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="shrink-0 rounded-full border border-white/10 px-3 py-2 text-[11px] font-bold text-white transition hover:border-red-500"
+                      className="shrink-0 rounded-full border border-red-500/30 bg-red-500/10 px-3 py-2 text-[11px] font-bold text-white transition hover:border-red-400"
                     >
                       Full results
                     </a>
@@ -1531,27 +1532,27 @@ function FinalRankingTable({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[360px] text-left text-xs">
+                <table className="w-full min-w-[360px] border-collapse text-left text-xs">
                   <thead className="bg-black/25 text-[10px] uppercase tracking-[0.14em] text-gray-500">
                     <tr>
-                      <th className="px-3 py-3">Rk</th>
-                      <th className="px-3 py-3">Name</th>
-                      <th className="px-3 py-3">Rtg</th>
-                      <th className="px-3 py-3">FED</th>
-                      <th className="px-3 py-3">Pts</th>
+                      <th className="border border-white/10 px-3 py-3">Rk</th>
+                      <th className="border border-white/10 px-3 py-3">Name</th>
+                      <th className="border border-white/10 px-3 py-3">Rtg</th>
+                      <th className="border border-white/10 px-3 py-3">FED</th>
+                      <th className="border border-white/10 px-3 py-3">Pts</th>
                     </tr>
                   </thead>
 
-                  <tbody className="divide-y divide-white/10">
+                  <tbody>
                     {topResults.map((result, index) => {
                       const position = result.final_position ?? index + 1;
 
                       return (
-                        <tr key={result.id}>
-                          <td className="px-3 py-3 font-black text-red-300">
+                        <tr key={result.id} className="transition hover:bg-white/[0.03]">
+                          <td className="border border-white/10 px-3 py-3 font-black text-red-300">
                             {position}
                           </td>
-                          <td className="px-3 py-3 font-bold text-white">
+                          <td className="border border-white/10 px-3 py-3 font-bold text-white">
                             {result.player ? (
                               <Link
                                 href={`/players/${result.player.id}`}
@@ -1572,13 +1573,13 @@ function FinalRankingTable({
                               </span>
                             )}
                           </td>
-                          <td className="px-3 py-3 text-gray-300">
+                          <td className="border border-white/10 px-3 py-3 text-gray-300">
                             {publicResultRating(result) ?? "-"}
                           </td>
-                          <td className="px-3 py-3 text-gray-300">
+                          <td className="border border-white/10 px-3 py-3 text-gray-300">
                             {publicResultFederation(result)}
                           </td>
-                          <td className="px-3 py-3 text-gray-300">
+                          <td className="border border-white/10 px-3 py-3 text-gray-300">
                             {result.points ?? "-"}
                           </td>
                         </tr>

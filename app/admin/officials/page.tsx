@@ -84,6 +84,21 @@ type NormalizedOrganiserAccessRow = Omit<
   tournaments: OrganiserAccessTournament | null;
 };
 
+type OfficialPersonGroup = {
+  key: string;
+  player: OfficialPlayer | null;
+  assignments: NormalizedOfficialRow[];
+};
+
+type OrganiserAccessPersonGroup = {
+  key: string;
+  name: string;
+  email: string;
+  chessSaId: string | null;
+  player: OrganiserAccessPlayer | null;
+  accessRows: NormalizedOrganiserAccessRow[];
+};
+
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
 
@@ -126,6 +141,7 @@ export default function AdminOfficialsPage() {
   const [tournamentFilter, setTournamentFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [busyActionId, setBusyActionId] = useState("");
   const [message, setMessage] = useState("");
 
   async function loadOfficials() {
@@ -273,6 +289,37 @@ export default function AdminOfficialsPage() {
     [organiserAccess]
   );
 
+  const activeOrganiserAccessGroups = useMemo(() => {
+    const groups = new Map<string, OrganiserAccessPersonGroup>();
+
+    activeOrganiserAccess.forEach((access) => {
+      const key = access.player_id
+        ? `player:${access.player_id}`
+        : access.chess_sa_id
+        ? `chessa:${access.chess_sa_id}`
+        : `email:${access.organiser_email.toLowerCase()}`;
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.accessRows.push(access);
+        return;
+      }
+
+      groups.set(key, {
+        key,
+        name: access.players?.full_name || access.organiser_name || access.organiser_email,
+        email: access.organiser_email,
+        chessSaId: access.chess_sa_id ?? access.players?.chess_sa_id ?? null,
+        player: access.players,
+        accessRows: [access],
+      });
+    });
+
+    return Array.from(groups.values()).sort(
+      (first, second) => second.accessRows.length - first.accessRows.length
+    );
+  }, [activeOrganiserAccess]);
+
   const officialHasPortalAccess = (official: NormalizedOfficialRow) => {
     const playerChessSaId = official.players?.chess_sa_id;
 
@@ -284,6 +331,101 @@ export default function AdminOfficialsPage() {
       );
     });
   };
+
+  const filteredOfficialGroups = useMemo(() => {
+    const groups = new Map<string, OfficialPersonGroup>();
+
+    filteredOfficials.forEach((official) => {
+      const player = official.players;
+      const key = player?.id
+        ? `player:${player.id}`
+        : official.player_id
+        ? `player:${official.player_id}`
+        : `missing:${official.id}`;
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.assignments.push(official);
+        return;
+      }
+
+      groups.set(key, {
+        key,
+        player,
+        assignments: [official],
+      });
+    });
+
+    return Array.from(groups.values()).sort((first, second) => {
+      const firstLatest = first.assignments[0]?.tournaments?.start_date ?? "";
+      const secondLatest = second.assignments[0]?.tournaments?.start_date ?? "";
+      return secondLatest.localeCompare(firstLatest);
+    });
+  }, [filteredOfficials]);
+
+  async function removeOfficialAssignment(official: NormalizedOfficialRow) {
+    const confirmed = window.confirm(
+      `Remove ${official.players?.full_name ?? "this person"} as ${
+        official.role
+      } from ${official.tournaments?.tournament_name ?? "this tournament"}?`
+    );
+
+    if (!confirmed) return;
+
+    setBusyActionId(`official:${official.id}`);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("tournament_officials")
+      .delete()
+      .eq("id", official.id);
+
+    if (error) {
+      setMessage(`Could not remove official role: ${error.message}`);
+      setBusyActionId("");
+      return;
+    }
+
+    if (official.role === "Chief Arbiter" && official.player_id) {
+      await supabase
+        .from("tournaments")
+        .update({ arbiter_player_id: null })
+        .eq("id", official.tournament_id)
+        .eq("arbiter_player_id", official.player_id);
+    }
+
+    setMessage("Official role removed.");
+    await loadOfficials();
+    setBusyActionId("");
+  }
+
+  async function removeOrganiserAccess(access: NormalizedOrganiserAccessRow) {
+    const confirmed = window.confirm(
+      `Remove organiser portal access for ${access.organiser_email} on ${
+        access.tournaments?.tournament_name ?? "this tournament"
+      }?`
+    );
+
+    if (!confirmed) return;
+
+    setBusyActionId(`access:${access.id}`);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("tournament_organiser_access")
+      .update({ access_status: "Revoked" })
+      .eq("id", access.id);
+
+    if (error) {
+      setMessage(`Could not remove organiser access: ${error.message}`);
+      setBusyActionId("");
+      return;
+    }
+
+    setMessage("Organiser portal access removed.");
+    await loadOfficials();
+    setBusyActionId("");
+  }
 
   return (
     <AdminGuard>
@@ -384,7 +526,7 @@ export default function AdminOfficialsPage() {
             </div>
           </section>
 
-          <section className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <section className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <QuickAction
               href="/admin/tournaments"
               title="Assign from Tournament"
@@ -401,7 +543,7 @@ export default function AdminOfficialsPage() {
               description="Search the Player Centre before assigning officials."
             />
             <QuickAction
-              href="/admin/players"
+              href="/admin/players/verify"
               title="Verification Queue"
               description="Verify official profiles with missing identity details."
             />
@@ -444,42 +586,76 @@ export default function AdminOfficialsPage() {
             </div>
 
             <div className="mt-6 grid gap-3 lg:grid-cols-2">
-              {activeOrganiserAccess.slice(0, 8).map((access) => (
+              {activeOrganiserAccessGroups.slice(0, 8).map((group) => (
                 <div
-                  key={access.id}
+                  key={group.key}
                   className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div>
+                    <div className="min-w-0">
                       <p className="font-black text-white">
-                        {access.players?.full_name ||
-                          access.organiser_name ||
-                          access.organiser_email}
+                        {group.name}
                       </p>
                       <p className="mt-1 text-xs text-gray-500">
-                        {access.organiser_email}
+                        {group.email}
                       </p>
                     </div>
                     <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
-                      {access.access_status ?? "Active"}
+                      {group.accessRows.length} tournament
+                      {group.accessRows.length === 1 ? "" : "s"}
                     </span>
                   </div>
 
-                  <div className="mt-4 grid gap-2 text-sm text-gray-400 md:grid-cols-2">
-                    <p>
-                      Chess SA:{" "}
-                      {valueOrDash(access.chess_sa_id ?? access.players?.chess_sa_id)}
-                    </p>
-                    <p>Role: {valueOrDash(access.role ?? "Organiser")}</p>
-                    <p className="md:col-span-2">
-                      Tournament:{" "}
-                      {access.tournaments?.tournament_name ?? access.tournament_id}
-                    </p>
+                  <div className="mt-4 text-sm text-gray-400">
+                    <p>Chess SA: {valueOrDash(group.chessSaId)}</p>
+                    <div className="mt-3 space-y-2">
+                      {group.accessRows.slice(0, 4).map((access) => (
+                        <div
+                          key={access.id}
+                          className="rounded-xl border border-white/10 bg-zinc-900 px-3 py-2"
+                        >
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <Link
+                              href={`/organiser/tournaments/${access.tournament_id}`}
+                              className="min-w-0 transition hover:text-red-300"
+                            >
+                              <span className="font-bold text-white">
+                                {access.tournaments?.tournament_name ??
+                                  access.tournament_id}
+                              </span>
+                              <span className="mt-1 block text-xs text-gray-500">
+                                {valueOrDash(access.role ?? "Organiser")} -{" "}
+                                {access.tournaments?.start_date
+                                  ? formatDate(access.tournaments.start_date)
+                                  : "Date not set"}
+                              </span>
+                            </Link>
+
+                            <button
+                              type="button"
+                              onClick={() => removeOrganiserAccess(access)}
+                              disabled={busyActionId === `access:${access.id}`}
+                              className="w-fit rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60"
+                            >
+                              {busyActionId === `access:${access.id}`
+                                ? "Removing..."
+                                : "Remove access"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {group.accessRows.length > 4 && (
+                      <p className="mt-3 text-xs font-bold text-gray-500">
+                        +{group.accessRows.length - 4} more tournament
+                        {group.accessRows.length - 4 === 1 ? "" : "s"}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
 
-              {!loading && activeOrganiserAccess.length === 0 && (
+              {!loading && activeOrganiserAccessGroups.length === 0 && (
                 <p className="rounded-2xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400 lg:col-span-2">
                   No active organiser portal access has been granted yet.
                 </p>
@@ -491,19 +667,61 @@ export default function AdminOfficialsPage() {
             <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
               Loading officials...
             </p>
-          ) : filteredOfficials.length === 0 ? (
+          ) : filteredOfficialGroups.length === 0 ? (
             <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
               No officials found.
             </p>
           ) : (
-            <section className="mt-8 space-y-4">
-              {filteredOfficials.map((official) => {
-                const player = official.players;
-                const tournament = official.tournaments;
+            <>
+              <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                      People View
+                    </p>
+                    <h2 className="mt-2 text-2xl font-black text-white">
+                      Officials grouped by person
+                    </h2>
+                    <p className="mt-2 text-sm text-gray-400">
+                      Showing {filteredOfficialGroups.length} people across{" "}
+                      {filteredOfficials.length} assignment
+                      {filteredOfficials.length === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3">
+                    <MiniMetric label="People" value={filteredOfficialGroups.length} />
+                    <MiniMetric label="Roles" value={filteredOfficials.length} />
+                    <MiniMetric
+                      label="Access linked"
+                      value={
+                        filteredOfficialGroups.filter((group) =>
+                          group.assignments.some((assignment) =>
+                            officialHasPortalAccess(assignment)
+                          )
+                        ).length
+                      }
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section className="mt-4 space-y-4">
+                {filteredOfficialGroups.map((group) => {
+                const player = group.player;
+                const primaryAssignment = group.assignments[0];
+                const roleList = Array.from(
+                  new Set(group.assignments.map((assignment) => assignment.role))
+                );
+                const hasPortalAccess = group.assignments.some((assignment) =>
+                  officialHasPortalAccess(assignment)
+                );
+                const needsReview =
+                  !player || player.verification_status !== "Verified";
 
                 return (
                   <article
-                    key={official.id}
+                    key={group.key}
                     className="rounded-3xl border border-white/10 bg-zinc-900 p-5 transition hover:border-red-500/50"
                   >
                     <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -527,15 +745,24 @@ export default function AdminOfficialsPage() {
 
                         <div>
                           <div className="flex flex-wrap gap-2">
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-bold ${roleTone(
-                                official.role
-                              )}`}
-                            >
-                              {official.role}
-                            </span>
+                            {roleList.slice(0, 4).map((role) => (
+                              <span
+                                key={role}
+                                className={`rounded-full px-3 py-1 text-xs font-bold ${roleTone(
+                                  role
+                                )}`}
+                              >
+                                {role}
+                              </span>
+                            ))}
 
-                            {player?.verification_status === "Verified" ? (
+                            {roleList.length > 4 && (
+                              <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-bold text-zinc-300">
+                                +{roleList.length - 4} roles
+                              </span>
+                            )}
+
+                            {!needsReview ? (
                               <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
                                 Verified
                               </span>
@@ -551,7 +778,7 @@ export default function AdminOfficialsPage() {
                               </span>
                             )}
 
-                            {officialHasPortalAccess(official) && (
+                            {hasPortalAccess && (
                               <span className="rounded-full bg-green-500/10 px-3 py-1 text-xs font-bold text-green-300">
                                 Portal access linked
                               </span>
@@ -580,17 +807,36 @@ export default function AdminOfficialsPage() {
                             <p>Rating: {valueOrDash(player?.rating)}</p>
                           </div>
 
-                          {official.notes && (
+                          {primaryAssignment?.notes && (
                             <p className="mt-3 text-sm leading-6 text-gray-500">
-                              {official.notes}
+                              {primaryAssignment.notes}
                             </p>
                           )}
                         </div>
                       </div>
 
-                      <div className="min-w-[260px] rounded-2xl border border-white/10 bg-zinc-950 p-4">
-                        {tournament ? (
-                          <>
+                      <div className="w-full rounded-2xl border border-white/10 bg-zinc-950 p-4 lg:max-w-[520px]">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-bold uppercase tracking-[0.18em] text-gray-500">
+                            Tournament work
+                          </p>
+                          <span className="rounded-full bg-white/5 px-3 py-1 text-xs font-bold text-gray-300">
+                            {group.assignments.length} assignment
+                            {group.assignments.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          {group.assignments.map((assignment) => {
+                            const tournament = assignment.tournaments;
+
+                            return tournament ? (
+                              <div
+                                key={assignment.id}
+                                className="rounded-xl border border-white/10 bg-zinc-900 p-3"
+                              >
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                  <div>
                             <Link
                               href={`/admin/tournaments/${tournament.id}`}
                               className="font-black text-white transition hover:text-red-300"
@@ -605,20 +851,36 @@ export default function AdminOfficialsPage() {
                             <p className="mt-1 text-xs text-gray-500">
                               {tournament.registration_status}
                             </p>
+                                  </div>
 
-                            <div className="mt-4 grid gap-2">
+                                  <span
+                                    className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${roleTone(
+                                      assignment.role
+                                    )}`}
+                                  >
+                                    {assignment.role}
+                                  </span>
+                                </div>
+
+                                {assignment.notes && assignment.notes !== primaryAssignment?.notes && (
+                                  <p className="mt-2 text-xs leading-5 text-gray-500">
+                                    {assignment.notes}
+                                  </p>
+                                )}
+
+                                <div className="mt-3 grid gap-2 sm:grid-cols-4">
                               <Link
-                                href={`/admin/tournaments/${tournament.id}/arbiters`}
+                                href={`/admin/tournaments/${tournament.id}`}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-center text-xs font-bold text-white transition hover:border-red-500"
                               >
-                                Arbiters
+                                Dashboard
                               </Link>
 
                               <Link
                                 href={`/admin/tournaments/${tournament.id}/arbiters`}
                                 className="rounded-xl border border-white/10 px-3 py-2 text-center text-xs font-bold text-white transition hover:border-red-500"
                               >
-                                Organisers
+                                Manage role
                               </Link>
 
                               <Link
@@ -627,23 +889,48 @@ export default function AdminOfficialsPage() {
                               >
                                 Portal access
                               </Link>
+                              <button
+                                type="button"
+                                onClick={() => removeOfficialAssignment(assignment)}
+                                disabled={busyActionId === `official:${assignment.id}`}
+                                className="rounded-xl border border-red-500/40 px-3 py-2 text-center text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-wait disabled:opacity-60"
+                              >
+                                {busyActionId === `official:${assignment.id}`
+                                  ? "Removing..."
+                                  : "Remove"}
+                              </button>
                             </div>
-                          </>
-                        ) : (
-                          <p className="text-sm text-gray-400">
-                            Tournament not linked.
-                          </p>
-                        )}
+                              </div>
+                            ) : (
+                              <p
+                                key={assignment.id}
+                                className="rounded-xl border border-white/10 bg-zinc-900 p-3 text-sm text-gray-400"
+                              >
+                                Tournament not linked.
+                              </p>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </article>
                 );
-              })}
-            </section>
+                })}
+              </section>
+            </>
           )}
         </div>
       </main>
     </AdminGuard>
+  );
+}
+
+function MiniMetric({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-zinc-950 px-4 py-3">
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="mt-1 text-xl font-black text-white">{value}</p>
+    </div>
   );
 }
 

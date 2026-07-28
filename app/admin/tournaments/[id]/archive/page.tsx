@@ -1142,17 +1142,29 @@ export default function TournamentArchiveContinuationPage() {
       null;
 
     if (row.matchedRegistrationId) {
+      const registrationUpdate: {
+        section_id?: string;
+        payment_status: string;
+        registration_status: string;
+        updated_at: string;
+      } = {
+        payment_status: "Paid",
+        registration_status: "Approved",
+        updated_at: new Date().toISOString(),
+      };
+
       if (row.matchedSectionId !== selectedSectionId) {
-        const { error: moveError } = await supabase
-          .from("registrations")
-          .update({
-            section_id: selectedSectionId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", row.matchedRegistrationId);
+        registrationUpdate.section_id = selectedSectionId;
+      }
 
-        if (moveError) throw moveError;
+      const { error: updateError } = await supabase
+        .from("registrations")
+        .update(registrationUpdate)
+        .eq("id", row.matchedRegistrationId);
 
+      if (updateError) throw updateError;
+
+      if (row.matchedSectionId !== selectedSectionId) {
         return {
           registrationId: row.matchedRegistrationId,
           moved: true,
@@ -1196,18 +1208,27 @@ export default function TournamentArchiveContinuationPage() {
       const previousSectionName = Array.isArray(existing.tournament_sections)
         ? existing.tournament_sections[0]?.section_name ?? null
         : existing.tournament_sections?.section_name ?? null;
+      const registrationUpdate: {
+        section_id?: string;
+        payment_status: string;
+        registration_status: string;
+        updated_at: string;
+      } = {
+        payment_status: "Paid",
+        registration_status: "Approved",
+        updated_at: new Date().toISOString(),
+      };
 
       if (existing.section_id !== selectedSectionId) {
-        const { error: moveError } = await supabase
-          .from("registrations")
-          .update({
-            section_id: selectedSectionId,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", existing.id);
-
-        if (moveError) throw moveError;
+        registrationUpdate.section_id = selectedSectionId;
       }
+
+      const { error: updateError } = await supabase
+        .from("registrations")
+        .update(registrationUpdate)
+        .eq("id", existing.id);
+
+      if (updateError) throw updateError;
 
       return {
         registrationId: existing.id,
@@ -1224,7 +1245,7 @@ export default function TournamentArchiveContinuationPage() {
         player_id: playerId,
         tournament_id: tournamentId,
         section_id: selectedSectionId,
-        payment_status: "Pending",
+        payment_status: "Paid",
         proof_of_payment_url: null,
         registration_status: "Approved",
       })
