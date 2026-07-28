@@ -120,6 +120,15 @@ type PublicOfficial = {
   player: Player | null;
 };
 
+type PublicTeamCard = {
+  key: string;
+  player: Player;
+  playerId: string | null;
+  roles: string[];
+  notes: string[];
+  priority: number;
+};
+
 type Organisation = {
   id: string;
   name: string;
@@ -218,6 +227,109 @@ function sectionRuleLabel(section: TournamentSection) {
   }
 
   return rules.join(" - ");
+}
+
+function officialRolePriority(role: string, roleGroup?: string) {
+  const cleanRole = role.toLowerCase();
+
+  if (roleGroup === "Organiser" || cleanRole.includes("organiser")) return 0;
+  if (cleanRole === "chief arbiter") return 1;
+  if (cleanRole === "deputy chief arbiter") return 2;
+  if (cleanRole.includes("arbiter")) return 3;
+  return 4;
+}
+
+function publicArbiterTitle(title: string | null) {
+  if (!title) return null;
+
+  if (title.toLowerCase().includes("national arbiter")) {
+    return {
+      label: "National Arbiter (NA)",
+      helper: "FIDE recognised",
+    };
+  }
+
+  return { label: title, helper: null };
+}
+
+function buildPublicTeamCards(
+  officials: PublicOfficial[],
+  fallbackArbiter: Player | null
+) {
+  const team = [...officials];
+  const hasChiefArbiter = team.some(
+    (official) => official.role.toLowerCase() === "chief arbiter"
+  );
+
+  if (fallbackArbiter && !hasChiefArbiter) {
+    team.unshift({
+      id: `legacy-chief-arbiter-${fallbackArbiter.id}`,
+      tournament_id: "",
+      player_id: fallbackArbiter.id,
+      role: "Chief Arbiter",
+      notes: null,
+      player: fallbackArbiter,
+    });
+  }
+
+  const visibleOfficials = team
+    .filter((official): official is PublicOfficial & { player: Player } =>
+      Boolean(official.player)
+    )
+    .sort(
+      (first, second) =>
+        officialRolePriority(first.role, first.roleGroup) -
+        officialRolePriority(second.role, second.roleGroup)
+    );
+
+  if (visibleOfficials.length <= 3) {
+    return visibleOfficials.map((official) => ({
+      key: `${official.id}-${official.role}`,
+      player: official.player,
+      playerId: official.player_id,
+      roles: [official.role],
+      notes: official.notes ? [official.notes] : [],
+      priority: officialRolePriority(official.role, official.roleGroup),
+    }));
+  }
+
+  const groupedCards = new Map<string, PublicTeamCard>();
+
+  visibleOfficials.forEach((official) => {
+    const player = official.player;
+    const key =
+      official.player_id ||
+      player.id ||
+      `name:${player.full_name.toLowerCase().trim()}`;
+    const priority = officialRolePriority(official.role, official.roleGroup);
+    const existing = groupedCards.get(key);
+
+    if (!existing) {
+      groupedCards.set(key, {
+        key,
+        player,
+        playerId: official.player_id,
+        roles: [official.role],
+        notes: official.notes ? [official.notes] : [],
+        priority,
+      });
+      return;
+    }
+
+    if (!existing.roles.includes(official.role)) {
+      existing.roles.push(official.role);
+    }
+
+    if (official.notes && !existing.notes.includes(official.notes)) {
+      existing.notes.push(official.notes);
+    }
+
+    existing.priority = Math.min(existing.priority, priority);
+  });
+
+  return Array.from(groupedCards.values()).sort(
+    (first, second) => first.priority - second.priority
+  );
 }
 
 export default function TournamentHubPage() {
@@ -850,35 +962,11 @@ function TournamentTeam({
   officials: PublicOfficial[];
   fallbackArbiter: Player | null;
 }) {
-  const team = [...officials];
-  const hasChiefArbiter = team.some(
-    (official) => official.role.toLowerCase() === "chief arbiter"
-  );
+  const teamCards = buildPublicTeamCards(officials, fallbackArbiter);
 
-  if (fallbackArbiter && !hasChiefArbiter) {
-    team.unshift({
-      id: `legacy-chief-arbiter-${fallbackArbiter.id}`,
-      tournament_id: "",
-      player_id: fallbackArbiter.id,
-      role: "Chief Arbiter",
-      notes: null,
-      player: fallbackArbiter,
-    });
-  }
+  if (teamCards.length === 0) return null;
 
-  const rolePriority = (official: PublicOfficial) => {
-    const role = official.role.toLowerCase();
-    if (official.roleGroup === "Organiser" || role.includes("organiser")) return 0;
-    if (role === "chief arbiter") return 1;
-    if (role === "deputy chief arbiter") return 2;
-    if (role.includes("arbiter")) return 3;
-    return 4;
-  };
-  const visibleTeam = team
-    .filter((official) => official.player)
-    .sort((a, b) => rolePriority(a) - rolePriority(b));
-
-  if (visibleTeam.length === 0) return null;
+  const roleCount = teamCards.reduce((total, card) => total + card.roles.length, 0);
 
   return (
     <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
@@ -893,77 +981,14 @@ function TournamentTeam({
         </div>
 
         <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
-          {visibleTeam.length} official{visibleTeam.length === 1 ? "" : "s"}
+          {roleCount} role{roleCount === 1 ? "" : "s"}
         </span>
       </div>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {visibleTeam.map((official) => {
-          const player = official.player as Player;
-          const hasPublicProfile =
-            Boolean(official.player_id) && player.id === official.player_id;
-          const avatar = (
-            <PlayerAvatar
-              name={player.full_name}
-              photoUrl={player.profile_photo_url}
-              size="lg"
-              className="border-red-500/30"
-            />
-          );
-          const name = (
-            <span className="mt-1 block truncate text-lg font-black text-white">
-              {player.full_name}
-            </span>
-          );
-
-          return (
-            <div
-              key={`${official.id}-${official.role}`}
-              className="rounded-2xl border border-white/10 bg-zinc-950 p-4"
-            >
-              <div className="flex items-center gap-4">
-                {hasPublicProfile ? (
-                  <Link href={`/players/${player.id}`} className="shrink-0">
-                    {avatar}
-                  </Link>
-                ) : (
-                  <div className="shrink-0">{avatar}</div>
-                )}
-
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
-                    {official.role}
-                  </p>
-                  {hasPublicProfile ? (
-                    <Link
-                      href={`/players/${player.id}`}
-                      className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
-                    >
-                      {player.full_name}
-                    </Link>
-                  ) : (
-                    name
-                  )}
-                  {player.title && (
-                    <p className="mt-1 w-fit rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-100">
-                      {player.title}
-                    </p>
-                  )}
-                  <p className="mt-1 truncate text-xs text-gray-400">
-                    {player.club ?? "Chess official"}
-                    {player.province ? `  -  ${player.province}` : ""}
-                  </p>
-                </div>
-              </div>
-
-              {official.notes && (
-                <p className="mt-3 text-xs leading-5 text-gray-500">
-                  {official.notes}
-                </p>
-              )}
-            </div>
-          );
-        })}
+        {teamCards.map((card) => (
+          <PublicOfficialCard key={card.key} card={card} />
+        ))}
       </div>
     </section>
   );
@@ -978,36 +1003,9 @@ function TournamentCredits({
   officials: PublicOfficial[];
   fallbackArbiter: Player | null;
 }) {
-  const team = [...officials];
-  const hasChiefArbiter = team.some(
-    (official) => official.role.toLowerCase() === "chief arbiter"
-  );
+  const teamCards = buildPublicTeamCards(officials, fallbackArbiter);
 
-  if (fallbackArbiter && !hasChiefArbiter) {
-    team.unshift({
-      id: `legacy-chief-arbiter-${fallbackArbiter.id}`,
-      tournament_id: "",
-      player_id: fallbackArbiter.id,
-      role: "Chief Arbiter",
-      notes: null,
-      player: fallbackArbiter,
-    });
-  }
-
-  const rolePriority = (official: PublicOfficial) => {
-    const role = official.role.toLowerCase();
-    if (official.roleGroup === "Organiser" || role.includes("organiser")) return 0;
-    if (role === "chief arbiter") return 1;
-    if (role === "deputy chief arbiter") return 2;
-    if (role.includes("arbiter")) return 3;
-    return 4;
-  };
-
-  const visibleTeam = team
-    .filter((official) => official.player)
-    .sort((a, b) => rolePriority(a) - rolePriority(b));
-
-  if (organisations.length === 0 && visibleTeam.length === 0) return null;
+  if (organisations.length === 0 && teamCards.length === 0) return null;
 
   return (
     <section className="mb-6 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
@@ -1080,63 +1078,95 @@ function TournamentCredits({
           );
         })}
 
-        {visibleTeam.map((official) => {
-          const player = official.player as Player;
-          const hasPublicProfile =
-            Boolean(official.player_id) && player.id === official.player_id;
-          const avatar = (
-            <PlayerAvatar
-              name={player.full_name}
-              photoUrl={player.profile_photo_url}
-              size="lg"
-              className="border-red-500/30"
-            />
-          );
-
-          return (
-            <div
-              key={`${official.id}-${official.role}`}
-              className="flex min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4"
-            >
-              {hasPublicProfile ? (
-                <Link href={`/players/${player.id}`} className="shrink-0">
-                  {avatar}
-                </Link>
-              ) : (
-                <div className="shrink-0">{avatar}</div>
-              )}
-
-              <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-400">
-                  {official.role}
-                </p>
-                {hasPublicProfile ? (
-                  <Link
-                    href={`/players/${player.id}`}
-                    className="mt-1 block truncate text-lg font-black text-white transition hover:text-red-300"
-                  >
-                    {player.full_name}
-                  </Link>
-                ) : (
-                  <span className="mt-1 block truncate text-lg font-black text-white">
-                    {player.full_name}
-                  </span>
-                )}
-                {player.title && (
-                  <p className="mt-1 w-fit rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-100">
-                    {player.title}
-                  </p>
-                )}
-                <p className="mt-1 truncate text-xs text-gray-400">
-                  {player.club ?? "Chess official"}
-                  {player.province ? ` - ${player.province}` : ""}
-                </p>
-              </div>
-            </div>
-          );
-        })}
+        {teamCards.map((card) => (
+          <PublicOfficialCard key={card.key} card={card} className="h-full" />
+        ))}
       </div>
     </section>
+  );
+}
+
+function PublicOfficialCard({
+  card,
+  className = "",
+}: {
+  card: PublicTeamCard;
+  className?: string;
+}) {
+  const player = card.player;
+  const hasPublicProfile = Boolean(card.playerId) && player.id === card.playerId;
+  const title = publicArbiterTitle(player.title);
+  const avatar = (
+    <PlayerAvatar
+      name={player.full_name}
+      photoUrl={player.profile_photo_url}
+      size="lg"
+      className="border-red-500/30"
+    />
+  );
+
+  return (
+    <div
+      className={`flex min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 ${className}`}
+    >
+      {hasPublicProfile ? (
+        <Link href={`/players/${player.id}`} className="shrink-0">
+          {avatar}
+        </Link>
+      ) : (
+        <div className="shrink-0">{avatar}</div>
+      )}
+
+      <div className="min-w-0">
+        <div className="flex flex-wrap gap-1.5">
+          {card.roles.map((role) => (
+            <span
+              key={role}
+              className="rounded-full bg-red-500/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-red-100"
+            >
+              {role}
+            </span>
+          ))}
+        </div>
+
+        {hasPublicProfile ? (
+          <Link
+            href={`/players/${player.id}`}
+            className="mt-2 block truncate text-lg font-black text-white transition hover:text-red-300"
+          >
+            {player.full_name}
+          </Link>
+        ) : (
+          <span className="mt-2 block truncate text-lg font-black text-white">
+            {player.full_name}
+          </span>
+        )}
+
+        {title && (
+          <div className="mt-1">
+            <p className="w-fit rounded-full border border-red-500/25 bg-red-500/10 px-2.5 py-1 text-[11px] font-bold text-red-100">
+              {title.label}
+            </p>
+            {title.helper && (
+              <p className="mt-1 text-[11px] font-medium text-gray-500">
+                {title.helper}
+              </p>
+            )}
+          </div>
+        )}
+
+        <p className="mt-1 truncate text-xs text-gray-400">
+          {player.club ?? "Chess official"}
+          {player.province ? ` - ${player.province}` : ""}
+        </p>
+
+        {card.notes.length > 0 && (
+          <p className="mt-3 line-clamp-2 text-xs leading-5 text-gray-500">
+            {card.notes.join(" / ")}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

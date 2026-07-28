@@ -136,7 +136,7 @@ const arbiterTitleGroups = [
   },
   {
     label: "National title",
-    titles: ["National Arbiter (FIDE-recognised licence)"],
+    titles: ["National Arbiter (NA)"],
   },
   {
     label: "FIDE titles",
@@ -161,6 +161,12 @@ function formatDate(value: string | null) {
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
+}
+
+function normalizeArbiterTitle(title: string | null | undefined) {
+  if (!title) return "";
+  if (title.toLowerCase().includes("national arbiter")) return "National Arbiter (NA)";
+  return title;
 }
 
 export default function TournamentArbitersPage({
@@ -292,7 +298,7 @@ export default function TournamentArbitersPage({
     setEditingOfficialId(official.id);
     setForm({
       player_id: official.player_id,
-      title: official.players?.title ?? "",
+      title: normalizeArbiterTitle(official.players?.title),
       role: official.role,
       notes: official.notes ?? "",
     });
@@ -632,7 +638,7 @@ export default function TournamentArbitersPage({
                         setForm((current) => ({
                           ...current,
                           player_id: playerId,
-                          title: player?.title ?? "",
+                          title: normalizeArbiterTitle(player?.title),
                         }));
                       }}
                       className={inputClass}
@@ -642,7 +648,9 @@ export default function TournamentArbitersPage({
                       {filteredPlayers.slice(0, 300).map((player) => (
                         <option key={player.id} value={player.id}>
                           {player.full_name}
-                          {player.title ? `  -  ${player.title}` : ""}
+                          {player.title
+                            ? `  -  ${normalizeArbiterTitle(player.title)}`
+                            : ""}
                           {player.chess_sa_id ? `  -  ${player.chess_sa_id}` : ""}
                         </option>
                       ))}
@@ -704,7 +712,7 @@ export default function TournamentArbitersPage({
                             {selectedPlayer.full_name}
                           </p>
                           <p className="mt-1 text-xs text-gray-500">
-                            {valueOrDash(selectedPlayer.title)}  -  Chess SA:{" "}
+                            {valueOrDash(normalizeArbiterTitle(selectedPlayer.title))}  -  Chess SA:{" "}
                             {valueOrDash(selectedPlayer.chess_sa_id)}
                           </p>
                           {!selectedPlayer.chess_sa_id && (
@@ -856,7 +864,7 @@ export default function TournamentArbitersPage({
                               </Link>
 
                               <p className="mt-1 text-sm text-gray-400">
-                                Arbiter title: {valueOrDash(player?.title)}  -  Chess SA:{" "}
+                                Arbiter title: {valueOrDash(normalizeArbiterTitle(player?.title))}  -  Chess SA:{" "}
                                 {valueOrDash(player?.chess_sa_id)}  -  FIDE:{" "}
                                 {valueOrDash(player?.fide_id)}
                               </p>
@@ -1000,19 +1008,29 @@ function ArbiterTitleSelect({
   value: string;
   onChange: (event: React.ChangeEvent<HTMLSelectElement>) => void;
 }) {
+  const normalizedValue = normalizeArbiterTitle(value);
+  const isNationalArbiter = normalizedValue === "National Arbiter (NA)";
+
   return (
-    <select value={value} onChange={onChange} className={inputClass}>
-      <option value="">No arbiter title</option>
-      {arbiterTitleGroups.map((group) => (
-        <optgroup key={group.label} label={group.label}>
-          {group.titles.map((title) => (
-            <option key={title} value={title}>
-              {title}
-            </option>
-          ))}
-        </optgroup>
-      ))}
-    </select>
+    <>
+      <select value={normalizedValue} onChange={onChange} className={inputClass}>
+        <option value="">No arbiter title</option>
+        {arbiterTitleGroups.map((group) => (
+          <optgroup key={group.label} label={group.label}>
+            {group.titles.map((title) => (
+              <option key={title} value={title}>
+                {title}
+              </option>
+            ))}
+          </optgroup>
+        ))}
+      </select>
+      {isNationalArbiter && (
+        <p className="mt-2 text-xs font-medium text-gray-500">
+          FIDE recognised
+        </p>
+      )}
+    </>
   );
 }
 
