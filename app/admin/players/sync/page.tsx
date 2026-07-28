@@ -6,7 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import AdminImportSummaryPanel from "@/components/admin/AdminImportSummaryPanel";
 import ChessSaSyncReviewTable from "@/components/admin/ChessSaSyncReviewTable";
 import {
-  analyseChessSaRows,
+  analyseChessSaRowsInBatches,
   ChessSaSyncDecision,
   ChessSaSyncRow,
   parseChessSaCsv,
@@ -127,24 +127,39 @@ export default function AdminPlayersSyncPage() {
   const [decisions, setDecisions] = useState<ChessSaSyncDecision[]>([]);
   const [summary, setSummary] = useState<any>(null);
   const [message, setMessage] = useState("");
+  const [progressMessage, setProgressMessage] = useState("");
+  const [progressPercent, setProgressPercent] = useState(0);
   const [analysing, setAnalysing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+
+  const busy = analysing || syncing || Boolean(progressMessage);
+  const largeFileWarning =
+    rows.length >= 5000
+      ? `Large file detected: ${rows.length} rows. This may take a few minutes, but the page will keep showing progress.`
+      : "";
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
 
-    if (!file) return;
+    if (!file || busy) return;
 
     setFileName(file.name);
     setSummary(null);
     setMessage("");
+    setProgressMessage("Reading file...");
+    setProgressPercent(5);
     setDecisions([]);
 
     const text = await file.text();
+    setProgressMessage("Parsing Chess SA rows...");
+    setProgressPercent(10);
+    await new Promise((resolve) => setTimeout(resolve, 0));
     const parsed = parseChessSaCsv(text);
 
     if (parsed.length === 0) {
       setMessage("No rows found. Upload a CSV file with headers.");
+      setProgressMessage("");
+      setProgressPercent(0);
       return;
     }
 
@@ -160,6 +175,8 @@ export default function AdminPlayersSyncPage() {
     }
 
     setAnalysing(true);
+    setProgressMessage("Loading Player Centre records...");
+    setProgressPercent(15);
     setMessage("");
 
     const { data, error } = await supabase
@@ -172,14 +189,31 @@ export default function AdminPlayersSyncPage() {
     if (error) {
       setMessage(`Could not load existing players: ${error.message}`);
       setAnalysing(false);
+      setProgressMessage("");
+      setProgressPercent(0);
       return;
     }
 
     const existingPlayers = (data ?? []) as IdentityPlayer[];
-    const analysed = analyseChessSaRows(rowsToAnalyse, existingPlayers);
+    const analysed = await analyseChessSaRowsInBatches(
+      rowsToAnalyse,
+      existingPlayers,
+      {
+        batchSize: 250,
+        onProgress: ({ analysed: analysedRows, total }) => {
+          const percent = total > 0 ? Math.round((analysedRows / total) * 100) : 100;
+          setProgressMessage(
+            `Checking Player Centre matches: ${analysedRows} of ${total} rows`
+          );
+          setProgressPercent(percent);
+        },
+      }
+    );
 
     setDecisions(analysed);
     setMessage("Chess SA check complete. Verified matches are ready to apply; review rows are separated below.");
+    setProgressMessage("");
+    setProgressPercent(0);
     setAnalysing(false);
   }
 
@@ -209,6 +243,8 @@ export default function AdminPlayersSyncPage() {
     }
 
     setSyncing(true);
+    setProgressMessage("Starting Chess SA sync...");
+    setProgressPercent(5);
     setMessage("");
 
     let updatedRows = 0;
@@ -225,8 +261,17 @@ export default function AdminPlayersSyncPage() {
       (decision) => decision.action !== "skip"
     );
 
-    for (const decision of actionableDecisions) {
+    for (const [index, decision] of actionableDecisions.entries()) {
       try {
+        setProgressMessage(
+          `Applying Chess SA updates: ${index + 1} of ${actionableDecisions.length}`
+        );
+        setProgressPercent(
+          actionableDecisions.length > 0
+            ? Math.round(((index + 1) / actionableDecisions.length) * 100)
+            : 100
+        );
+
         const row = decision.row;
 
         if (decision.action === "review") {
@@ -305,6 +350,7 @@ export default function AdminPlayersSyncPage() {
       }
     }
 
+    setProgressMessage("Saving sync history...");
     const session = await createImportSession({
       import_type: "Chess SA Master Sync",
       source_page: "/admin/players/sync",
@@ -330,6 +376,7 @@ export default function AdminPlayersSyncPage() {
 
     await createImportSessionRows(session.id, historyRows);
 
+    setProgressMessage("Refreshing analysis...");
     setSummary({
       total_rows: decisions.length,
       matched_rows: updatedRows,
@@ -346,6 +393,8 @@ export default function AdminPlayersSyncPage() {
 
     await analyseParsedRows(rows);
     setSyncing(false);
+    setProgressMessage("");
+    setProgressPercent(0);
     setMessage(
       failedRows > 0
         ? `Chess SA sync finished with ${failedRows} failed row${
@@ -389,6 +438,27 @@ export default function AdminPlayersSyncPage() {
             </p>
           )}
 
+          {progressMessage && (
+            <div className="mt-6 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">
+              <div className="flex items-center justify-between gap-3">
+                <p>{progressMessage}</p>
+                <p className="shrink-0 font-black">{progressPercent}%</p>
+              </div>
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-950">
+                <div
+                  className="h-full rounded-full bg-blue-300 transition-all duration-300"
+                  style={{ width: `${Math.max(progressPercent, 5)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {largeFileWarning && !progressMessage && (
+            <p className="mt-6 rounded-xl border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-100">
+              {largeFileWarning}
+            </p>
+          )}
+
           <section className="mt-8 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
             <StatCard label="Rows" value={stats.total} />
             <StatCard label="With Chess SA" value={stats.withChessSa} tone="green" />
@@ -416,13 +486,14 @@ export default function AdminPlayersSyncPage() {
                 type="file"
                 accept=".csv,text/csv"
                 onChange={handleFile}
-                className={inputClass}
+                disabled={busy}
+                className={`${inputClass} disabled:cursor-not-allowed disabled:opacity-60`}
               />
 
               <button
                 type="button"
                 onClick={analyseRows}
-                disabled={analysing || rows.length === 0}
+                disabled={busy || rows.length === 0}
                 className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500 disabled:opacity-60"
               >
                 {analysing ? "Analysing..." : "Analyse"}
@@ -430,7 +501,7 @@ export default function AdminPlayersSyncPage() {
 
               <button
                 type="submit"
-                disabled={syncing || decisions.length === 0}
+                disabled={busy || decisions.length === 0}
                 className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
               >
                 {syncing ? "Syncing..." : "Start Sync"}
@@ -442,6 +513,36 @@ export default function AdminPlayersSyncPage() {
             <ChessSaSyncReviewTable decisions={decisions} />
           </div>
         </div>
+
+        {busy && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-red-400">
+                Chess SA Sync
+              </p>
+              <h2 className="mt-3 text-2xl font-black text-white">
+                Processing file
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-gray-300">
+                {progressMessage || "Working through the player records..."}
+              </p>
+              {largeFileWarning && (
+                <p className="mt-3 text-xs leading-5 text-yellow-100">
+                  {largeFileWarning}
+                </p>
+              )}
+              <div className="mt-5 h-3 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className="h-full rounded-full bg-red-500 transition-all duration-300"
+                  style={{ width: `${Math.max(progressPercent, 5)}%` }}
+                />
+              </div>
+              <p className="mt-3 text-right text-sm font-black text-white">
+                {progressPercent}%
+              </p>
+            </div>
+          </div>
+        )}
       </main>
     </AdminGuard>
   );

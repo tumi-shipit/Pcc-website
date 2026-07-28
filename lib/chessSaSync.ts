@@ -2,6 +2,7 @@ import {
   IdentityPlayer,
   calculateIdentityScore,
   normalizeId,
+  normalizeText,
   tokenSimilarity,
 } from "@/lib/identityResolver";
 
@@ -28,6 +29,18 @@ export type ChessSaSyncDecision = {
   action: "update_existing" | "create_new" | "review" | "skip";
   reasons: string[];
   matched_player?: IdentityPlayer | null;
+};
+
+type ChessSaAnalysisContext = {
+  importedIdCounts: Record<string, number>;
+  playersByChessSaId: Record<string, IdentityPlayer[]>;
+  playersWithoutChessSaId: IdentityPlayer[];
+  playersByNameToken: Record<string, IdentityPlayer[]>;
+};
+
+export type ChessSaSyncProgress = {
+  analysed: number;
+  total: number;
 };
 
 export function normalizeHeader(value: string) {
@@ -172,6 +185,89 @@ function sameNumber(left: number | null | undefined, right: number | null | unde
   return Number(left) === Number(right);
 }
 
+function analysisNameTokens(name: string | null | undefined) {
+  return Array.from(
+    new Set(
+      normalizeText(name)
+        .split(" ")
+        .filter((token) => token.length > 1)
+    )
+  );
+}
+
+function createAnalysisContext(
+  rows: ChessSaSyncRow[],
+  existingPlayers: IdentityPlayer[]
+): ChessSaAnalysisContext {
+  const importedIdCounts = rows.reduce<Record<string, number>>((counts, row) => {
+    const id = normalizeId(row.chess_sa_id);
+    if (!id) return counts;
+    counts[id] = (counts[id] ?? 0) + 1;
+    return counts;
+  }, {});
+
+  const playersByChessSaId: Record<string, IdentityPlayer[]> = {};
+  const playersWithoutChessSaId: IdentityPlayer[] = [];
+  const playersByNameToken: Record<string, IdentityPlayer[]> = {};
+
+  existingPlayers.forEach((player) => {
+    const id = normalizeId(player.chess_sa_id);
+
+    if (id) {
+      playersByChessSaId[id] = playersByChessSaId[id] ?? [];
+      playersByChessSaId[id].push(player);
+      return;
+    }
+
+    playersWithoutChessSaId.push(player);
+
+    analysisNameTokens(player.full_name).forEach((token) => {
+      playersByNameToken[token] = playersByNameToken[token] ?? [];
+      playersByNameToken[token].push(player);
+    });
+  });
+
+  return {
+    importedIdCounts,
+    playersByChessSaId,
+    playersWithoutChessSaId,
+    playersByNameToken,
+  };
+}
+
+function getCandidatePlayers(
+  row: ChessSaSyncRow,
+  context: ChessSaAnalysisContext
+) {
+  const candidates = new Map<string, IdentityPlayer>();
+
+  analysisNameTokens(row.full_name).forEach((token) => {
+    (context.playersByNameToken[token] ?? []).forEach((player) => {
+      candidates.set(player.id, player);
+    });
+  });
+
+  if (row.date_of_birth) {
+    context.playersWithoutChessSaId
+      .filter((player) => player.date_of_birth === row.date_of_birth)
+      .forEach((player) => candidates.set(player.id, player));
+  }
+
+  if (candidates.size === 0 && context.playersWithoutChessSaId.length <= 1000) {
+    context.playersWithoutChessSaId.forEach((player) =>
+      candidates.set(player.id, player)
+    );
+  }
+
+  return Array.from(candidates.values());
+}
+
+function yieldToBrowser() {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
 function syncReasons(row: ChessSaSyncRow, player: IdentityPlayer) {
   const reasons: string[] = [];
 
@@ -273,25 +369,15 @@ export function analyseChessSaRows(
   rows: ChessSaSyncRow[],
   existingPlayers: IdentityPlayer[]
 ): ChessSaSyncDecision[] {
-  const importedIdCounts = rows.reduce<Record<string, number>>((counts, row) => {
-    const id = normalizeId(row.chess_sa_id);
-    if (!id) return counts;
-    counts[id] = (counts[id] ?? 0) + 1;
-    return counts;
-  }, {});
+  const context = createAnalysisContext(rows, existingPlayers);
 
-  const playersByChessSaId = existingPlayers.reduce<Record<string, IdentityPlayer[]>>(
-    (groups, player) => {
-      const id = normalizeId(player.chess_sa_id);
-      if (!id) return groups;
-      groups[id] = groups[id] ?? [];
-      groups[id].push(player);
-      return groups;
-    },
-    {}
-  );
+  return rows.map((row) => analyseChessSaRow(row, context));
+}
 
-  return rows.map((row) => {
+function analyseChessSaRow(
+  row: ChessSaSyncRow,
+  context: ChessSaAnalysisContext
+): ChessSaSyncDecision {
     const importedIdentity: IdentityPlayer = {
       id: `chessa-${row.row_number}`,
       full_name: row.full_name,
@@ -321,9 +407,10 @@ export function analyseChessSaRows(
 
     const normalizedChessSaId = normalizeId(row.chess_sa_id);
 
-    const exactChessSaMatches = playersByChessSaId[normalizedChessSaId] ?? [];
+    const exactChessSaMatches =
+      context.playersByChessSaId[normalizedChessSaId] ?? [];
 
-    if ((importedIdCounts[normalizedChessSaId] ?? 0) > 1) {
+    if ((context.importedIdCounts[normalizedChessSaId] ?? 0) > 1) {
       return {
         row,
         matched_player_id: exactChessSaMatches[0]?.id ?? null,
@@ -389,8 +476,7 @@ export function analyseChessSaRows(
       };
     }
 
-    const candidateMatches = existingPlayers
-      .filter((player) => !normalizeId(player.chess_sa_id))
+    const candidateMatches = getCandidatePlayers(row, context)
       .map((player) => ({
         player,
         match: calculateIdentityScore(importedIdentity, player),
@@ -452,5 +538,29 @@ export function analyseChessSaRows(
       matched_player: null,
     };
 
-  });
+}
+
+export async function analyseChessSaRowsInBatches(
+  rows: ChessSaSyncRow[],
+  existingPlayers: IdentityPlayer[],
+  options: {
+    batchSize?: number;
+    onProgress?: (progress: ChessSaSyncProgress) => void;
+  } = {}
+): Promise<ChessSaSyncDecision[]> {
+  const batchSize = options.batchSize ?? 250;
+  const context = createAnalysisContext(rows, existingPlayers);
+  const decisions: ChessSaSyncDecision[] = [];
+
+  for (let index = 0; index < rows.length; index += batchSize) {
+    const batch = rows.slice(index, index + batchSize);
+    decisions.push(...batch.map((row) => analyseChessSaRow(row, context)));
+    options.onProgress?.({
+      analysed: Math.min(index + batch.length, rows.length),
+      total: rows.length,
+    });
+    await yieldToBrowser();
+  }
+
+  return decisions;
 }

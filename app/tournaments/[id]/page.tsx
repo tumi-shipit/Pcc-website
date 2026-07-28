@@ -495,7 +495,7 @@ export default function TournamentHubPage() {
     );
   }
 
-  const visibleGallery = showAllGallery ? gallery : gallery.slice(0, 3);
+  const visibleGallery = showAllGallery ? gallery : gallery.slice(0, 4);
 
   return (
     <main className="min-h-screen bg-zinc-950 pt-24 text-white">
@@ -786,7 +786,7 @@ export default function TournamentHubPage() {
               </div>
             )}
 
-            {gallery.length > 3 && (
+            {gallery.length > 4 && (
               <div className="mt-6 flex justify-center">
                 <button
                   type="button"
@@ -1304,17 +1304,6 @@ function ArchiveContent({
           <p className="mt-4 text-sm leading-7 text-gray-300 md:text-base md:leading-8">
             The tournament report will appear here once it has been confirmed.
           </p>
-        )}
-
-        {tournament.chess_results_url && (
-          <a
-            href={tournament.chess_results_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-6 inline-flex rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
-          >
-            View on Chess-Results
-          </a>
         )}
       </section>
 
