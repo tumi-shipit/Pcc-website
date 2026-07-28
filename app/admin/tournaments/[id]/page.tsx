@@ -6,6 +6,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
+import {
+  chunkItems,
+  getTournamentGalleryStoragePath,
+} from "@/lib/tournamentGallery";
 
 type Tournament = {
   id: string;
@@ -144,6 +148,10 @@ export default function AdminTournamentDashboardPage() {
   const [results, setResults] = useState<ResultRow[]>([]);
   const [galleryCaption, setGalleryCaption] = useState("");
   const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [deletingGallery, setDeletingGallery] = useState(false);
+  const [selectedGalleryIds, setSelectedGalleryIds] = useState<Set<string>>(
+    () => new Set()
+  );
   const [uploadProgress, setUploadProgress] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -216,6 +224,10 @@ export default function AdminTournamentDashboardPage() {
     }
 
     setGallery((data ?? []) as unknown as GalleryImage[]);
+    setSelectedGalleryIds((current) => {
+      const availableIds = new Set((data ?? []).map((image) => image.id));
+      return new Set([...current].filter((id) => availableIds.has(id)));
+    });
   }
 
   async function loadResults() {
@@ -530,24 +542,109 @@ export default function AdminTournamentDashboardPage() {
     event.target.value = "";
   }
 
-  async function deleteGalleryImage(image: GalleryImage) {
-    const confirmed = window.confirm("Delete this gallery image from the completed event gallery?");
+  function toggleGallerySelection(imageId: string) {
+    setSelectedGalleryIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(imageId)) {
+        next.delete(imageId);
+      } else {
+        next.add(imageId);
+      }
+
+      return next;
+    });
+  }
+
+  function selectAllGalleryImages() {
+    setSelectedGalleryIds(new Set(gallery.map((image) => image.id)));
+  }
+
+  function clearGallerySelection() {
+    setSelectedGalleryIds(new Set());
+  }
+
+  async function deleteGalleryImages(
+    images: GalleryImage[],
+    confirmMessage: string
+  ) {
+    if (images.length === 0 || deletingGallery) return;
+
+    const confirmed = window.confirm(confirmMessage);
     if (!confirmed) return;
 
-    setMessage("");
+    setDeletingGallery(true);
+    setMessage(`Deleting ${images.length} gallery photo(s)...`);
 
-    const { error } = await supabase
-      .from("tournament_gallery")
-      .delete()
-      .eq("id", image.id);
+    const storagePaths = images
+      .map((image) => getTournamentGalleryStoragePath(image.image_url))
+      .filter((path): path is string => Boolean(path));
 
-    if (error) {
-      setMessage(`Could not delete gallery image: ${error.message}`);
-      return;
+    let storageWarning = "";
+
+    for (const paths of chunkItems(storagePaths, 100)) {
+      const { error: storageError } = await supabase.storage
+        .from("tournament-gallery")
+        .remove(paths);
+
+      if (storageError && !storageWarning) {
+        storageWarning = storageError.message;
+      }
     }
 
+    let deletedRows = 0;
+
+    for (const imageChunk of chunkItems(images, 100)) {
+      const { error } = await supabase
+        .from("tournament_gallery")
+        .delete()
+        .in(
+          "id",
+          imageChunk.map((image) => image.id)
+        );
+
+      if (error) {
+        setDeletingGallery(false);
+        setMessage(`Could not delete gallery images: ${error.message}`);
+        return;
+      }
+
+      deletedRows += imageChunk.length;
+    }
+
+    setDeletingGallery(false);
+    setSelectedGalleryIds(new Set());
     await loadGallery();
-    setMessage("Gallery image deleted.");
+    setMessage(
+      storageWarning
+        ? `Removed ${deletedRows} gallery record(s). Storage cleanup warning: ${storageWarning}`
+        : `Deleted ${deletedRows} gallery photo(s).`
+    );
+  }
+
+  async function deleteGalleryImage(image: GalleryImage) {
+    await deleteGalleryImages(
+      [image],
+      "Delete this gallery image from the completed event gallery?"
+    );
+  }
+
+  async function deleteSelectedGalleryImages() {
+    const selectedImages = gallery.filter((image) =>
+      selectedGalleryIds.has(image.id)
+    );
+
+    await deleteGalleryImages(
+      selectedImages,
+      `Delete ${selectedImages.length} selected gallery photo(s)?`
+    );
+  }
+
+  async function clearCompletedGallery() {
+    await deleteGalleryImages(
+      gallery,
+      `Delete all ${gallery.length} gallery photo(s) for this tournament?`
+    );
   }
 
   if (loading) {
@@ -1188,38 +1285,106 @@ export default function AdminTournamentDashboardPage() {
               No gallery photos have been uploaded yet.
             </p>
           ) : (
-            <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-              {gallery.map((image) => (
-                <div
-                  key={image.id}
-                  className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950"
-                >
-                  <div className="relative aspect-square">
-                    <Image
-                      src={image.image_url}
-                      alt={image.caption ?? "Tournament gallery image"}
-                      fill
-                      sizes="(max-width: 768px) 50vw, 25vw"
-                      className="object-cover"
-                    />
-                  </div>
+            <>
+              <div className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-4">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <p className="text-sm font-semibold text-gray-300">
+                    {selectedGalleryIds.size} of {gallery.length} selected
+                  </p>
 
-                  <div className="p-3">
-                    <p className="line-clamp-2 text-xs text-gray-400">
-                      {image.caption ?? "No caption"}
-                    </p>
+                  <div className="grid gap-2 sm:grid-cols-4">
+                    <button
+                      type="button"
+                      onClick={selectAllGalleryImages}
+                      disabled={
+                        deletingGallery ||
+                        selectedGalleryIds.size === gallery.length
+                      }
+                      className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500 disabled:opacity-40"
+                    >
+                      Select all
+                    </button>
 
                     <button
                       type="button"
-                      onClick={() => deleteGalleryImage(image)}
-                      className="mt-3 w-full rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/10"
+                      onClick={clearGallerySelection}
+                      disabled={deletingGallery || selectedGalleryIds.size === 0}
+                      className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500 disabled:opacity-40"
                     >
-                      Delete Photo
+                      Clear
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={deleteSelectedGalleryImages}
+                      disabled={deletingGallery || selectedGalleryIds.size === 0}
+                      className="rounded-lg border border-red-500/50 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100 transition hover:bg-red-500/20 disabled:opacity-40"
+                    >
+                      Delete selected
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={clearCompletedGallery}
+                      disabled={deletingGallery}
+                      className="rounded-lg bg-red-600 px-3 py-2 text-xs font-bold text-white transition hover:bg-red-700 disabled:opacity-40"
+                    >
+                      Clear gallery
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+                {gallery.map((image) => {
+                  const selected = selectedGalleryIds.has(image.id);
+
+                  return (
+                    <div
+                      key={image.id}
+                      className={`overflow-hidden rounded-xl border bg-zinc-950 ${
+                        selected ? "border-red-500" : "border-white/10"
+                      }`}
+                    >
+                      <div className="relative aspect-square">
+                        <Image
+                          src={image.image_url}
+                          alt={image.caption ?? "Tournament gallery image"}
+                          fill
+                          sizes="(max-width: 768px) 50vw, 25vw"
+                          className="object-cover"
+                        />
+
+                        <label className="absolute left-2 top-2 flex items-center gap-2 rounded-full bg-black/75 px-3 py-2 text-xs font-bold text-white">
+                          <input
+                            type="checkbox"
+                            checked={selected}
+                            onChange={() => toggleGallerySelection(image.id)}
+                            className="h-4 w-4 accent-red-600"
+                          />
+                          Select
+                        </label>
+                      </div>
+
+                      <div className="p-3">
+                        <p className="line-clamp-2 text-xs text-gray-400">
+                          {image.caption ?? "No caption"}
+                        </p>
+
+                        <button
+                          type="button"
+                          onClick={() => deleteGalleryImage(image)}
+                          disabled={deletingGallery}
+                          className="mt-3 w-full rounded-lg border border-red-500/40 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
+                        >
+                          Delete Photo
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
           )}
         </section>
       </div>
