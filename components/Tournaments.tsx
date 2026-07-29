@@ -189,20 +189,35 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
       setLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase
+      const columns =
+        "id, tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url";
+
+      const primaryResult = await supabase
         .from("tournaments")
-        .select(
-          "id, tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
-        )
+        .select(columns)
         .neq("registration_status", "Draft")
         .order("start_date", { ascending: true });
 
-      if (error) {
-        console.error("Tournament loading error:", error);
-        setErrorMessage("Could not load tournaments. Please try again later.");
+      const result = primaryResult.error
+        ? await supabase
+            .from("tournaments")
+            .select(columns)
+            .order("start_date", { ascending: true })
+        : primaryResult;
+
+      if (result.error) {
+        console.error("Tournament loading error:", {
+          primary: primaryResult.error,
+          fallback: result.error,
+        });
+        setErrorMessage("Could not load tournaments. Please refresh this page.");
         setTournaments([]);
       } else {
-        setTournaments((data ?? []) as Tournament[]);
+        setTournaments(
+          ((result.data ?? []) as Tournament[]).filter(
+            (tournament) => tournament.registration_status !== "Draft"
+          )
+        );
       }
 
       setLoading(false);
