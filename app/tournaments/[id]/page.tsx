@@ -180,7 +180,17 @@ type PublicTournamentOrganisation = TournamentOrganisationRow & {
 function formatDate(date: string | null) {
   if (!date) return "TBA";
 
-  return new Date(date).toLocaleDateString("en-ZA", {
+  const dateOnly = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsedDate = dateOnly
+    ? new Date(
+        Number(dateOnly[1]),
+        Number(dateOnly[2]) - 1,
+        Number(dateOnly[3]),
+        12
+      )
+    : new Date(date);
+
+  return parsedDate.toLocaleDateString("en-ZA", {
     day: "numeric",
     month: "long",
     year: "numeric",

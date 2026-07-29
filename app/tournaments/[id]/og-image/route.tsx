@@ -48,7 +48,17 @@ function tournamentIdFromUrl(request: Request) {
 function formatDate(value: string | null) {
   if (!value) return "Date TBA";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const parsedDate = dateOnly
+    ? new Date(
+        Number(dateOnly[1]),
+        Number(dateOnly[2]) - 1,
+        Number(dateOnly[3]),
+        12
+      )
+    : new Date(value);
+
+  return parsedDate.toLocaleDateString("en-ZA", {
     day: "numeric",
     month: "long",
     year: "numeric",
