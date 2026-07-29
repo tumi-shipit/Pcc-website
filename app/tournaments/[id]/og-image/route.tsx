@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og";
 import { createClient } from "@supabase/supabase-js";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type TournamentShareData = {
   tournament_name: string;
@@ -46,23 +47,13 @@ function tournamentIdFromUrl(request: Request) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) return "Date TBA";
-
-  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const parsedDate = dateOnly
-    ? new Date(
-        Number(dateOnly[1]),
-        Number(dateOnly[2]) - 1,
-        Number(dateOnly[3]),
-        12
-      )
-    : new Date(value);
-
-  return parsedDate.toLocaleDateString("en-ZA", {
+  const formattedDate = formatCalendarDate(value, {
     day: "numeric",
     month: "long",
     year: "numeric",
   });
+
+  return formattedDate === "TBA" ? "Date TBA" : formattedDate;
 }
 
 export async function GET(request: Request) {

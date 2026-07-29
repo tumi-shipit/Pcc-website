@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
+import {
+  formatCalendarDate,
+  getCalendarDateKey,
+  getSouthAfricaDateKey,
+} from "@/lib/dateHelpers";
 import { supabase } from "@/lib/supabase";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Live" | "Completed";
@@ -21,9 +26,7 @@ type Tournament = {
 };
 
 function formatDate(date: string | null) {
-  if (!date) return "TBA";
-
-  return new Date(date).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(date, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -39,13 +42,10 @@ function statusClass(status: TournamentStatus) {
 }
 
 function isUpcoming(date: string | null) {
-  if (!date) return false;
-  const eventDate = new Date(date);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  eventDate.setHours(0, 0, 0, 0);
+  const today = getSouthAfricaDateKey();
+  const eventDate = getCalendarDateKey(date);
 
-  return eventDate.getTime() >= today.getTime();
+  return Boolean(today && eventDate && eventDate >= today);
 }
 
 export default function AdminTournamentsPage() {

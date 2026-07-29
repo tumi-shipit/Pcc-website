@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
   chunkItems,
   getTournamentGalleryStoragePath,
@@ -89,9 +90,7 @@ type ResultRow = {
 };
 
 function formatDate(date: string | null) {
-  if (!date) return "TBA";
-
-  return new Date(date).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(date, {
     day: "numeric",
     month: "long",
     year: "numeric",

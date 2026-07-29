@@ -1,6 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { connection } from "next/server";
+import {
+  formatCalendarDate,
+  getCalendarDateKey,
+  getSouthAfricaDateKey,
+  parseCalendarDate,
+} from "@/lib/dateHelpers";
 
 type Tournament = {
   id: string;
@@ -72,31 +78,8 @@ async function fetchPublicTournaments() {
   }
 }
 
-function parseCalendarDate(value: string) {
-  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-
-  if (dateOnly) {
-    const [, year, month, day] = dateOnly;
-
-    return new Date(
-      Number(year),
-      Number(month) - 1,
-      Number(day),
-      12,
-      0,
-      0
-    );
-  }
-
-  return new Date(value);
-}
-
 function formatDate(date: string) {
-  const parsedDate = parseCalendarDate(date);
-
-  if (Number.isNaN(parsedDate.getTime())) return "TBA";
-
-  return parsedDate.toLocaleDateString("en-ZA", {
+  return formatCalendarDate(date, {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -114,13 +97,10 @@ function formatMoney(amount: number) {
 }
 
 function isFutureDatedTournament(tournament: Tournament) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = getSouthAfricaDateKey();
+  const tournamentDate = getCalendarDateKey(tournament.start_date);
 
-  const tournamentDate = parseCalendarDate(tournament.start_date);
-  tournamentDate.setHours(0, 0, 0, 0);
-
-  return tournamentDate.getTime() >= today.getTime();
+  return Boolean(today && tournamentDate && tournamentDate >= today);
 }
 
 function isActiveTournament(tournament: Tournament) {
@@ -248,14 +228,18 @@ export default async function Tournaments({
       if (leftFuture !== rightFuture) return leftFuture ? -1 : 1;
 
       return (
-        parseCalendarDate(left.start_date).getTime() -
-        parseCalendarDate(right.start_date).getTime()
+        (parseCalendarDate(left.start_date)?.getTime() ?? 0) -
+        (parseCalendarDate(right.start_date)?.getTime() ?? 0)
       );
     });
 
   const pastTournaments = tournaments
     .filter((tournament) => tournament.registration_status === "Completed")
-    .sort((left, right) => parseCalendarDate(right.start_date).getTime() - parseCalendarDate(left.start_date).getTime());
+    .sort(
+      (left, right) =>
+        (parseCalendarDate(right.start_date)?.getTime() ?? 0) -
+        (parseCalendarDate(left.start_date)?.getTime() ?? 0)
+    );
 
   const visibleUpcomingTournaments = fullPage
     ? upcomingTournaments

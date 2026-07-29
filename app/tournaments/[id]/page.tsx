@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 import { supabase } from "@/lib/supabase";
 
 type Tournament = {
@@ -178,19 +179,7 @@ type PublicTournamentOrganisation = TournamentOrganisationRow & {
 };
 
 function formatDate(date: string | null) {
-  if (!date) return "TBA";
-
-  const dateOnly = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const parsedDate = dateOnly
-    ? new Date(
-        Number(dateOnly[1]),
-        Number(dateOnly[2]) - 1,
-        Number(dateOnly[3]),
-        12
-      )
-    : new Date(date);
-
-  return parsedDate.toLocaleDateString("en-ZA", {
+  return formatCalendarDate(date, {
     day: "numeric",
     month: "long",
     year: "numeric",

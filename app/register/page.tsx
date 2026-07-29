@@ -1,6 +1,11 @@
 ﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  formatCalendarDate,
+  getCalendarYear,
+  getSouthAfricaDateParts,
+} from "@/lib/dateHelpers";
 import { supabase } from "../../lib/supabase";
 
 type SearchMethod = "surname" | "chesssa";
@@ -80,15 +85,20 @@ type TournamentSection = {
 function calculateAge(dateOfBirth: string | null) {
   if (!dateOfBirth) return null;
 
-  const birthDate = new Date(dateOfBirth);
-  const today = new Date();
+  const birthDate = dateOfBirth.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!birthDate) return null;
 
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDifference = today.getMonth() - birthDate.getMonth();
+  const birthYear = Number(birthDate[1]);
+  const birthMonth = Number(birthDate[2]);
+  const birthDay = Number(birthDate[3]);
+  const today = getSouthAfricaDateParts();
+
+  let age = today.year - birthYear;
+  const monthDifference = today.month - birthMonth;
 
   if (
     monthDifference < 0 ||
-    (monthDifference === 0 && today.getDate() < birthDate.getDate())
+    (monthDifference === 0 && today.day < birthDay)
   ) {
     age -= 1;
   }
@@ -97,10 +107,7 @@ function calculateAge(dateOfBirth: string | null) {
 }
 
 function getBirthYear(dateOfBirth: string | null) {
-  if (!dateOfBirth) return null;
-
-  const year = new Date(dateOfBirth).getFullYear();
-  return Number.isFinite(year) ? year : null;
+  return getCalendarYear(dateOfBirth);
 }
 
 function normalizeGender(gender: string | null) {
@@ -122,7 +129,7 @@ function formatMoney(amount: number) {
 }
 
 function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "long",
     year: "numeric",

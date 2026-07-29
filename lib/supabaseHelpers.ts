@@ -1,3 +1,8 @@
+import {
+  formatCalendarDate,
+  formatSouthAfricaDateTime,
+} from "@/lib/dateHelpers";
+
 export function singleRelation<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
@@ -20,9 +25,7 @@ export function valueOrDash(value: string | number | null | undefined) {
 }
 
 export function formatDate(value: string | null | undefined) {
-  if (!value) return "TBA";
-
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -30,9 +33,7 @@ export function formatDate(value: string | null | undefined) {
 }
 
 export function formatDateTime(value: string | null | undefined) {
-  if (!value) return "TBA";
-
-  return new Date(value).toLocaleString("en-ZA", {
+  return formatSouthAfricaDateTime(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
