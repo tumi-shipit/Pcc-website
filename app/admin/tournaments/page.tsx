@@ -52,7 +52,7 @@ export default function AdminTournamentsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [statusFilter, setStatusFilter] = useState<
     "Active" | "Upcoming" | "Draft" | "Completed" | "All"
-  >("Active");
+  >("All");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -155,7 +155,7 @@ export default function AdminTournamentsPage() {
 
           <section className="mt-6 grid gap-3 rounded-2xl border border-white/10 bg-zinc-900 p-3 md:grid-cols-[1fr_auto] md:items-center">
             <div className="grid gap-2 sm:grid-cols-5">
-              {(["Active", "Upcoming", "Draft", "Completed", "All"] as const).map(
+              {(["All", "Active", "Upcoming", "Completed", "Draft"] as const).map(
                 (filter) => (
                   <button
                     key={filter}

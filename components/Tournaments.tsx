@@ -14,7 +14,7 @@ type Tournament = {
   end_date: string | null;
   venue: string;
   province: string | null;
-  registration_status: "Draft" | "Open" | "Closed" | "Live" | "Completed";
+  registration_status: "Draft" | "Open" | "Closed" | "Live" | "Completed" | null;
   entry_fee: number;
   poster_image_url: string | null;
 };
@@ -194,7 +194,7 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
         .select(
           "id, tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url"
         )
-        .neq("registration_status", "Draft")
+        .or("registration_status.is.null,registration_status.neq.Draft")
         .order("start_date", { ascending: true });
 
       if (error) {
