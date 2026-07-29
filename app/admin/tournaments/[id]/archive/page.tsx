@@ -1539,7 +1539,7 @@ export default function TournamentArchiveContinuationPage() {
     }
 
     if (playerRows.length === 0) {
-      setMessage("Upload a Starting Rank List first.");
+      setMessage("Upload a completed PCC bulk registration template first.");
       return;
     }
 
@@ -2059,9 +2059,9 @@ export default function TournamentArchiveContinuationPage() {
                   </h2>
 
                   <p className="mt-2 text-sm leading-6 text-gray-400">
-                    Upload one tournament Starting Rank List. Players with DOB
-                    or rating data are registered into the qualifying section
-                    automatically.
+                    Upload the completed PCC bulk registration template.
+                    Schools, teachers, coaches, chess clubs and chess
+                    organisations can send one list for the organiser to import.
                   </p>
 
                   <a
@@ -2069,7 +2069,7 @@ export default function TournamentArchiveContinuationPage() {
                     download
                     className="mt-4 inline-flex rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
                   >
-                    Download coach Excel template
+                    Download Excel template
                   </a>
                 </div>
 
@@ -2112,7 +2112,7 @@ export default function TournamentArchiveContinuationPage() {
               </div>
 
               <PreviewTable
-                emptyText="Optional: upload the tournament Starting Rank List to register and distribute players."
+                emptyText="Optional: upload the completed PCC bulk registration template to register and distribute players."
                 headers={[
                   "SNo",
                   "Name",

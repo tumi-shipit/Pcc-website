@@ -1102,8 +1102,10 @@ export default function RegisterPage() {
                 </h2>
 
                 <p className="mt-2 text-sm leading-6 text-gray-400">
-                  Teachers and coaches can fill one player list offline, then send
-                  it to the tournament organiser for importing.
+                  Schools, teachers, coaches, chess clubs and chess
+                  organisations can use this template to register a large
+                  number of players. The completed list can be sent to the
+                  tournament organiser.
                 </p>
               </div>
 
