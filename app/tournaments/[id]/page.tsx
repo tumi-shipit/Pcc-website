@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { formatCalendarDate } from "@/lib/dateHelpers";
-import { supabase } from "@/lib/supabase";
+import { publicSupabase as supabase } from "@/lib/supabase";
 
 type Tournament = {
   id: string;
