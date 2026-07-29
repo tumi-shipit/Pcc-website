@@ -36,6 +36,14 @@ type NewPlayerForm = {
   gender: string;
 };
 
+type RegistrationReceipt = {
+  playerName: string;
+  tournamentName: string;
+  sectionName: string;
+  paymentStatus: string;
+  contact: string;
+};
+
 const emptyNewPlayer: NewPlayerForm = {
   first_names: "",
   surname: "",
@@ -243,6 +251,23 @@ function getBestChessSaRating(player: ChessSaPlayer | null) {
   return player.standard_rating ?? player.rapid_rating ?? player.blitz_rating ?? null;
 }
 
+function getEligibleSections(
+  sections: TournamentSection[],
+  playerDateOfBirth: string | null,
+  playerGender: string | null,
+  playerRating: number | null
+) {
+  return sections.filter(
+    (section) =>
+      !getSectionEligibilityMessage(
+        section,
+        playerDateOfBirth,
+        playerGender,
+        playerRating
+      )
+  );
+}
+
 function playerLookupKey(player: ChessSaPlayer) {
   return (
     player.pcc_id ||
@@ -321,6 +346,8 @@ export default function RegisterPage() {
   const [submittingRegistration, setSubmittingRegistration] = useState(false);
   const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState("");
+  const [registrationReceipt, setRegistrationReceipt] =
+    useState<RegistrationReceipt | null>(null);
   const [openPoster, setOpenPoster] = useState<Tournament | null>(null);
 
   const selectedTournament = useMemo(
@@ -358,6 +385,59 @@ export default function RegisterPage() {
   const entryFee =
     selectedSection?.entry_fee_override ?? selectedTournament?.entry_fee ?? 0;
 
+  const eligibleSections = useMemo(
+    () =>
+      getEligibleSections(
+        sections,
+        playerDateOfBirth,
+        playerGender,
+        selectedPlayerRating
+      ),
+    [sections, playerDateOfBirth, playerGender, selectedPlayerRating]
+  );
+
+  const hasUsableNewPlayer =
+    newPlayerMode &&
+    Boolean(
+      newPlayer.first_names.trim() &&
+        newPlayer.surname.trim() &&
+        newPlayer.date_of_birth &&
+        newPlayer.gender
+    );
+  const hasSelectedPlayer = Boolean(selectedChessSaPlayer) || hasUsableNewPlayer;
+  const hasContactDetails = Boolean(email.trim() && phone.trim());
+  const hasTournamentChoice = Boolean(selectedTournamentId);
+  const hasSectionChoice = Boolean(
+    selectedSectionId && !selectedSectionEligibilityMessage
+  );
+  const hasPaymentChoice =
+    paymentChoice === "later" || (paymentChoice === "proof" && Boolean(proofFile));
+  const readinessItems = useMemo<Array<[boolean, string]>>(
+    () => [
+      [hasSelectedPlayer, "Player confirmed"],
+      [hasContactDetails, "Contact details added"],
+      [hasTournamentChoice, "Tournament selected"],
+      [hasSectionChoice, "Eligible section selected"],
+      [hasPaymentChoice, "Payment option ready"],
+      [!registrationSubmitted, "Entry not yet submitted"],
+    ],
+    [
+      hasSelectedPlayer,
+      hasContactDetails,
+      hasTournamentChoice,
+      hasSectionChoice,
+      hasPaymentChoice,
+      registrationSubmitted,
+    ]
+  );
+  const registrationReady =
+    hasSelectedPlayer &&
+    hasContactDetails &&
+    hasTournamentChoice &&
+    hasSectionChoice &&
+    hasPaymentChoice &&
+    !registrationSubmitted;
+
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     setRequestedTournamentId(query.get("tournament") ?? "");
@@ -390,6 +470,11 @@ export default function RegisterPage() {
         } else if (requestedTournamentId) {
           setSearchMessage(
             "That tournament is not currently open for registration. Please choose another open tournament below."
+          );
+        } else if (openTournaments.length === 1) {
+          setSelectedTournamentId(openTournaments[0].id);
+          setSearchMessage(
+            "Tournament selected. Find your player profile to continue."
           );
         }
       }
@@ -434,6 +519,39 @@ export default function RegisterPage() {
 
     loadSections();
   }, [selectedTournamentId]);
+
+  useEffect(() => {
+    if (!selectedTournamentId || loadingSections || sections.length === 0) return;
+
+    const selectedSectionStillValid = sections.some(
+      (section) =>
+        section.id === selectedSectionId &&
+        !getSectionEligibilityMessage(
+          section,
+          playerDateOfBirth,
+          playerGender,
+          selectedPlayerRating
+        )
+    );
+
+    if (selectedSectionId && !selectedSectionStillValid) {
+      setSelectedSectionId("");
+      return;
+    }
+
+    if (!selectedSectionId && eligibleSections.length === 1) {
+      setSelectedSectionId(eligibleSections[0].id);
+    }
+  }, [
+    selectedTournamentId,
+    loadingSections,
+    sections,
+    selectedSectionId,
+    eligibleSections,
+    playerDateOfBirth,
+    playerGender,
+    selectedPlayerRating,
+  ]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -692,8 +810,44 @@ export default function RegisterPage() {
     return foundProfiles;
   }
 
+  function resetEntryForm(keepTournament = true) {
+    setMatches([]);
+    setSelectedChessSaPlayer(null);
+    setNewPlayerMode(false);
+    setNewPlayer(emptyNewPlayer);
+    setEmail("");
+    setPhone("");
+    setClub("");
+    setProvince("");
+    setSelectedSectionId("");
+    setPaymentChoice("later");
+    setProofFile(null);
+    setRegistrationMessage("");
+    setRegistrationSubmitted(false);
+    setRegistrationReceipt(null);
+    setSearchValue("");
+    setSearchBirthDate("");
+    setSearchMessage(
+      keepTournament && selectedTournament
+        ? "Tournament kept selected. Find the next player profile to continue."
+        : ""
+    );
+
+    if (!keepTournament) {
+      setSelectedTournamentId("");
+    }
+  }
+
   async function handleRegistration(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (registrationSubmitted) {
+      setRegistrationMessage(
+        "This entry has already been submitted. Use Register another player for a new entry."
+      );
+      return;
+    }
+
     setRegistrationSubmitted(false);
 
     if (!selectedChessSaPlayer && !newPlayerMode) {
@@ -826,6 +980,16 @@ export default function RegisterPage() {
       setRegistrationMessage(
         "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
       );
+      setRegistrationReceipt({
+        playerName: selectedChessSaPlayer
+          ? selectedChessSaPlayer.full_name
+          : newPlayerFullName,
+        tournamentName: selectedTournament?.tournament_name ?? "Tournament",
+        sectionName: selectedSection?.section_name ?? "Section pending",
+        paymentStatus:
+          paymentChoice === "proof" ? "Proof submitted for review" : "Pay later",
+        contact: `${email.trim()} / ${phone.trim()}`,
+      });
       setRegistrationSubmitted(true);
     } catch (error) {
       const errorMessage =
@@ -917,6 +1081,33 @@ export default function RegisterPage() {
                 </p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-5 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-5">
+            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
+                  School and coach helper
+                </p>
+
+                <h2 className="mt-2 text-xl font-black text-white">
+                  Register many players from one Excel sheet
+                </h2>
+
+                <p className="mt-2 text-sm leading-6 text-gray-400">
+                  Teachers and coaches can fill one player list offline, then send
+                  it to the tournament organiser for importing.
+                </p>
+              </div>
+
+              <a
+                href="/templates/pcc-bulk-registration-template.xlsx"
+                download
+                className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200"
+              >
+                Download Excel template
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -1455,6 +1646,16 @@ export default function RegisterPage() {
                     })}
                   </select>
 
+                  {selectedTournamentId && !loadingSections && sections.length > 0 && (
+                    <p className="mt-2 text-xs leading-5 text-gray-500">
+                      {eligibleSections.length === 1 && selectedSectionId
+                        ? "The only eligible section has been selected for this player."
+                        : `${eligibleSections.length} eligible section${
+                            eligibleSections.length === 1 ? "" : "s"
+                          } available for this player.`}
+                    </p>
+                  )}
+
                   {selectedSectionEligibilityMessage && (
                     <p className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm leading-6 text-red-100">
                       {selectedSectionEligibilityMessage}
@@ -1645,20 +1846,42 @@ export default function RegisterPage() {
                     {email || phone ? `${email || "No email"} / ${phone || "No phone"}` : "Not completed"}
                   </p>
                 </div>
+
+                <div className="mt-5 grid gap-2 border-t border-white/10 pt-4 sm:grid-cols-2">
+                  {readinessItems.map(([complete, label]) => (
+                    <div
+                      key={label}
+                      className={`rounded-lg border px-3 py-2 text-xs font-bold ${
+                        complete
+                          ? "border-green-500/30 bg-green-500/10 text-green-200"
+                          : "border-white/10 bg-black/20 text-gray-500"
+                      }`}
+                    >
+                      {complete ? "Ready" : "Needed"} - {label}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <button
                 type="submit"
                 disabled={
                   submittingRegistration ||
-                  Boolean(selectedSectionEligibilityMessage)
+                  Boolean(selectedSectionEligibilityMessage) ||
+                  !registrationReady
                 }
                 className="mt-6 flex w-full items-center justify-center gap-3 rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submittingRegistration && (
                   <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                 )}
-                {submittingRegistration ? "Submitting entry..." : "Submit Registration"}
+                {submittingRegistration
+                  ? "Submitting entry..."
+                  : registrationSubmitted
+                    ? "Entry already submitted"
+                    : registrationReady
+                      ? "Submit Registration"
+                      : "Complete the missing items above"}
               </button>
 
               {registrationMessage && (
@@ -1751,23 +1974,41 @@ export default function RegisterPage() {
               registration and payment status.
             </p>
 
-            {selectedTournament && (
+            {registrationReceipt && (
               <div className="mt-5 rounded-xl border border-white/10 bg-zinc-900 p-4 text-sm text-gray-300">
-                <p className="font-semibold text-white">{registeringPlayerName}</p>
-                <p className="mt-1">{selectedTournament.tournament_name}</p>
+                <p className="font-semibold text-white">
+                  {registrationReceipt.playerName}
+                </p>
+                <p className="mt-1">{registrationReceipt.tournamentName}</p>
                 <p className="mt-1 text-gray-400">
-                  {selectedSection?.section_name ?? "Section pending"}
+                  {registrationReceipt.sectionName}
+                </p>
+                <p className="mt-1 text-gray-400">
+                  {registrationReceipt.paymentStatus}
+                </p>
+                <p className="mt-1 text-gray-500">
+                  Contact: {registrationReceipt.contact}
                 </p>
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={() => setRegistrationSubmitted(false)}
-              className="mt-6 w-full rounded-lg bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
-            >
-              Done
-            </button>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => resetEntryForm(true)}
+                className="rounded-lg bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
+              >
+                Register another player
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setRegistrationSubmitted(false)}
+                className="rounded-lg border border-white/15 px-4 py-3 font-semibold text-white transition hover:border-white/40"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

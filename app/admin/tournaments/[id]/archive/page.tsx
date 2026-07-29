@@ -442,11 +442,13 @@ async function readExcelRows(file: File) {
 
 function parseStartingRankRows(rows: unknown[][]) {
   const headerRowIndex = findHeaderRowByColumns(rows, [
-    ["Name", "Player", "Full Name"],
+    ["Name", "Player", "Full Name", "Surname"],
   ]);
 
   if (headerRowIndex === -1) {
-    throw new Error("Could not find a player list header containing a Name column.");
+    throw new Error(
+      "Could not find a player list header containing Name or Surname columns."
+    );
   }
 
   const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
@@ -465,6 +467,20 @@ function parseStartingRankRows(rows: unknown[][]) {
     "Player",
     "Full Name",
     "Surname and Names",
+  ]);
+
+  const surnameIndex = getFlexibleColumnIndex(headers, [
+    "Surname",
+    "Last Name",
+    "Family Name",
+  ]);
+
+  const firstNamesIndex = getFlexibleColumnIndex(headers, [
+    "First Names",
+    "First Name",
+    "Given Names",
+    "Names",
+    "Initials",
   ]);
 
   const ratingIndex = getFlexibleColumnIndex(headers, [
@@ -523,14 +539,19 @@ function parseStartingRankRows(rows: unknown[][]) {
     "FIDE-No",
   ]);
 
-  if (nameIndex === -1) {
-    throw new Error("Missing required column: Name.");
+  if (nameIndex === -1 && surnameIndex === -1) {
+    throw new Error("Missing required column: Name or Surname.");
   }
 
   return rows
     .slice(headerRowIndex + 1)
     .map((row) => {
-      const name = String(row[nameIndex] ?? "").trim();
+      const directName = nameIndex >= 0 ? String(row[nameIndex] ?? "").trim() : "";
+      const surname =
+        surnameIndex >= 0 ? String(row[surnameIndex] ?? "").trim() : "";
+      const firstNames =
+        firstNamesIndex >= 0 ? String(row[firstNamesIndex] ?? "").trim() : "";
+      const name = directName || [surname, firstNames].filter(Boolean).join(" ");
       if (!name) return null;
 
       return {
@@ -2042,6 +2063,14 @@ export default function TournamentArchiveContinuationPage() {
                     or rating data are registered into the qualifying section
                     automatically.
                   </p>
+
+                  <a
+                    href="/templates/pcc-bulk-registration-template.xlsx"
+                    download
+                    className="mt-4 inline-flex rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
+                  >
+                    Download coach Excel template
+                  </a>
                 </div>
 
                 <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">

@@ -108,6 +108,23 @@ type TournamentRoleProfileRow = {
   club: string | null;
   province: string | null;
   profile_photo_url: string | null;
+  title: string | null;
+};
+
+type PublicRegistrationRow = {
+  registration_id: string;
+  tournament_id: string;
+  section_id: string | null;
+  section_name: string | null;
+  section_display_order: number | null;
+  player_id: string | null;
+  full_name: string | null;
+  chess_sa_id: string | null;
+  pcc_id: string | null;
+  profile_photo_url: string | null;
+  registration_status: string | null;
+  payment_status: string | null;
+  created_at: string | null;
 };
 
 type PublicOfficial = {
@@ -341,6 +358,7 @@ export default function TournamentHubPage() {
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
+  const [registeredPlayers, setRegisteredPlayers] = useState<PublicRegistrationRow[]>([]);
   const [arbiter, setArbiter] = useState<Player | null>(null);
   const [officials, setOfficials] = useState<PublicOfficial[]>([]);
   const [organisations, setOrganisations] = useState<PublicTournamentOrganisation[]>([]);
@@ -414,6 +432,16 @@ export default function TournamentHubPage() {
 
       const resultRows = (resultData ?? []) as TournamentResult[];
 
+      const { data: registrationListData } = await supabase
+        .from("public_tournament_registration_list")
+        .select(
+          "registration_id, tournament_id, section_id, section_name, section_display_order, player_id, full_name, chess_sa_id, pcc_id, profile_photo_url, registration_status, payment_status, created_at"
+        )
+        .eq("tournament_id", tournamentId)
+        .order("section_display_order", { ascending: true, nullsFirst: false })
+        .order("section_name", { ascending: true, nullsFirst: false })
+        .order("full_name", { ascending: true, nullsFirst: false });
+
       const { data: tournamentOrganisationData } = await supabase
         .from("tournament_organisations")
         .select(
@@ -459,7 +487,7 @@ export default function TournamentHubPage() {
       const { data: roleProfileData } = await supabase
         .from("public_tournament_role_profiles")
         .select(
-          "id, tournament_id, player_id, role, notes, role_group, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url"
+          "id, tournament_id, player_id, role, notes, role_group, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url, title"
         )
         .eq("tournament_id", tournamentId)
         .order("role_group", { ascending: true })
@@ -485,7 +513,7 @@ export default function TournamentHubPage() {
               club: role.club,
               province: role.province,
               profile_photo_url: role.profile_photo_url,
-              title: null,
+              title: role.title,
             }
           : null,
       }));
@@ -550,6 +578,9 @@ export default function TournamentHubPage() {
       setStats((statsData ?? null) as TournamentStats | null);
       setGallery((galleryData ?? []) as unknown as GalleryImage[]);
       setResults(resultRowsWithPlayers);
+      setRegisteredPlayers(
+        (registrationListData ?? []) as unknown as PublicRegistrationRow[]
+      );
       setOrganisations(
         tournamentOrganisationRows.map((row) => ({
           ...row,
@@ -621,6 +652,10 @@ export default function TournamentHubPage() {
   }
 
   const visibleGallery = showAllGallery ? gallery : gallery.slice(0, 4);
+  const registeredCount =
+    stats?.total_registrations && stats.total_registrations > 0
+      ? stats.total_registrations
+      : registeredPlayers.length;
 
   return (
     <main className="min-h-screen bg-zinc-950 pt-24 text-white">
@@ -740,7 +775,7 @@ export default function TournamentHubPage() {
           <div className="rounded-2xl border border-white/10 bg-zinc-900 p-5">
             <p className="text-sm text-gray-400">Registered players</p>
             <p className="mt-2 text-3xl font-bold">
-              {stats?.total_registrations ?? 0}
+              {registeredCount}
             </p>
           </div>
 
@@ -777,6 +812,8 @@ export default function TournamentHubPage() {
             </p>
           </div>
         </div>
+
+        {!isCompleted && <RegisteredPlayersPanel players={registeredPlayers} />}
 
         {isCompleted && (
           <ArchiveContent
@@ -990,6 +1027,181 @@ function TournamentTeam({
           <PublicOfficialCard key={card.key} card={card} />
         ))}
       </div>
+    </section>
+  );
+}
+
+function publicRegistrationName(player: PublicRegistrationRow) {
+  return player.full_name?.trim() || "Player name pending";
+}
+
+function statusBadgeClass(value: string | null | undefined) {
+  const status = (value ?? "").toLowerCase();
+
+  if (status.includes("paid") || status.includes("approved")) {
+    return "border-green-500/30 bg-green-500/10 text-green-200";
+  }
+
+  if (status.includes("reject") || status.includes("withdraw")) {
+    return "border-red-500/30 bg-red-500/10 text-red-200";
+  }
+
+  return "border-amber-500/30 bg-amber-500/10 text-amber-100";
+}
+
+function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] }) {
+  const [search, setSearch] = useState("");
+  const cleanSearch = search.trim().toLowerCase();
+
+  const filteredPlayers = useMemo(() => {
+    if (!cleanSearch) return players;
+
+    return players.filter((player) =>
+      [
+        publicRegistrationName(player),
+        player.section_name,
+        player.chess_sa_id,
+        player.pcc_id,
+        player.registration_status,
+        player.payment_status,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(cleanSearch)
+    );
+  }, [cleanSearch, players]);
+
+  const groupedPlayers = useMemo(() => {
+    const groups = new Map<string, PublicRegistrationRow[]>();
+
+    filteredPlayers.forEach((player) => {
+      const sectionName = player.section_name ?? "Section pending";
+      const current = groups.get(sectionName) ?? [];
+      current.push(player);
+      groups.set(sectionName, current);
+    });
+
+    return Array.from(groups.entries());
+  }, [filteredPlayers]);
+
+  return (
+    <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+      <div className="grid gap-4 md:grid-cols-[1fr_320px] md:items-end">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Entry Check
+          </p>
+          <h2 className="mt-2 text-2xl font-black md:text-3xl">
+            Registered players
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-gray-400">
+            Search the public entry list to confirm whether a player appears for
+            this tournament. Private contact details are not shown.
+          </p>
+        </div>
+
+        <input
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          placeholder="Search player, section or ID"
+          className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
+        />
+      </div>
+
+      <div className="mt-5 flex flex-wrap gap-2">
+        <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+          {players.length} total
+        </span>
+        {search.trim() && (
+          <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+            {filteredPlayers.length} matching
+          </span>
+        )}
+      </div>
+
+      {players.length === 0 ? (
+        <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-gray-400">
+          Registered players will appear here once entries are visible.
+        </p>
+      ) : filteredPlayers.length === 0 ? (
+        <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-gray-400">
+          No registered player matches that search.
+        </p>
+      ) : (
+        <div className="mt-5 max-h-[560px] space-y-5 overflow-y-auto pr-1">
+          {groupedPlayers.map(([sectionName, sectionPlayers]) => (
+            <div
+              key={sectionName}
+              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/30 px-4 py-3">
+                <h3 className="font-black text-white">{sectionName}</h3>
+                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-gray-300">
+                  {sectionPlayers.length} player
+                  {sectionPlayers.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <div className="divide-y divide-white/10">
+                {sectionPlayers.map((player) => (
+                  <div
+                    key={player.registration_id}
+                    className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <PlayerAvatar
+                        name={publicRegistrationName(player)}
+                        photoUrl={player.profile_photo_url}
+                        size="sm"
+                        className="border-red-500/25"
+                      />
+
+                      <div className="min-w-0">
+                        {player.player_id ? (
+                          <Link
+                            href={`/players/${player.player_id}`}
+                            className="block truncate font-bold text-white transition hover:text-red-300"
+                          >
+                            {publicRegistrationName(player)}
+                          </Link>
+                        ) : (
+                          <p className="truncate font-bold text-white">
+                            {publicRegistrationName(player)}
+                          </p>
+                        )}
+
+                        <p className="mt-1 text-xs text-gray-500">
+                          PCC ID {player.pcc_id ?? "-"}  -  Chess SA{" "}
+                          {player.chess_sa_id ?? "-"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2 sm:justify-end">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(
+                          player.registration_status
+                        )}`}
+                      >
+                        {player.registration_status ?? "Pending"}
+                      </span>
+                      <span
+                        className={`rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(
+                          player.payment_status
+                        )}`}
+                      >
+                        {player.payment_status ?? "Payment pending"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
@@ -1477,7 +1689,7 @@ function groupResultsBySection(
       sectionId: "overall",
       sectionName: "Overall",
       chessResultsUrl: null,
-      results: sortResults(results.filter((result) => !result.section_id)),
+      results: sortResults(results),
     },
   ];
 }

@@ -1,4 +1,5 @@
-create or replace view public.public_tournament_role_profiles as
+create or replace view public.public_tournament_role_profiles
+with (security_invoker = true) as
 select
   concat('organiser-', access.id::text) as id,
   access.tournament_id,
