@@ -1,9 +1,6 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { supabase } from "../lib/supabase";
+import { connection } from "next/server";
 
 type Tournament = {
   id: string;
@@ -14,10 +11,66 @@ type Tournament = {
   end_date: string | null;
   venue: string;
   province: string | null;
-  registration_status: "Draft" | "Open" | "Closed" | "Live" | "Completed";
+  registration_status: "Draft" | "Open" | "Closed" | "Live" | "Completed" | null;
   entry_fee: number;
   poster_image_url: string | null;
 };
+
+const TOURNAMENT_COLUMNS =
+  "id,tournament_name,organiser_name,description,start_date,end_date,venue,province,registration_status,entry_fee,poster_image_url";
+
+async function fetchPublicTournaments() {
+  await connection();
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+  if (!supabaseUrl || !supabaseKey) {
+    console.error("Missing Supabase public environment variables.");
+    return { tournaments: [] as Tournament[], error: true };
+  }
+
+  const baseUrl = `${supabaseUrl}/rest/v1/tournaments?select=${encodeURIComponent(
+    TOURNAMENT_COLUMNS
+  )}`;
+  const headers = {
+    apikey: supabaseKey,
+    Authorization: `Bearer ${supabaseKey}`,
+  };
+
+  async function request(url: string) {
+    return fetch(url, {
+      headers,
+      next: { revalidate: 60 },
+    });
+  }
+
+  try {
+    const primaryResponse = await request(
+      `${baseUrl}&registration_status=neq.Draft&order=start_date.asc`
+    );
+    const response = primaryResponse.ok
+      ? primaryResponse
+      : await request(`${baseUrl}&order=start_date.asc`);
+
+    if (!response.ok) {
+      console.error("Tournament loading error:", {
+        status: response.status,
+        body: await response.text(),
+      });
+      return { tournaments: [] as Tournament[], error: true };
+    }
+
+    const tournaments = ((await response.json()) as Tournament[]).filter(
+      (tournament) => tournament.registration_status !== "Draft"
+    );
+
+    return { tournaments, error: false };
+  } catch (error) {
+    console.error("Tournament loading error:", error);
+    return { tournaments: [] as Tournament[], error: true };
+  }
+}
 
 function parseCalendarDate(value: string) {
   const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
@@ -179,52 +232,12 @@ function TournamentCard({
   );
 }
 
-export default function Tournaments({ fullPage = false }: { fullPage?: boolean }) {
-  const [tournaments, setTournaments] = useState<Tournament[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    async function loadTournaments() {
-      setLoading(true);
-      setErrorMessage("");
-
-      const columns =
-        "id, tournament_name, organiser_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url";
-
-      const primaryResult = await supabase
-        .from("tournaments")
-        .select(columns)
-        .neq("registration_status", "Draft")
-        .order("start_date", { ascending: true });
-
-      const result = primaryResult.error
-        ? await supabase
-            .from("tournaments")
-            .select(columns)
-            .order("start_date", { ascending: true })
-        : primaryResult;
-
-      if (result.error) {
-        console.error("Tournament loading error:", {
-          primary: primaryResult.error,
-          fallback: result.error,
-        });
-        setErrorMessage("Could not load tournaments. Please refresh this page.");
-        setTournaments([]);
-      } else {
-        setTournaments(
-          ((result.data ?? []) as Tournament[]).filter(
-            (tournament) => tournament.registration_status !== "Draft"
-          )
-        );
-      }
-
-      setLoading(false);
-    }
-
-    loadTournaments();
-  }, []);
+export default async function Tournaments({
+  fullPage = false,
+}: {
+  fullPage?: boolean;
+}) {
+  const { tournaments, error } = await fetchPublicTournaments();
 
   const upcomingTournaments = tournaments
     .filter(isActiveTournament)
@@ -280,11 +293,10 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
           </Link>
         </div>
 
-        {loading ? (
-          <p className="text-sm text-gray-400">Loading tournaments...</p>
-        ) : errorMessage ? (
-          <p className="rounded-2xl border border-red-500/30 bg-red-500/10 p-5 text-sm text-red-100">
-            {errorMessage}
+        {error ? (
+          <p className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-sm text-gray-300">
+            Tournament listings are refreshing. Please use the Register button
+            above if you are entering an event now.
           </p>
         ) : (
           <>
