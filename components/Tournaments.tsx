@@ -60,7 +60,7 @@ function formatMoney(amount: number) {
   }).format(amount);
 }
 
-function isUpcomingTournament(tournament: Tournament) {
+function isFutureDatedTournament(tournament: Tournament) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -68,6 +68,10 @@ function isUpcomingTournament(tournament: Tournament) {
   tournamentDate.setHours(0, 0, 0, 0);
 
   return tournamentDate.getTime() >= today.getTime();
+}
+
+function isActiveTournament(tournament: Tournament) {
+  return tournament.registration_status !== "Completed";
 }
 
 function getStatusLabel(status: Tournament["registration_status"]) {
@@ -208,11 +212,21 @@ export default function Tournaments({ fullPage = false }: { fullPage?: boolean }
   }, []);
 
   const upcomingTournaments = tournaments
-    .filter(isUpcomingTournament)
-    .sort((left, right) => parseCalendarDate(left.start_date).getTime() - parseCalendarDate(right.start_date).getTime());
+    .filter(isActiveTournament)
+    .sort((left, right) => {
+      const leftFuture = isFutureDatedTournament(left);
+      const rightFuture = isFutureDatedTournament(right);
+
+      if (leftFuture !== rightFuture) return leftFuture ? -1 : 1;
+
+      return (
+        parseCalendarDate(left.start_date).getTime() -
+        parseCalendarDate(right.start_date).getTime()
+      );
+    });
 
   const pastTournaments = tournaments
-    .filter((tournament) => !isUpcomingTournament(tournament))
+    .filter((tournament) => tournament.registration_status === "Completed")
     .sort((left, right) => parseCalendarDate(right.start_date).getTime() - parseCalendarDate(left.start_date).getTime());
 
   const visibleUpcomingTournaments = fullPage
