@@ -18,7 +18,6 @@ type Props = {
 };
 
 const siteUrl = "https://polokwanechessclub.co.za";
-const fallbackImage = "/images/organisations/polokwane-chess-club.png";
 
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -59,18 +58,15 @@ function buildDescription(tournament: TournamentShareData) {
   return body ? `${details}. ${body}`.slice(0, 180) : details;
 }
 
-function absoluteImageUrl(value: string | null) {
-  const image = value?.trim() || fallbackImage;
+function posterPreviewVersion(value: string | null) {
+  const image = value?.trim();
 
-  if (image.startsWith("http://") || image.startsWith("https://")) {
-    return image;
-  }
+  if (!image) return "fallback";
 
-  if (image.startsWith("/")) {
-    return `${siteUrl}${image}`;
-  }
+  const cleanImage = image.split("?")[0];
+  const filename = cleanImage.split("/").filter(Boolean).pop() || "poster";
 
-  return `${siteUrl}/${image}`;
+  return filename.replace(/[^a-zA-Z0-9._-]/g, "").slice(0, 80) || "poster";
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -107,7 +103,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const title = tournament.tournament_name;
   const description = buildDescription(tournament);
   const absoluteUrl = `${siteUrl}${tournamentUrl}`;
-  const image = absoluteImageUrl(tournament.poster_image_url);
+  const image = `${absoluteUrl}/poster-preview?v=${posterPreviewVersion(
+    tournament.poster_image_url
+  )}`;
 
   return {
     title,
@@ -124,8 +122,6 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       images: [
         {
           url: image,
-          width: 1200,
-          height: 630,
           alt: `${title} tournament poster`,
         },
       ],
