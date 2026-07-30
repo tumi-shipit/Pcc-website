@@ -908,7 +908,7 @@ export default function RegisterPage() {
       );
     } else {
       setSearchMessage(
-        `${results.length} matching players found. Please select the correct player.`
+        `${results.length} possible profiles found. Some players may share the same name or surname, so please check the date of birth, FED and Chess SA ID before selecting.`
       );
     }
 
@@ -1429,8 +1429,11 @@ export default function RegisterPage() {
             ))}
           </div>
 
-          <form onSubmit={handleSearch} className="mt-5 grid gap-4 md:grid-cols-2">
-            <div>
+          <form
+            onSubmit={handleSearch}
+            className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
+          >
+            <div className={searchMethod === "surname_dob" ? "" : "md:col-span-2"}>
               <label className="mb-2 block text-sm font-semibold text-gray-200">
                 {searchMethod === "surname"
                   ? "Player surname"
@@ -1471,13 +1474,13 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className={searchMethod === "surname_dob" ? "md:col-span-2" : ""}>
+            <div>
               <button
                 type="submit"
                 disabled={searching}
-                className="w-full rounded-lg bg-red-600 px-4 py-3 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-[46px] w-full rounded-lg bg-red-600 px-5 font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60 md:min-w-[170px]"
               >
-                {searching ? "Searching..." : "Find Profile"}
+                {searching ? "Searching..." : "Find profile"}
               </button>
             </div>
           </form>
@@ -1509,6 +1512,11 @@ export default function RegisterPage() {
         {matches.length > 1 && !selectedChessSaPlayer && (
           <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
             <h2 className="text-xl font-bold md:text-2xl">Select your profile</h2>
+            <p className="mt-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm leading-6 text-blue-100/90">
+              More than one player can have the same surname or similar names.
+              Choose the profile that matches the player's date of birth, FED
+              and Chess SA ID.
+            </p>
 
             <div className="mt-6 grid gap-4">
               {matches.map((match) => (
@@ -1518,14 +1526,64 @@ export default function RegisterPage() {
                   onClick={() => choosePlayer(match)}
                   className="rounded-xl border border-white/10 bg-zinc-950 p-5 text-left transition hover:border-red-500"
                 >
-                  <p className="font-bold">{match.full_name}</p>
-                  <p className="mt-2 text-sm text-gray-400">
-                    PCC ID: {match.pcc_id ?? "Not assigned"}  -  Chess SA ID:{" "}
-                    {match.chess_sa_id ?? "Not recorded"}
-                  </p>
-                  <p className="mt-1 text-sm text-gray-400">
-                    Standard: {match.standard_rating ?? "Not rated"}  -  Rapid:{" "}
-                    {match.rapid_rating ?? "Not rated"}  -  Blitz:{" "}
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-base font-bold text-white">
+                        {match.full_name}
+                      </p>
+                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                        Check these details before selecting
+                      </p>
+                    </div>
+
+                    <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-bold text-red-200">
+                      Select
+                    </span>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
+                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
+                        Date of birth
+                      </span>
+                      <span className="mt-1 block font-semibold text-white">
+                        {match.date_of_birth
+                          ? formatCalendarDate(match.date_of_birth)
+                          : "Not supplied"}
+                      </span>
+                    </p>
+
+                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
+                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
+                        FED
+                      </span>
+                      <span className="mt-1 block font-semibold text-white">
+                        {match.federation ?? match.province ?? "Not supplied"}
+                      </span>
+                    </p>
+
+                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
+                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
+                        Chess SA ID
+                      </span>
+                      <span className="mt-1 block font-semibold text-white">
+                        {match.chess_sa_id ?? "Not recorded"}
+                      </span>
+                    </p>
+
+                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
+                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
+                        PCC ID
+                      </span>
+                      <span className="mt-1 block font-semibold text-white">
+                        {match.pcc_id ?? "Created after registration"}
+                      </span>
+                    </p>
+                  </div>
+
+                  <p className="mt-3 text-sm text-gray-400">
+                    Standard: {match.standard_rating ?? "Not rated"} - Rapid:{" "}
+                    {match.rapid_rating ?? "Not rated"} - Blitz:{" "}
                     {match.blitz_rating ?? "Not rated"}
                   </p>
                 </button>
