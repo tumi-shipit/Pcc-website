@@ -7,6 +7,11 @@ import {
   getSouthAfricaDateParts,
 } from "@/lib/dateHelpers";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
+import {
+  normalizeTournamentRatingType,
+  tournamentRatingLabel,
+  type TournamentRatingType,
+} from "@/lib/ratingTypes";
 
 type SearchMethod = "surname" | "chesssa";
 
@@ -67,6 +72,7 @@ type Tournament = {
   payment_details: string | null;
   poster_image_url: string | null;
   registration_status?: string | null;
+  rating_type?: TournamentRatingType | null;
 };
 
 type TournamentSection = {
@@ -174,7 +180,8 @@ function getSectionEligibilityMessage(
   section: TournamentSection,
   playerDateOfBirth: string | null,
   playerGender: string | null,
-  playerRating: number | null
+  playerRating: number | null,
+  ratingLabel = "Chess SA"
 ) {
   const hasAgeRule =
     section.minimum_birth_year !== null ||
@@ -228,7 +235,7 @@ function getSectionEligibilityMessage(
   }
 
   if (hasRatingRule && playerRating === null) {
-    return `${section.section_name} requires a Chess SA rating before choosing this section.`;
+    return `${section.section_name} requires a ${ratingLabel} rating before choosing this section.`;
   }
 
   if (
@@ -252,17 +259,26 @@ function getSectionEligibilityMessage(
   return "";
 }
 
-function getBestChessSaRating(player: ChessSaPlayer | null) {
+function getTournamentChessSaRating(
+  player: ChessSaPlayer | null,
+  ratingType: string | null | undefined
+) {
   if (!player) return null;
 
-  return player.standard_rating ?? player.rapid_rating ?? player.blitz_rating ?? null;
+  const normalizedRatingType = normalizeTournamentRatingType(ratingType);
+
+  if (normalizedRatingType === "rapid") return player.rapid_rating;
+  if (normalizedRatingType === "blitz") return player.blitz_rating;
+
+  return player.standard_rating;
 }
 
 function getEligibleSections(
   sections: TournamentSection[],
   playerDateOfBirth: string | null,
   playerGender: string | null,
-  playerRating: number | null
+  playerRating: number | null,
+  ratingLabel: string
 ) {
   return sections.filter(
     (section) =>
@@ -270,7 +286,8 @@ function getEligibleSections(
         section,
         playerDateOfBirth,
         playerGender,
-        playerRating
+        playerRating,
+        ratingLabel
       )
   );
 }
@@ -361,6 +378,12 @@ export default function RegisterPage() {
     () => tournaments.find((tournament) => tournament.id === selectedTournamentId),
     [selectedTournamentId, tournaments]
   );
+  const selectedTournamentRatingType = normalizeTournamentRatingType(
+    selectedTournament?.rating_type
+  );
+  const selectedTournamentRatingLabel = tournamentRatingLabel(
+    selectedTournamentRatingType
+  );
 
   const selectedSection = useMemo(
     () => sections.find((section) => section.id === selectedSectionId),
@@ -375,7 +398,10 @@ export default function RegisterPage() {
     selectedChessSaPlayer?.gender ?? (newPlayerMode ? newPlayer.gender : null);
 
   const selectedPlayerAge = calculateAge(playerDateOfBirth);
-  const selectedPlayerRating = getBestChessSaRating(selectedChessSaPlayer);
+  const selectedPlayerRating = getTournamentChessSaRating(
+    selectedChessSaPlayer,
+    selectedTournamentRatingType
+  );
   const registeringPlayerName = selectedChessSaPlayer
     ? selectedChessSaPlayer.full_name
     : getNewPlayerFullName(newPlayer);
@@ -385,7 +411,8 @@ export default function RegisterPage() {
         selectedSection,
         playerDateOfBirth,
         playerGender,
-        selectedPlayerRating
+        selectedPlayerRating,
+        selectedTournamentRatingLabel
       )
     : "";
 
@@ -398,9 +425,16 @@ export default function RegisterPage() {
         sections,
         playerDateOfBirth,
         playerGender,
-        selectedPlayerRating
+        selectedPlayerRating,
+        selectedTournamentRatingLabel
       ),
-    [sections, playerDateOfBirth, playerGender, selectedPlayerRating]
+    [
+      sections,
+      playerDateOfBirth,
+      playerGender,
+      selectedPlayerRating,
+      selectedTournamentRatingLabel,
+    ]
   );
 
   const hasUsableNewPlayer =
@@ -465,7 +499,32 @@ export default function RegisterPage() {
       if (error) {
         setSearchMessage("Could not load open tournaments. Please try again.");
       } else {
-        const openTournaments = (data ?? []) as unknown as Tournament[];
+        let openTournaments = (data ?? []) as unknown as Tournament[];
+        const tournamentIds = openTournaments.map((tournament) => tournament.id);
+
+        if (tournamentIds.length > 0) {
+          const { data: ratingTypeData } = await supabase
+            .from("tournaments")
+            .select("id, rating_type")
+            .in("id", tournamentIds);
+          const ratingTypeByTournament = new Map(
+            ((ratingTypeData ?? []) as Array<{
+              id: string;
+              rating_type?: string | null;
+            }>).map((tournament) => [
+              tournament.id,
+              normalizeTournamentRatingType(tournament.rating_type),
+            ])
+          );
+
+          openTournaments = openTournaments.map((tournament) => ({
+            ...tournament,
+            rating_type:
+              ratingTypeByTournament.get(tournament.id) ??
+              normalizeTournamentRatingType(tournament.rating_type),
+          }));
+        }
+
         setTournaments(openTournaments);
 
         if (
@@ -537,7 +596,8 @@ export default function RegisterPage() {
           section,
           playerDateOfBirth,
           playerGender,
-          selectedPlayerRating
+          selectedPlayerRating,
+          selectedTournamentRatingLabel
         )
     );
 
@@ -558,6 +618,7 @@ export default function RegisterPage() {
     playerDateOfBirth,
     playerGender,
     selectedPlayerRating,
+    selectedTournamentRatingLabel,
   ]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -943,7 +1004,10 @@ export default function RegisterPage() {
         proofOfPaymentUrl = filePath;
       }
 
-      const bestRating = getBestChessSaRating(selectedChessSaPlayer);
+      const tournamentRating = getTournamentChessSaRating(
+        selectedChessSaPlayer,
+        selectedTournamentRatingType
+      );
       const newPlayerFullName = getNewPlayerFullName(newPlayer);
 
       const { error } = await supabase.rpc("submit_tournament_registration", {
@@ -960,7 +1024,7 @@ export default function RegisterPage() {
         p_gender: selectedChessSaPlayer
           ? selectedChessSaPlayer.gender
           : newPlayer.gender,
-        p_rating: bestRating,
+        p_rating: tournamentRating,
         p_email: email.trim(),
         p_phone: phone.trim(),
         p_club: club.trim(),
@@ -1128,9 +1192,9 @@ export default function RegisterPage() {
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Choose one lookup method. Use Chess SA ID when you know it, or use
-            surname with date of birth when the player has played on this
-            platform before.
+            Search first so we can avoid duplicate player records. Use Chess SA
+            ID if the player has one, or use surname with date of birth to check
+            whether the player is already listed.
           </p>
 
           <div className="mt-5 grid gap-2 sm:grid-cols-2">
@@ -1139,12 +1203,12 @@ export default function RegisterPage() {
                 [
                   "surname",
                   "Surname + date of birth",
-                  "Best when you do not know the ID.",
+                  "Use this when the Chess SA ID is not available.",
                 ],
                 [
                   "chesssa",
                   "Chess SA ID",
-                  "Best when the player already has an ID.",
+                  "Use this when the player already has a Chess SA ID.",
                 ],
               ] as const
             ).map(([method, label, helper]) => (
@@ -1425,6 +1489,14 @@ export default function RegisterPage() {
               </p>
 
               <p>
+                <span className="font-semibold text-white">
+                  Used for this tournament:
+                </span>{" "}
+                {selectedTournamentRatingLabel}{" "}
+                {selectedPlayerRating ?? "Not rated"}
+              </p>
+
+              <p>
                 <span className="font-semibold text-white">Federation:</span>{" "}
                 {selectedChessSaPlayer.federation ?? "Not supplied"}
               </p>
@@ -1583,6 +1655,10 @@ export default function RegisterPage() {
                               <p className="font-semibold text-red-300">
                                 Entry fee: {formatMoney(tournament.entry_fee)}
                               </p>
+                              <p>
+                                Rating list:{" "}
+                                {tournamentRatingLabel(tournament.rating_type)}
+                              </p>
                             </div>
 
                             <button
@@ -1639,7 +1715,8 @@ export default function RegisterPage() {
                         section,
                         playerDateOfBirth,
                         playerGender,
-                        selectedPlayerRating
+                        selectedPlayerRating,
+                        selectedTournamentRatingLabel
                       );
 
                       return (
@@ -1682,7 +1759,8 @@ export default function RegisterPage() {
                           section,
                           playerDateOfBirth,
                           playerGender,
-                          selectedPlayerRating
+                          selectedPlayerRating,
+                          selectedTournamentRatingLabel
                         );
                         const isSelected = selectedSectionId === section.id;
 

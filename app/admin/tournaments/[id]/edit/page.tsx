@@ -4,6 +4,11 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
+import {
+  normalizeTournamentRatingType,
+  tournamentRatingOptions,
+  type TournamentRatingType,
+} from "@/lib/ratingTypes";
 import { supabase } from "@/lib/supabase";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Completed";
@@ -22,6 +27,7 @@ type TournamentForm = {
   registration_open_date: string;
   registration_close_date: string;
   registration_status: TournamentStatus;
+  rating_type: TournamentRatingType;
   entry_fee: string;
   poster_image_url: string;
   payment_details: string;
@@ -53,6 +59,7 @@ const emptyForm: TournamentForm = {
   registration_open_date: "",
   registration_close_date: "",
   registration_status: "Draft",
+  rating_type: "standard",
   entry_fee: "0",
   poster_image_url: "",
   payment_details: "",
@@ -232,34 +239,64 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, rating_type, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
 
       if (error || !data) {
-        setMessage("Tournament could not be loaded.");
-        setLoading(false);
-        return;
-      }
+        const fallback = await supabase
+          .from("tournaments")
+          .select(
+            "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
+          )
+          .eq("id", tournamentId)
+          .single();
 
-      setForm({
-        tournament_name: data.tournament_name ?? "",
-        organiser_name: data.organiser_name ?? "",
-        description: data.description ?? "",
-        tournament_report: data.tournament_report ?? "",
-        chess_results_url: data.chess_results_url ?? "",
-        start_date: data.start_date ?? "",
-        end_date: data.end_date ?? "",
-        venue: data.venue ?? "",
-        province: data.province ?? "Limpopo",
-        registration_open_date: data.registration_open_date ?? "",
-        registration_close_date: data.registration_close_date ?? "",
-        registration_status: data.registration_status ?? "Draft",
-        entry_fee: String(data.entry_fee ?? 0),
-        poster_image_url: data.poster_image_url ?? "",
-        payment_details: data.payment_details ?? "",
-      });
+        if (fallback.error || !fallback.data) {
+          setMessage("Tournament could not be loaded.");
+          setLoading(false);
+          return;
+        }
+
+        setForm({
+          tournament_name: fallback.data.tournament_name ?? "",
+          organiser_name: fallback.data.organiser_name ?? "",
+          description: fallback.data.description ?? "",
+          tournament_report: fallback.data.tournament_report ?? "",
+          chess_results_url: fallback.data.chess_results_url ?? "",
+          start_date: fallback.data.start_date ?? "",
+          end_date: fallback.data.end_date ?? "",
+          venue: fallback.data.venue ?? "",
+          province: fallback.data.province ?? "Limpopo",
+          registration_open_date: fallback.data.registration_open_date ?? "",
+          registration_close_date: fallback.data.registration_close_date ?? "",
+          registration_status: fallback.data.registration_status ?? "Draft",
+          rating_type: "standard",
+          entry_fee: String(fallback.data.entry_fee ?? 0),
+          poster_image_url: fallback.data.poster_image_url ?? "",
+          payment_details: fallback.data.payment_details ?? "",
+        });
+      } else {
+        setForm({
+          tournament_name: data.tournament_name ?? "",
+          organiser_name: data.organiser_name ?? "",
+          description: data.description ?? "",
+          tournament_report: data.tournament_report ?? "",
+          chess_results_url: data.chess_results_url ?? "",
+          start_date: data.start_date ?? "",
+          end_date: data.end_date ?? "",
+          venue: data.venue ?? "",
+          province: data.province ?? "Limpopo",
+          registration_open_date: data.registration_open_date ?? "",
+          registration_close_date: data.registration_close_date ?? "",
+          registration_status: data.registration_status ?? "Draft",
+          rating_type: normalizeTournamentRatingType(data.rating_type),
+          entry_fee: String(data.entry_fee ?? 0),
+          poster_image_url: data.poster_image_url ?? "",
+          payment_details: data.payment_details ?? "",
+        });
+      }
 
       const { data: sectionData } = await supabase
         .from("tournament_sections")
@@ -317,26 +354,42 @@ export default function EditTournamentPage() {
     setSaving(true);
     setMessage("");
 
-    const { error } = await supabase
+    const tournamentPayload = {
+      tournament_name: form.tournament_name.trim(),
+      organiser_name: form.organiser_name.trim() || null,
+      description: form.description.trim() || null,
+      tournament_report: form.tournament_report.trim() || null,
+      chess_results_url: form.chess_results_url.trim() || null,
+      start_date: form.start_date,
+      end_date: form.end_date || form.start_date,
+      venue: form.venue.trim(),
+      province: form.province || null,
+      registration_open_date: form.registration_open_date || form.start_date,
+      registration_close_date: form.registration_close_date || form.start_date,
+      registration_status: form.registration_status,
+      rating_type: form.rating_type,
+      entry_fee: cleanMoney(form.entry_fee),
+      poster_image_url: form.poster_image_url.trim() || null,
+      payment_details: form.payment_details.trim() || null,
+    };
+
+    let { error } = await supabase
       .from("tournaments")
-      .update({
-        tournament_name: form.tournament_name.trim(),
-        organiser_name: form.organiser_name.trim() || null,
-        description: form.description.trim() || null,
-        tournament_report: form.tournament_report.trim() || null,
-        chess_results_url: form.chess_results_url.trim() || null,
-        start_date: form.start_date,
-        end_date: form.end_date || form.start_date,
-        venue: form.venue.trim(),
-        province: form.province || null,
-        registration_open_date: form.registration_open_date || form.start_date,
-        registration_close_date: form.registration_close_date || form.start_date,
-        registration_status: form.registration_status,
-        entry_fee: cleanMoney(form.entry_fee),
-        poster_image_url: form.poster_image_url.trim() || null,
-        payment_details: form.payment_details.trim() || null,
-      })
+      .update(tournamentPayload)
       .eq("id", tournamentId);
+
+    if (
+      error &&
+      error.message.toLowerCase().includes("rating_type")
+    ) {
+      const { rating_type: _ratingType, ...legacyPayload } = tournamentPayload;
+      const retry = await supabase
+        .from("tournaments")
+        .update(legacyPayload)
+        .eq("id", tournamentId);
+
+      error = retry.error;
+    }
 
     if (error) {
       setMessage(`Could not update tournament: ${error.message}`);
@@ -545,6 +598,32 @@ export default function EditTournamentPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Rating list
+                </label>
+                <select
+                  value={form.rating_type}
+                  onChange={(event) =>
+                    updateField(
+                      "rating_type",
+                      event.target.value as TournamentRatingType
+                    )
+                  }
+                  className={inputClass}
+                >
+                  {tournamentRatingOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Rating bands for this tournament will use the selected rating
+                  list during registration.
+                </p>
               </div>
 
               <div>

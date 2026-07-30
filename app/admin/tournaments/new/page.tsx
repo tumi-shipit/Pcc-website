@@ -4,6 +4,10 @@ import { ChangeEvent, FormEvent, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
+import {
+  tournamentRatingOptions,
+  type TournamentRatingType,
+} from "@/lib/ratingTypes";
 import { supabase } from "@/lib/supabase";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Completed";
@@ -22,6 +26,7 @@ type TournamentForm = {
   registration_open_date: string;
   registration_close_date: string;
   registration_status: TournamentStatus;
+  rating_type: TournamentRatingType;
   entry_fee: string;
   poster_image_url: string;
   payment_details: string;
@@ -53,6 +58,7 @@ const emptyForm: TournamentForm = {
   registration_open_date: "",
   registration_close_date: "",
   registration_status: "Draft",
+  rating_type: "standard",
   entry_fee: "0",
   poster_image_url: "",
   payment_details: "",
@@ -237,27 +243,45 @@ export default function NewTournamentPage() {
     const registrationOpenDate = form.registration_open_date || form.start_date;
     const registrationCloseDate = form.registration_close_date || form.start_date;
 
-    const { data, error } = await supabase
+    const tournamentPayload = {
+      tournament_name: form.tournament_name.trim(),
+      organiser_name: form.organiser_name.trim() || null,
+      description: form.description.trim() || null,
+      tournament_report: form.tournament_report.trim() || null,
+      chess_results_url: form.chess_results_url.trim() || null,
+      start_date: form.start_date,
+      end_date: form.end_date || form.start_date,
+      venue: form.venue.trim(),
+      province: form.province || null,
+      registration_open_date: registrationOpenDate,
+      registration_close_date: registrationCloseDate,
+      registration_status: form.registration_status,
+      rating_type: form.rating_type,
+      entry_fee: cleanMoney(form.entry_fee),
+      poster_image_url: form.poster_image_url.trim() || null,
+      payment_details: form.payment_details.trim() || null,
+    };
+
+    let { data, error } = await supabase
       .from("tournaments")
-      .insert({
-        tournament_name: form.tournament_name.trim(),
-        organiser_name: form.organiser_name.trim() || null,
-        description: form.description.trim() || null,
-        tournament_report: form.tournament_report.trim() || null,
-        chess_results_url: form.chess_results_url.trim() || null,
-        start_date: form.start_date,
-        end_date: form.end_date || form.start_date,
-        venue: form.venue.trim(),
-        province: form.province || null,
-        registration_open_date: registrationOpenDate,
-        registration_close_date: registrationCloseDate,
-        registration_status: form.registration_status,
-        entry_fee: cleanMoney(form.entry_fee),
-        poster_image_url: form.poster_image_url.trim() || null,
-        payment_details: form.payment_details.trim() || null,
-      })
+      .insert(tournamentPayload)
       .select("id")
       .single();
+
+    if (
+      error &&
+      error.message.toLowerCase().includes("rating_type")
+    ) {
+      const { rating_type: _ratingType, ...legacyPayload } = tournamentPayload;
+      const retry = await supabase
+        .from("tournaments")
+        .insert(legacyPayload)
+        .select("id")
+        .single();
+
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error || !data) {
       setMessage(`Could not create tournament: ${error?.message ?? "Unknown error"}`);
@@ -409,6 +433,32 @@ export default function NewTournamentPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Rating list
+                </label>
+                <select
+                  value={form.rating_type}
+                  onChange={(event) =>
+                    updateField(
+                      "rating_type",
+                      event.target.value as TournamentRatingType
+                    )
+                  }
+                  className={inputClass}
+                >
+                  {tournamentRatingOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Rating bands for this tournament will use the selected rating
+                  list during registration.
+                </p>
               </div>
 
               <div>
