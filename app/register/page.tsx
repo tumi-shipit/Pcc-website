@@ -39,20 +39,6 @@ type PlayerCentreContact = {
   province: string | null;
 };
 
-type PlayerLookupRow = {
-  pcc_id: string | null;
-  chess_sa_id: string | null;
-  full_name: string;
-  date_of_birth: string | null;
-  gender: string | null;
-  title: string | null;
-  province: string | null;
-  rating: number | null;
-  email: string | null;
-  phone: string | null;
-  club: string | null;
-};
-
 type NewPlayerForm = {
   first_names: string;
   surname: string;
@@ -305,6 +291,33 @@ function getEligibleSections(
         ratingLabel
       )
   );
+}
+
+function normalizeLookupText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function matchesSurnameSearch(player: ChessSaPlayer, searchValue: string) {
+  const cleanSearch = normalizeLookupText(searchValue);
+  const cleanName = normalizeLookupText(player.full_name);
+
+  if (!cleanSearch || !cleanName) return false;
+
+  const nameTokens = cleanName.split(" ").filter(Boolean);
+  if (nameTokens.length === 0) return false;
+
+  if (cleanSearch.includes(" ")) {
+    return cleanName.startsWith(cleanSearch) || cleanName.endsWith(cleanSearch);
+  }
+
+  const firstToken = nameTokens[0] ?? "";
+  const lastToken = nameTokens[nameTokens.length - 1] ?? "";
+
+  return firstToken.startsWith(cleanSearch) || lastToken.startsWith(cleanSearch);
 }
 
 function playerLookupKey(player: ChessSaPlayer) {
@@ -784,65 +797,6 @@ export default function RegisterPage() {
         );
       }
 
-      if (searchMethod === "surname") {
-        const { data: chessSaPlayerData } = await supabase
-          .from("players")
-          .select(
-            "pcc_id, chess_sa_id, full_name, date_of_birth, gender, title, province, rating, email, phone, club"
-          )
-          .ilike("full_name", `%${cleanSearch}%`)
-          .not("chess_sa_id", "is", null)
-          .order("full_name", { ascending: true })
-          .limit(30);
-
-        lookupResults.push(
-          ...((chessSaPlayerData ?? []) as PlayerLookupRow[]).map((player) => ({
-            pcc_id: player.pcc_id,
-            chess_sa_id: player.chess_sa_id,
-            full_name: player.full_name,
-            date_of_birth: player.date_of_birth,
-            gender: player.gender,
-            title: player.title,
-            federation: player.province,
-            standard_rating: player.rating,
-            rapid_rating: null,
-            blitz_rating: null,
-            email: player.email,
-            phone: player.phone,
-            club: player.club,
-            province: player.province,
-          }))
-        );
-
-        const { data: directPlayerData } = await supabase
-          .from("players")
-          .select(
-            "pcc_id, chess_sa_id, full_name, date_of_birth, gender, title, province, rating, email, phone, club"
-          )
-          .ilike("full_name", `%${cleanSearch}%`)
-          .order("full_name", { ascending: true })
-          .limit(30);
-
-        lookupResults.push(
-          ...((directPlayerData ?? []) as PlayerLookupRow[]).map((player) => ({
-            pcc_id: player.pcc_id,
-            chess_sa_id: player.chess_sa_id,
-            full_name: player.full_name,
-            date_of_birth: player.date_of_birth,
-            gender: player.gender,
-            title: player.title,
-            federation: player.province,
-            standard_rating: player.rating,
-            rapid_rating: null,
-            blitz_rating: null,
-            email: player.email,
-            phone: player.phone,
-            club: player.club,
-            province: player.province,
-          }))
-        );
-      }
-
       if (pccError && chessSaError) {
         setSearchMessage(`Search failed: ${pccError.message}`);
         setSearching(false);
@@ -874,7 +828,9 @@ export default function RegisterPage() {
       );
     }
 
-    const results = uniqueLookupPlayers(lookupResults);
+    const results = uniqueLookupPlayers(lookupResults).filter((player) =>
+      searchMethod === "surname" ? matchesSurnameSearch(player, cleanSearch) : true
+    );
 
     if (results.length === 0) {
       if (ratingFileSearchError && searchMethod === "surname") {
@@ -902,13 +858,17 @@ export default function RegisterPage() {
       setSelectedChessSaPlayer(results[0]);
       const filledDetails = await fillContactDetailsFromPlayerCentre(results[0]);
       setSearchMessage(
-        filledDetails
+        searchMethod === "surname"
+          ? "Showing surname matches only. If this is not the correct player, try Chess SA ID or surname + date of birth."
+          : filledDetails
           ? "Player found. Saved Player Centre details were filled in. Please check them before submitting."
           : "Player found. Please confirm your details."
       );
     } else {
       setSearchMessage(
-        `${results.length} possible profiles found. Some players may share the same name or surname, so please check the date of birth, FED and Chess SA ID before selecting.`
+        searchMethod === "surname"
+          ? `${results.length} surname matches found. If you cannot find the correct player, try Chess SA ID or surname + date of birth.`
+          : `${results.length} possible profiles found. Some players may share the same name or surname, so please check the date of birth, FED and Chess SA ID before selecting.`
       );
     }
 
@@ -1518,74 +1478,56 @@ export default function RegisterPage() {
               and Chess SA ID.
             </p>
 
-            <div className="mt-6 grid gap-4">
+            <div className="mt-5 overflow-hidden rounded-xl border border-white/10">
+              <div className="hidden grid-cols-[1.8fr_120px_90px_130px_110px_90px] gap-3 border-b border-white/10 bg-zinc-950 px-3 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-gray-500 md:grid">
+                <span>Player</span>
+                <span>DOB</span>
+                <span>FED</span>
+                <span>Chess SA</span>
+                <span>Rating</span>
+                <span className="text-right">Action</span>
+              </div>
+
               {matches.map((match) => (
                 <button
                   key={playerLookupKey(match)}
                   type="button"
                   onClick={() => choosePlayer(match)}
-                  className="rounded-xl border border-white/10 bg-zinc-950 p-5 text-left transition hover:border-red-500"
+                  className="block w-full border-b border-white/10 bg-zinc-950 px-3 py-2 text-left transition last:border-b-0 hover:bg-red-500/10 md:grid md:grid-cols-[1.8fr_120px_90px_130px_110px_90px] md:items-center md:gap-3"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-base font-bold text-white">
-                        {match.full_name}
-                      </p>
-                      <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                        Check these details before selecting
-                      </p>
-                    </div>
-
-                    <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-bold text-red-200">
-                      Select
+                  <span className="block min-w-0">
+                    <span className="block truncate text-sm font-bold text-white">
+                      {match.full_name}
                     </span>
-                  </div>
+                    <span className="mt-0.5 block text-[11px] text-gray-500 md:hidden">
+                      Chess SA: {match.chess_sa_id ?? "Not recorded"} | FED:{" "}
+                      {match.federation ?? match.province ?? "Not supplied"}
+                    </span>
+                  </span>
 
-                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
-                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
-                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
-                        Date of birth
-                      </span>
-                      <span className="mt-1 block font-semibold text-white">
-                        {match.date_of_birth
-                          ? formatCalendarDate(match.date_of_birth)
-                          : "Not supplied"}
-                      </span>
-                    </p>
+                  <span className="mt-1 block text-xs text-gray-300 md:mt-0">
+                    <span className="text-gray-500 md:hidden">DOB: </span>
+                    {match.date_of_birth
+                      ? formatCalendarDate(match.date_of_birth)
+                      : "Not supplied"}
+                  </span>
 
-                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
-                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
-                        FED
-                      </span>
-                      <span className="mt-1 block font-semibold text-white">
-                        {match.federation ?? match.province ?? "Not supplied"}
-                      </span>
-                    </p>
+                  <span className="hidden truncate text-xs font-semibold text-gray-300 md:block">
+                    {match.federation ?? match.province ?? "-"}
+                  </span>
 
-                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
-                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
-                        Chess SA ID
-                      </span>
-                      <span className="mt-1 block font-semibold text-white">
-                        {match.chess_sa_id ?? "Not recorded"}
-                      </span>
-                    </p>
+                  <span className="hidden truncate text-xs text-gray-300 md:block">
+                    {match.chess_sa_id ?? "-"}
+                  </span>
 
-                    <p className="rounded-lg border border-white/10 bg-black/20 p-3 text-gray-300">
-                      <span className="block text-xs uppercase tracking-[0.16em] text-gray-500">
-                        PCC ID
-                      </span>
-                      <span className="mt-1 block font-semibold text-white">
-                        {match.pcc_id ?? "Created after registration"}
-                      </span>
-                    </p>
-                  </div>
+                  <span className="mt-1 block text-xs text-gray-400 md:mt-0">
+                    Std {match.standard_rating ?? "-"} | R{" "}
+                    {match.rapid_rating ?? "-"} | B {match.blitz_rating ?? "-"}
+                  </span>
 
-                  <p className="mt-3 text-sm text-gray-400">
-                    Standard: {match.standard_rating ?? "Not rated"} - Rapid:{" "}
-                    {match.rapid_rating ?? "Not rated"} - Blitz:{" "}
-                    {match.blitz_rating ?? "Not rated"}
-                  </p>
+                  <span className="mt-2 inline-flex rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-bold text-red-200 md:mt-0 md:justify-self-end">
+                    Select
+                  </span>
                 </button>
               ))}
             </div>

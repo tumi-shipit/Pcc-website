@@ -4,6 +4,7 @@ import Image from "next/image";
 const footerLinks = [
   { href: "/tournaments", label: "Tournaments" },
   { href: "/players", label: "Players" },
+  { href: "/store", label: "Store" },
   { href: "/players/rankings", label: "LCA Rankings" },
   { href: "/members", label: "Members" },
   { href: "/organisers", label: "Organisers" },

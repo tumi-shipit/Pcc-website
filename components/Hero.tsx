@@ -19,6 +19,21 @@ const quickLinks = [
     title: "LCA Rankings",
     text: "Limpopo Chess Academy",
   },
+  {
+    href: "/store",
+    title: "PCC Store",
+    text: "Merchandise coming soon",
+  },
+  {
+    href: "/members",
+    title: "Members",
+    text: "Membership and member centre",
+  },
+  {
+    href: "/organisers",
+    title: "Organisers",
+    text: "Tournament access and services",
+  },
   { href: "/hall-of-fame", title: "Hall of Fame", text: "PCC legacy" },
 ];
 
@@ -101,6 +116,12 @@ export default function Hero() {
               className="rounded-lg border border-white/20 bg-black/30 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
             >
               Player Centre
+            </Link>
+            <Link
+              href="/store"
+              className="rounded-lg border border-white/20 bg-black/30 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+            >
+              Store Coming Soon
             </Link>
             <a
               href={whatsappJoinLink}

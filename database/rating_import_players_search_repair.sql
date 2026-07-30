@@ -228,8 +228,8 @@ begin
       or (
         clean_method in ('name', 'surname', 'surname_only', 'name_only')
         and (
-          completed_rows.full_name ilike search_pattern
-          or public.registration_name_key(completed_rows.full_name) ilike public.registration_name_key(clean_value) || '%'
+          lower(completed_rows.full_name) like lower(clean_value) || '%'
+          or lower(completed_rows.full_name) like '% ' || lower(clean_value) || '%'
         )
         and (
           clean_method in ('surname_only', 'name_only')
@@ -377,7 +377,10 @@ begin
         )
         or (
           clean_method in ('name', 'surname', 'surname_only', 'name_only')
-          and rating_players.full_name ilike search_pattern
+          and (
+            lower(rating_players.full_name) like lower(clean_value) || '%'
+            or lower(rating_players.full_name) like '% ' || lower(clean_value) || '%'
+          )
           and (
             clean_method in ('surname_only', 'name_only')
             or p_birth_date is null
