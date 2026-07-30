@@ -223,6 +223,216 @@ $$;
 grant execute on function public.latest_player_rating_by_type(uuid, text)
 to anon, authenticated;
 
+create or replace function public.find_pcc_player_for_registration(
+  p_search_method text,
+  p_search_value text,
+  p_birth_date date default null
+)
+returns table (
+  pcc_id text,
+  chess_sa_id text,
+  full_name text,
+  date_of_birth date,
+  gender text,
+  title text,
+  federation text,
+  standard_rating integer,
+  rapid_rating integer,
+  blitz_rating integer,
+  email text,
+  phone text,
+  club text,
+  province text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_method text := lower(trim(coalesce(p_search_method, '')));
+  clean_value text := trim(coalesce(p_search_value, ''));
+  search_pattern text := '%' || replace(trim(coalesce(p_search_value, '')), ',', ' ') || '%';
+begin
+  if clean_value = '' then
+    return;
+  end if;
+
+  if clean_method in ('pccid', 'pcc_id', 'pcc') then
+    return query
+    select
+      players.pcc_id,
+      players.chess_sa_id,
+      players.full_name,
+      players.date_of_birth,
+      players.gender,
+      players.title,
+      players.province as federation,
+      public.latest_player_rating_by_type(players.id, 'standard') as standard_rating,
+      public.latest_player_rating_by_type(players.id, 'rapid') as rapid_rating,
+      public.latest_player_rating_by_type(players.id, 'blitz') as blitz_rating,
+      players.email,
+      players.phone,
+      players.club,
+      players.province
+    from public.players
+    where upper(players.pcc_id) = upper(clean_value)
+    limit 1;
+
+    return;
+  end if;
+
+  if clean_method in ('name', 'surname', 'surname_only', 'name_only') then
+    return query
+    select
+      players.pcc_id,
+      players.chess_sa_id,
+      players.full_name,
+      players.date_of_birth,
+      players.gender,
+      players.title,
+      players.province as federation,
+      public.latest_player_rating_by_type(players.id, 'standard') as standard_rating,
+      public.latest_player_rating_by_type(players.id, 'rapid') as rapid_rating,
+      public.latest_player_rating_by_type(players.id, 'blitz') as blitz_rating,
+      players.email,
+      players.phone,
+      players.club,
+      players.province
+    from public.players
+    where (
+        clean_method in ('surname_only', 'name_only')
+        or public.player_has_pcc_activity(players.id)
+      )
+      and (
+        players.full_name ilike search_pattern
+        or public.registration_name_key(players.full_name) ilike public.registration_name_key(clean_value) || '%'
+      )
+      and (
+        clean_method in ('surname_only', 'name_only')
+        or p_birth_date is null
+        or players.date_of_birth is null
+        or players.date_of_birth = p_birth_date
+      )
+    order by
+      case when p_birth_date is not null and players.date_of_birth = p_birth_date then 0 else 1 end,
+      case when players.chess_sa_id is not null and players.chess_sa_id <> '' then 0 else 1 end,
+      players.full_name
+    limit 30;
+
+    return;
+  end if;
+end;
+$$;
+
+grant execute on function public.find_pcc_player_for_registration(text, text, date)
+to anon, authenticated;
+
+drop function if exists public.find_chessa_player_for_registration(text, text, date);
+
+create or replace function public.find_chessa_player_for_registration(
+  p_search_method text,
+  p_search_value text,
+  p_birth_date date default null
+)
+returns table (
+  pcc_id text,
+  chess_sa_id text,
+  full_name text,
+  date_of_birth date,
+  gender text,
+  title text,
+  federation text,
+  standard_rating integer,
+  rapid_rating integer,
+  blitz_rating integer,
+  email text,
+  phone text,
+  club text,
+  province text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_method text := lower(trim(coalesce(p_search_method, '')));
+  clean_value text := trim(coalesce(p_search_value, ''));
+  clean_id text := regexp_replace(clean_value, '\D', '', 'g');
+  search_pattern text := '%' || replace(clean_value, ',', ' ') || '%';
+begin
+  if clean_value = '' then
+    return;
+  end if;
+
+  if clean_method in ('chesssa', 'chessa', 'chess_sa_id', 'chess_sa') then
+    return query
+    select
+      players.pcc_id,
+      players.chess_sa_id,
+      players.full_name,
+      players.date_of_birth,
+      players.gender,
+      players.title,
+      players.province as federation,
+      public.latest_player_rating_by_type(players.id, 'standard') as standard_rating,
+      public.latest_player_rating_by_type(players.id, 'rapid') as rapid_rating,
+      public.latest_player_rating_by_type(players.id, 'blitz') as blitz_rating,
+      players.email,
+      players.phone,
+      players.club,
+      players.province
+    from public.players
+    where regexp_replace(coalesce(players.chess_sa_id, ''), '\D', '', 'g') = clean_id
+       or players.chess_sa_id = clean_value
+    order by players.full_name
+    limit 20;
+
+    return;
+  end if;
+
+  if clean_method in ('name', 'surname', 'surname_only', 'name_only') then
+    return query
+    select
+      players.pcc_id,
+      players.chess_sa_id,
+      players.full_name,
+      players.date_of_birth,
+      players.gender,
+      players.title,
+      players.province as federation,
+      public.latest_player_rating_by_type(players.id, 'standard') as standard_rating,
+      public.latest_player_rating_by_type(players.id, 'rapid') as rapid_rating,
+      public.latest_player_rating_by_type(players.id, 'blitz') as blitz_rating,
+      players.email,
+      players.phone,
+      players.club,
+      players.province
+    from public.players
+    where players.chess_sa_id is not null
+      and players.chess_sa_id <> ''
+      and (
+        players.full_name ilike search_pattern
+        or public.registration_name_key(players.full_name) ilike public.registration_name_key(clean_value) || '%'
+      )
+      and (
+        clean_method in ('surname_only', 'name_only')
+        or p_birth_date is null
+        or players.date_of_birth is null
+        or players.date_of_birth = p_birth_date
+      )
+    order by
+      case when p_birth_date is not null and players.date_of_birth = p_birth_date then 0 else 1 end,
+      players.full_name
+    limit 30;
+
+    return;
+  end if;
+end;
+$$;
+
+grant execute on function public.find_chessa_player_for_registration(text, text, date)
+to anon, authenticated;
+
 create or replace function public.player_rating_for_tournament(
   p_player_id uuid,
   p_tournament_id uuid

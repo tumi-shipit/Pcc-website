@@ -39,6 +39,20 @@ type PlayerCentreContact = {
   province: string | null;
 };
 
+type PlayerLookupRow = {
+  pcc_id: string | null;
+  chess_sa_id: string | null;
+  full_name: string;
+  date_of_birth: string | null;
+  gender: string | null;
+  title: string | null;
+  province: string | null;
+  rating: number | null;
+  email: string | null;
+  phone: string | null;
+  club: string | null;
+};
+
 type NewPlayerForm = {
   first_names: string;
   surname: string;
@@ -694,7 +708,8 @@ export default function RegisterPage() {
       const { data: pccData, error: pccError } = await supabase.rpc(
         "find_pcc_player_for_registration",
         {
-          p_search_method: "surname",
+          p_search_method:
+            searchMethod === "surname" ? "surname_only" : "surname",
           p_search_value: cleanSearch,
           p_birth_date:
             searchMethod === "surname_dob" ? searchBirthDate || null : null,
@@ -708,7 +723,8 @@ export default function RegisterPage() {
       const { data: chessSaData, error: chessSaError } = await supabase.rpc(
         "find_chessa_player_for_registration",
         {
-          p_search_method: "surname",
+          p_search_method:
+            searchMethod === "surname" ? "surname_only" : "surname",
           p_search_value: cleanSearch,
           p_birth_date:
             searchMethod === "surname_dob" ? searchBirthDate || null : null,
@@ -720,6 +736,65 @@ export default function RegisterPage() {
           ...((chessSaData ?? []) as ChessSaPlayer[]).map((player) => ({
             ...player,
             pcc_id: player.pcc_id ?? null,
+          }))
+        );
+      }
+
+      if (searchMethod === "surname") {
+        const { data: chessSaPlayerData } = await supabase
+          .from("players")
+          .select(
+            "pcc_id, chess_sa_id, full_name, date_of_birth, gender, title, province, rating, email, phone, club"
+          )
+          .ilike("full_name", `%${cleanSearch}%`)
+          .not("chess_sa_id", "is", null)
+          .order("full_name", { ascending: true })
+          .limit(30);
+
+        lookupResults.push(
+          ...((chessSaPlayerData ?? []) as PlayerLookupRow[]).map((player) => ({
+            pcc_id: player.pcc_id,
+            chess_sa_id: player.chess_sa_id,
+            full_name: player.full_name,
+            date_of_birth: player.date_of_birth,
+            gender: player.gender,
+            title: player.title,
+            federation: player.province,
+            standard_rating: player.rating,
+            rapid_rating: null,
+            blitz_rating: null,
+            email: player.email,
+            phone: player.phone,
+            club: player.club,
+            province: player.province,
+          }))
+        );
+
+        const { data: directPlayerData } = await supabase
+          .from("players")
+          .select(
+            "pcc_id, chess_sa_id, full_name, date_of_birth, gender, title, province, rating, email, phone, club"
+          )
+          .ilike("full_name", `%${cleanSearch}%`)
+          .order("full_name", { ascending: true })
+          .limit(30);
+
+        lookupResults.push(
+          ...((directPlayerData ?? []) as PlayerLookupRow[]).map((player) => ({
+            pcc_id: player.pcc_id,
+            chess_sa_id: player.chess_sa_id,
+            full_name: player.full_name,
+            date_of_birth: player.date_of_birth,
+            gender: player.gender,
+            title: player.title,
+            federation: player.province,
+            standard_rating: player.rating,
+            rapid_rating: null,
+            blitz_rating: null,
+            email: player.email,
+            phone: player.phone,
+            club: player.club,
+            province: player.province,
           }))
         );
       }
