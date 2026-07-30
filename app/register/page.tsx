@@ -720,6 +720,7 @@ export default function RegisterPage() {
 
     const lookupResults: ChessSaPlayer[] = [];
     const cleanSearch = searchValue.trim();
+    let ratingFileSearchError = "";
 
     if (searchMethod === "surname_dob" || searchMethod === "surname") {
       if (!searchBirthDate) {
@@ -731,16 +732,21 @@ export default function RegisterPage() {
       }
 
       if (searchMethod === "surname") {
-        const { data: ratingFileData } = await supabase.rpc(
-          "find_rating_file_player_for_registration",
-          {
-            p_search_method: "surname_only",
-            p_search_value: cleanSearch,
-            p_birth_date: null,
-          }
-        );
+        const { data: ratingFileData, error: ratingFileError } =
+          await supabase.rpc(
+            "find_rating_file_player_for_registration",
+            {
+              p_search_method: "surname_only",
+              p_search_value: cleanSearch,
+              p_birth_date: null,
+            }
+          );
 
-        lookupResults.push(...((ratingFileData ?? []) as ChessSaPlayer[]));
+        if (ratingFileError) {
+          ratingFileSearchError = ratingFileError.message;
+        } else {
+          lookupResults.push(...((ratingFileData ?? []) as ChessSaPlayer[]));
+        }
       }
 
       const { data: pccData, error: pccError } = await supabase.rpc(
@@ -871,6 +877,14 @@ export default function RegisterPage() {
     const results = uniqueLookupPlayers(lookupResults);
 
     if (results.length === 0) {
+      if (ratingFileSearchError && searchMethod === "surname") {
+        setSearchMessage(
+          "The rating-file search is not ready yet. Please try Chess SA ID, or contact the organiser to confirm your profile."
+        );
+        setSearching(false);
+        return;
+      }
+
       setSearchMessage(
         searchMethod === "chesssa"
           ? "No matching Chess SA player was found. Check the Chess SA ID, or try surname with date of birth."

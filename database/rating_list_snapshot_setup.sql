@@ -197,6 +197,52 @@ on public.tournaments to authenticated;
 grant update (rating_type, rating_import_id, rating_list_locked_at)
 on public.tournaments to authenticated;
 
+insert into public.rating_import_players (
+  rating_import_id,
+  rating_type,
+  chess_sa_id,
+  full_name,
+  date_of_birth,
+  gender,
+  title,
+  rating,
+  club,
+  province,
+  raw_data
+)
+select distinct on (history.rating_import_id, players.chess_sa_id)
+  history.rating_import_id,
+  history.rating_type,
+  players.chess_sa_id,
+  players.full_name,
+  players.date_of_birth,
+  players.gender,
+  players.title,
+  history.rating,
+  players.club,
+  players.province,
+  jsonb_build_object('backfilled_from', 'player_rating_history')
+from public.player_rating_history history
+join public.rating_imports imports
+  on imports.id = history.rating_import_id
+join public.players players
+  on players.id = history.player_id
+where imports.import_status = 'Completed'
+  and history.rating_import_id is not null
+  and players.chess_sa_id is not null
+  and players.chess_sa_id <> ''
+  and not exists (
+    select 1
+    from public.rating_import_players existing
+    where existing.rating_import_id = history.rating_import_id
+      and existing.chess_sa_id = players.chess_sa_id
+  )
+order by
+  history.rating_import_id,
+  players.chess_sa_id,
+  history.created_at desc nulls last,
+  history.id desc;
+
 create or replace function public.normalized_rating_type(p_rating_type text)
 returns text
 language sql
@@ -549,72 +595,61 @@ begin
   end if;
 
   return query
-  with latest_imports as (
-    select distinct on (public.normalized_rating_type(rating_imports.rating_type))
-      rating_imports.id,
-      public.normalized_rating_type(rating_imports.rating_type) as clean_rating_type
-    from public.rating_imports
-    where rating_imports.import_status = 'Completed'
-    order by
-      public.normalized_rating_type(rating_imports.rating_type),
-      rating_imports.imported_at desc,
-      rating_imports.id desc
-  ),
-  latest_rows as (
+  with completed_rows as (
     select
       rating_players.*,
-      latest_imports.clean_rating_type
+      public.normalized_rating_type(rating_players.rating_type) as clean_rating_type,
+      imports.imported_at
     from public.rating_import_players rating_players
-    join latest_imports
-      on latest_imports.id = rating_players.rating_import_id
-    where rating_players.chess_sa_id is not null
+    join public.rating_imports imports
+      on imports.id = rating_players.rating_import_id
+    where imports.import_status = 'Completed'
+      and rating_players.chess_sa_id is not null
       and rating_players.chess_sa_id <> ''
   ),
   matched_ids as (
-    select distinct latest_rows.chess_sa_id
-    from latest_rows
+    select distinct completed_rows.chess_sa_id
+    from completed_rows
     where (
         clean_method in ('chesssa', 'chessa', 'chess_sa_id', 'chess_sa')
         and (
-          regexp_replace(coalesce(latest_rows.chess_sa_id, ''), '\D', '', 'g') = clean_id
-          or latest_rows.chess_sa_id = clean_value
+          regexp_replace(coalesce(completed_rows.chess_sa_id, ''), '\D', '', 'g') = clean_id
+          or completed_rows.chess_sa_id = clean_value
         )
       )
       or (
         clean_method in ('name', 'surname', 'surname_only', 'name_only')
         and (
-          latest_rows.full_name ilike search_pattern
-          or public.registration_name_key(latest_rows.full_name) ilike public.registration_name_key(clean_value) || '%'
+          completed_rows.full_name ilike search_pattern
+          or public.registration_name_key(completed_rows.full_name) ilike public.registration_name_key(clean_value) || '%'
         )
         and (
           clean_method in ('surname_only', 'name_only')
           or p_birth_date is null
-          or latest_rows.date_of_birth is null
-          or latest_rows.date_of_birth = p_birth_date
+          or completed_rows.date_of_birth is null
+          or completed_rows.date_of_birth = p_birth_date
         )
       )
   ),
   candidates as (
-    select distinct on (latest_rows.chess_sa_id)
-      latest_rows.chess_sa_id,
-      latest_rows.full_name,
-      latest_rows.date_of_birth,
-      latest_rows.gender,
-      latest_rows.title,
-      latest_rows.federation,
-      latest_rows.club,
-      latest_rows.province
-    from latest_rows
+    select distinct on (completed_rows.chess_sa_id)
+      completed_rows.chess_sa_id,
+      completed_rows.full_name,
+      completed_rows.date_of_birth,
+      completed_rows.gender,
+      completed_rows.title,
+      completed_rows.federation,
+      completed_rows.club,
+      completed_rows.province,
+      completed_rows.imported_at
+    from completed_rows
     join matched_ids
-      on matched_ids.chess_sa_id = latest_rows.chess_sa_id
+      on matched_ids.chess_sa_id = completed_rows.chess_sa_id
     order by
-      latest_rows.chess_sa_id,
-      case latest_rows.clean_rating_type
-        when 'standard' then 0
-        when 'rapid' then 1
-        when 'blitz' then 2
-        else 3
-      end
+      completed_rows.chess_sa_id,
+      completed_rows.imported_at desc nulls last,
+      completed_rows.created_at desc nulls last,
+      completed_rows.id desc
   )
   select
     null::text as pcc_id,
@@ -625,27 +660,27 @@ begin
     candidates.title,
     coalesce(candidates.federation, candidates.province) as federation,
     (
-      select latest_rows.rating::integer
-      from latest_rows
-      where latest_rows.chess_sa_id = candidates.chess_sa_id
-        and latest_rows.clean_rating_type = 'standard'
-      order by latest_rows.created_at desc nulls last, latest_rows.id desc
+      select completed_rows.rating::integer
+      from completed_rows
+      where completed_rows.chess_sa_id = candidates.chess_sa_id
+        and completed_rows.clean_rating_type = 'standard'
+      order by completed_rows.imported_at desc nulls last, completed_rows.created_at desc nulls last, completed_rows.id desc
       limit 1
     ) as standard_rating,
     (
-      select latest_rows.rating::integer
-      from latest_rows
-      where latest_rows.chess_sa_id = candidates.chess_sa_id
-        and latest_rows.clean_rating_type = 'rapid'
-      order by latest_rows.created_at desc nulls last, latest_rows.id desc
+      select completed_rows.rating::integer
+      from completed_rows
+      where completed_rows.chess_sa_id = candidates.chess_sa_id
+        and completed_rows.clean_rating_type = 'rapid'
+      order by completed_rows.imported_at desc nulls last, completed_rows.created_at desc nulls last, completed_rows.id desc
       limit 1
     ) as rapid_rating,
     (
-      select latest_rows.rating::integer
-      from latest_rows
-      where latest_rows.chess_sa_id = candidates.chess_sa_id
-        and latest_rows.clean_rating_type = 'blitz'
-      order by latest_rows.created_at desc nulls last, latest_rows.id desc
+      select completed_rows.rating::integer
+      from completed_rows
+      where completed_rows.chess_sa_id = candidates.chess_sa_id
+        and completed_rows.clean_rating_type = 'blitz'
+      order by completed_rows.imported_at desc nulls last, completed_rows.created_at desc nulls last, completed_rows.id desc
       limit 1
     ) as blitz_rating,
     null::text as email,
@@ -654,7 +689,7 @@ begin
     candidates.province
   from candidates
   order by
-    case when candidates.chess_sa_id is not null and candidates.chess_sa_id <> '' then 0 else 1 end,
+    candidates.imported_at desc nulls last,
     candidates.full_name
   limit 40;
 end;
