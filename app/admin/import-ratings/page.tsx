@@ -39,6 +39,7 @@ type ImportProgress = {
   current: number;
   total: number;
   percent: number;
+  startedAt: number | null;
 };
 
 const inputClass =
@@ -50,10 +51,29 @@ const emptyProgress: ImportProgress = {
   current: 0,
   total: 0,
   percent: 0,
+  startedAt: null,
 };
 
 function pauseForPaint() {
   return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
+
+function formatDuration(milliseconds: number) {
+  const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+}
+
+function estimateRemaining(progress: ImportProgress) {
+  if (!progress.startedAt || progress.current <= 0 || progress.total <= 0) {
+    return null;
+  }
+
+  const elapsed = Date.now() - progress.startedAt;
+  const averagePerRow = elapsed / progress.current;
+  const remainingRows = Math.max(progress.total - progress.current, 0);
+  return averagePerRow * remainingRows;
 }
 
 function normalizeHeader(value: string) {
@@ -350,12 +370,14 @@ export default function AdminImportRatingsPage() {
 
     setFileName(file.name);
     setMessage("Reading rating file...");
+    const parseStartedAt = Date.now();
     setProgress({
       active: true,
       phase: "Reading file",
       current: 0,
       total: 0,
       percent: 5,
+      startedAt: parseStartedAt,
     });
 
     const fileText = await file.text();
@@ -365,6 +387,7 @@ export default function AdminImportRatingsPage() {
       current: 0,
       total: 0,
       percent: 10,
+      startedAt: parseStartedAt,
     });
     await pauseForPaint();
 
@@ -377,6 +400,7 @@ export default function AdminImportRatingsPage() {
           current,
           total,
           percent: total > 0 ? Math.round((current / total) * 100) : 100,
+          startedAt: parseStartedAt,
         });
       }
     );
@@ -401,18 +425,32 @@ export default function AdminImportRatingsPage() {
 
     setImporting(true);
     setMessage(`Importing ${ratingLabel(ratingType)} ratings...`);
+    const importStartedAt = Date.now();
     setProgress({
       active: true,
       phase: "Starting import",
       current: 0,
       total: readyRows.length,
       percent: 1,
+      startedAt: importStartedAt,
     });
 
     const nextRows = [...rows];
     let imported = 0;
     let failed = 0;
     let ratingImportId: string | null = null;
+    const ratingHistoryRows: Array<{
+      player_id: string;
+      rating_import_id: string;
+      rating_type: TournamentRatingType;
+      rating: number | null;
+      rating_date: string;
+      source: string;
+    }> = [];
+    const ratingDate = new Date().toISOString().slice(0, 10);
+    const ratingSource = `${ratingLabel(ratingType)} rating import${
+      fileName ? `: ${fileName}` : ""
+    }`;
 
     const { data: importRecord, error: importError } = await supabase
       .from("rating_imports")
@@ -498,20 +536,18 @@ export default function AdminImportRatingsPage() {
           playerId = createdPlayer.id;
         }
 
-        const { error: historyError } = await supabase
-          .from("player_rating_history")
-          .insert({
-            player_id: playerId,
-            rating_import_id: ratingImportId,
-            rating_type: ratingType,
-            rating: row.rating,
-            rating_date: new Date().toISOString().slice(0, 10),
-            source: `${ratingLabel(ratingType)} rating import${
-              fileName ? `: ${fileName}` : ""
-            }`,
-          });
+        if (!playerId || !ratingImportId) {
+          throw new Error("Rating import could not link this row to a player.");
+        }
 
-        if (historyError) throw historyError;
+        ratingHistoryRows.push({
+          player_id: playerId,
+          rating_import_id: ratingImportId,
+          rating_type: ratingType,
+          rating: row.rating,
+          rating_date: ratingDate,
+          source: ratingSource,
+        });
 
         imported += 1;
         if (rowIndex >= 0) {
@@ -532,7 +568,7 @@ export default function AdminImportRatingsPage() {
         }
       }
 
-      if ((readyIndex + 1) % 10 === 0 || readyIndex === readyRows.length - 1) {
+      if ((readyIndex + 1) % 100 === 0 || readyIndex === readyRows.length - 1) {
         const processed = readyIndex + 1;
         setProgress({
           active: true,
@@ -543,6 +579,7 @@ export default function AdminImportRatingsPage() {
             readyRows.length > 0
               ? Math.round((processed / readyRows.length) * 100)
               : 100,
+          startedAt: importStartedAt,
         });
         setRows([...nextRows]);
         await pauseForPaint();
@@ -551,10 +588,52 @@ export default function AdminImportRatingsPage() {
 
     setProgress({
       active: true,
+      phase: "Saving rating history",
+      current: readyRows.length,
+      total: readyRows.length,
+      percent: 100,
+      startedAt: importStartedAt,
+    });
+
+    const historyBatchSize = 500;
+    for (let index = 0; index < ratingHistoryRows.length; index += historyBatchSize) {
+      const batch = ratingHistoryRows.slice(index, index + historyBatchSize);
+      const { error: historyError } = await supabase
+        .from("player_rating_history")
+        .insert(batch);
+
+      if (historyError) {
+        failed += batch.length;
+        imported = Math.max(imported - batch.length, 0);
+        setMessage(`Rating history batch failed: ${historyError.message}`);
+        break;
+      }
+
+      setProgress({
+        active: true,
+        phase: "Saving rating history",
+        current: Math.min(index + batch.length, ratingHistoryRows.length),
+        total: ratingHistoryRows.length,
+        percent:
+          ratingHistoryRows.length > 0
+            ? Math.round(
+                (Math.min(index + batch.length, ratingHistoryRows.length) /
+                  ratingHistoryRows.length) *
+                  100
+              )
+            : 100,
+        startedAt: importStartedAt,
+      });
+      await pauseForPaint();
+    }
+
+    setProgress({
+      active: true,
       phase: "Saving import summary",
       current: readyRows.length,
       total: readyRows.length,
       percent: 100,
+      startedAt: importStartedAt,
     });
 
     const importStatus = failed > 0 && imported === 0 ? "Failed" : "Completed";
@@ -580,6 +659,18 @@ export default function AdminImportRatingsPage() {
     setImporting(false);
     setProgress(emptyProgress);
   }
+
+  const elapsedLabel =
+    progress.active && progress.startedAt
+      ? formatDuration(Date.now() - progress.startedAt)
+      : "0m 00s";
+  const remainingMilliseconds = progress.active
+    ? estimateRemaining(progress)
+    : null;
+  const remainingLabel =
+    remainingMilliseconds === null
+      ? "calculating"
+      : formatDuration(remainingMilliseconds);
 
   return (
     <AdminGuard>
@@ -664,6 +755,9 @@ export default function AdminImportRatingsPage() {
                       {progress.total > 0
                         ? `${progress.current} of ${progress.total} rows`
                         : "Preparing file..."}
+                    </p>
+                    <p className="mt-1 text-xs text-red-100/80">
+                      Elapsed: {elapsedLabel} - Remaining: {remainingLabel}
                     </p>
                   </div>
 
