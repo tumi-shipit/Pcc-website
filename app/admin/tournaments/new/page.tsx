@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { ChangeEvent, FormEvent, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
@@ -43,6 +43,13 @@ type SectionForm = {
   entry_fee_override: string;
   maximum_players: string;
   chess_results_url: string;
+};
+
+type RatingImportSummary = {
+  id: string;
+  file_name: string | null;
+  imported_at: string;
+  imported_count: number | null;
 };
 
 const emptyForm: TournamentForm = {
@@ -135,6 +142,35 @@ export default function NewTournamentPage() {
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [latestRatingImport, setLatestRatingImport] =
+    useState<RatingImportSummary | null>(null);
+  const [loadingRatingImport, setLoadingRatingImport] = useState(false);
+
+  useEffect(() => {
+    async function loadLatestRatingImport() {
+      setLoadingRatingImport(true);
+      setLatestRatingImport(null);
+
+      const { data, error } = await supabase
+        .from("rating_imports")
+        .select("id, file_name, imported_at, imported_count")
+        .eq("rating_type", form.rating_type)
+        .eq("import_status", "Completed")
+        .order("imported_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        setLatestRatingImport(null);
+      } else {
+        setLatestRatingImport((data as RatingImportSummary | null) ?? null);
+      }
+
+      setLoadingRatingImport(false);
+    }
+
+    loadLatestRatingImport();
+  }, [form.rating_type]);
 
   function updateField(field: keyof TournamentForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -257,6 +293,8 @@ export default function NewTournamentPage() {
       registration_close_date: registrationCloseDate,
       registration_status: form.registration_status,
       rating_type: form.rating_type,
+      rating_import_id: latestRatingImport?.id ?? null,
+      rating_list_locked_at: latestRatingImport ? new Date().toISOString() : null,
       entry_fee: cleanMoney(form.entry_fee),
       poster_image_url: form.poster_image_url.trim() || null,
       payment_details: form.payment_details.trim() || null,
@@ -270,9 +308,16 @@ export default function NewTournamentPage() {
 
     if (
       error &&
-      error.message.toLowerCase().includes("rating_type")
+      (error.message.toLowerCase().includes("rating_type") ||
+        error.message.toLowerCase().includes("rating_import_id") ||
+        error.message.toLowerCase().includes("rating_list_locked_at"))
     ) {
-      const { rating_type: _ratingType, ...legacyPayload } = tournamentPayload;
+      const {
+        rating_type: _ratingType,
+        rating_import_id: _ratingImportId,
+        rating_list_locked_at: _ratingListLockedAt,
+        ...legacyPayload
+      } = tournamentPayload;
       const retry = await supabase
         .from("tournaments")
         .insert(legacyPayload)
@@ -456,8 +501,18 @@ export default function NewTournamentPage() {
                   ))}
                 </select>
                 <p className="mt-2 text-xs leading-5 text-gray-500">
-                  Rating bands for this tournament will use the selected rating
-                  list during registration.
+                  New tournaments lock to the newest saved rating file for the
+                  selected type. Completed tournaments do not refresh
+                  automatically.
+                </p>
+                <p className="mt-2 rounded-lg border border-white/10 bg-zinc-950 p-3 text-xs leading-5 text-gray-400">
+                  {loadingRatingImport
+                    ? "Checking latest saved rating list..."
+                    : latestRatingImport
+                      ? `Will lock to: ${
+                          latestRatingImport.file_name ?? "Saved rating list"
+                        } (${latestRatingImport.imported_count ?? 0} players)`
+                      : "No saved rating list found yet for this type."}
                 </p>
               </div>
 

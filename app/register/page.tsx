@@ -13,7 +13,7 @@ import {
   type TournamentRatingType,
 } from "@/lib/ratingTypes";
 
-type SearchMethod = "surname" | "chesssa";
+type SearchMethod = "chesssa" | "surname_dob" | "surname";
 
 type ChessSaPlayer = {
   pcc_id: string | null;
@@ -73,6 +73,7 @@ type Tournament = {
   poster_image_url: string | null;
   registration_status?: string | null;
   rating_type?: TournamentRatingType | null;
+  rating_import_id?: string | null;
 };
 
 type TournamentSection = {
@@ -338,7 +339,7 @@ const maxProofFileSizeMb = 8;
 const maxProofFileSizeBytes = maxProofFileSizeMb * 1024 * 1024;
 
 export default function RegisterPage() {
-  const [searchMethod, setSearchMethod] = useState<SearchMethod>("surname");
+  const [searchMethod, setSearchMethod] = useState<SearchMethod>("chesssa");
   const [searchValue, setSearchValue] = useState("");
   const [searchBirthDate, setSearchBirthDate] = useState("");
   const [searching, setSearching] = useState(false);
@@ -373,6 +374,8 @@ export default function RegisterPage() {
   const [registrationReceipt, setRegistrationReceipt] =
     useState<RegistrationReceipt | null>(null);
   const [openPoster, setOpenPoster] = useState<Tournament | null>(null);
+  const [lockedPlayerRating, setLockedPlayerRating] = useState<number | null>(null);
+  const [loadingLockedRating, setLoadingLockedRating] = useState(false);
 
   const selectedTournament = useMemo(
     () => tournaments.find((tournament) => tournament.id === selectedTournamentId),
@@ -398,10 +401,9 @@ export default function RegisterPage() {
     selectedChessSaPlayer?.gender ?? (newPlayerMode ? newPlayer.gender : null);
 
   const selectedPlayerAge = calculateAge(playerDateOfBirth);
-  const selectedPlayerRating = getTournamentChessSaRating(
-    selectedChessSaPlayer,
-    selectedTournamentRatingType
-  );
+  const selectedPlayerRating =
+    lockedPlayerRating ??
+    getTournamentChessSaRating(selectedChessSaPlayer, selectedTournamentRatingType);
   const registeringPlayerName = selectedChessSaPlayer
     ? selectedChessSaPlayer.full_name
     : getNewPlayerFullName(newPlayer);
@@ -505,23 +507,29 @@ export default function RegisterPage() {
         if (tournamentIds.length > 0) {
           const { data: ratingTypeData } = await supabase
             .from("tournaments")
-            .select("id, rating_type")
+            .select("id, rating_type, rating_import_id")
             .in("id", tournamentIds);
           const ratingTypeByTournament = new Map(
             ((ratingTypeData ?? []) as Array<{
               id: string;
               rating_type?: string | null;
+              rating_import_id?: string | null;
             }>).map((tournament) => [
               tournament.id,
-              normalizeTournamentRatingType(tournament.rating_type),
+              {
+                ratingType: normalizeTournamentRatingType(tournament.rating_type),
+                ratingImportId: tournament.rating_import_id ?? null,
+              },
             ])
           );
 
           openTournaments = openTournaments.map((tournament) => ({
             ...tournament,
             rating_type:
-              ratingTypeByTournament.get(tournament.id) ??
+              ratingTypeByTournament.get(tournament.id)?.ratingType ??
               normalizeTournamentRatingType(tournament.rating_type),
+            rating_import_id:
+              ratingTypeByTournament.get(tournament.id)?.ratingImportId ?? null,
           }));
         }
 
@@ -550,6 +558,46 @@ export default function RegisterPage() {
 
     loadOpenTournaments();
   }, [requestedTournamentId]);
+
+  useEffect(() => {
+    async function loadLockedPlayerRating() {
+      setLockedPlayerRating(null);
+
+      if (!selectedChessSaPlayer || !selectedTournament?.rating_import_id) {
+        return;
+      }
+
+      setLoadingLockedRating(true);
+
+      let query = supabase.from("players").select("id").limit(1);
+      query = selectedChessSaPlayer.chess_sa_id
+        ? query.eq("chess_sa_id", selectedChessSaPlayer.chess_sa_id)
+        : query.eq("pcc_id", selectedChessSaPlayer.pcc_id);
+
+      const { data: playerRecord, error: playerError } = await query.maybeSingle();
+
+      if (playerError || !playerRecord?.id) {
+        setLoadingLockedRating(false);
+        return;
+      }
+
+      const { data: ratingRecord } = await supabase
+        .from("player_rating_history")
+        .select("rating")
+        .eq("player_id", playerRecord.id)
+        .eq("rating_import_id", selectedTournament.rating_import_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      setLockedPlayerRating(
+        typeof ratingRecord?.rating === "number" ? ratingRecord.rating : null
+      );
+      setLoadingLockedRating(false);
+    }
+
+    loadLockedPlayerRating();
+  }, [selectedChessSaPlayer, selectedTournament?.rating_import_id]);
 
   useEffect(() => {
     async function loadSections() {
@@ -634,11 +682,13 @@ export default function RegisterPage() {
     const lookupResults: ChessSaPlayer[] = [];
     const cleanSearch = searchValue.trim();
 
-    if (searchMethod === "surname") {
+    if (searchMethod === "surname_dob" || searchMethod === "surname") {
       if (!searchBirthDate) {
-        setSearchMessage("Enter the player's surname and date of birth.");
-        setSearching(false);
-        return;
+        if (searchMethod === "surname_dob") {
+          setSearchMessage("Enter the player's surname and date of birth.");
+          setSearching(false);
+          return;
+        }
       }
 
       const { data: pccData, error: pccError } = await supabase.rpc(
@@ -646,7 +696,8 @@ export default function RegisterPage() {
         {
           p_search_method: "surname",
           p_search_value: cleanSearch,
-          p_birth_date: searchBirthDate || null,
+          p_birth_date:
+            searchMethod === "surname_dob" ? searchBirthDate || null : null,
         }
       );
 
@@ -659,7 +710,8 @@ export default function RegisterPage() {
         {
           p_search_method: "surname",
           p_search_value: cleanSearch,
-          p_birth_date: searchBirthDate,
+          p_birth_date:
+            searchMethod === "surname_dob" ? searchBirthDate || null : null,
         }
       );
 
@@ -707,9 +759,11 @@ export default function RegisterPage() {
 
     if (results.length === 0) {
       setSearchMessage(
-        searchMethod === "surname"
-          ? "No matching player was found. Check the surname and date of birth, or try Chess SA ID."
-          : "No matching Chess SA player was found. Check the Chess SA ID."
+        searchMethod === "chesssa"
+          ? "No matching Chess SA player was found. Check the Chess SA ID, or try surname with date of birth."
+          : searchMethod === "surname_dob"
+            ? "No matching player was found. Check the surname and date of birth, or try surname only."
+            : "No matching player was found. Check the surname spelling, or try Chess SA ID if you know it."
       );
       setSearching(false);
       return;
@@ -1004,10 +1058,7 @@ export default function RegisterPage() {
         proofOfPaymentUrl = filePath;
       }
 
-      const tournamentRating = getTournamentChessSaRating(
-        selectedChessSaPlayer,
-        selectedTournamentRatingType
-      );
+      const tournamentRating = selectedPlayerRating;
       const newPlayerFullName = getNewPlayerFullName(newPlayer);
 
       const { error } = await supabase.rpc("submit_tournament_registration", {
@@ -1125,7 +1176,7 @@ export default function RegisterPage() {
               [
                 "1",
                 "Find profile",
-                "Use Chess SA ID, or surname with date of birth.",
+                "Use Chess SA ID, surname + date of birth, or surname only.",
               ],
               [
                 "2",
@@ -1192,23 +1243,33 @@ export default function RegisterPage() {
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Search first so we can avoid duplicate player records. Use Chess SA
-            ID if the player has one, or use surname with date of birth to check
-            whether the player is already listed.
+            Use these three options to find your chess profile before creating
+            a new player record.
           </p>
 
-          <div className="mt-5 grid gap-2 sm:grid-cols-2">
+          <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
+            <p>1. Search by Chess SA ID if you know it.</p>
+            <p>2. Search by surname + date of birth if you do not know your Chess SA ID.</p>
+            <p>3. Search by surname only if the first two options do not work.</p>
+          </div>
+
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
             {(
               [
-                [
-                  "surname",
-                  "Surname + date of birth",
-                  "Use this when the Chess SA ID is not available.",
-                ],
                 [
                   "chesssa",
                   "Chess SA ID",
                   "Use this when the player already has a Chess SA ID.",
+                ],
+                [
+                  "surname_dob",
+                  "Surname + DOB",
+                  "Use this when the Chess SA ID is not available.",
+                ],
+                [
+                  "surname",
+                  "Surname only",
+                  "Use this only if the first two searches do not work.",
                 ],
               ] as const
             ).map(([method, label, helper]) => (
@@ -1246,7 +1307,9 @@ export default function RegisterPage() {
               <label className="mb-2 block text-sm font-semibold text-gray-200">
                 {searchMethod === "surname"
                   ? "Player surname"
-                  : "Player Chess SA ID"}
+                  : searchMethod === "surname_dob"
+                    ? "Player surname"
+                    : "Player Chess SA ID"}
               </label>
 
               <input
@@ -1257,13 +1320,15 @@ export default function RegisterPage() {
                 placeholder={
                   searchMethod === "surname"
                     ? "Enter surname only"
-                    : "Enter the player's Chess SA ID"
+                    : searchMethod === "surname_dob"
+                      ? "Enter surname only"
+                      : "Enter the player's Chess SA ID"
                 }
                 className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
               />
             </div>
 
-            {searchMethod === "surname" && (
+            {searchMethod === "surname_dob" && (
               <div>
                 <label className="mb-2 block text-sm font-semibold text-gray-200">
                   Date of birth
@@ -1279,7 +1344,7 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <div className={searchMethod === "surname" ? "md:col-span-2" : ""}>
+            <div className={searchMethod === "surname_dob" ? "md:col-span-2" : ""}>
               <button
                 type="submit"
                 disabled={searching}
@@ -1493,7 +1558,9 @@ export default function RegisterPage() {
                   Used for this tournament:
                 </span>{" "}
                 {selectedTournamentRatingLabel}{" "}
-                {selectedPlayerRating ?? "Not rated"}
+                {loadingLockedRating
+                  ? "checking..."
+                  : selectedPlayerRating ?? "Not rated"}
               </p>
 
               <p>

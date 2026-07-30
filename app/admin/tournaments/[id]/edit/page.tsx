@@ -46,6 +46,13 @@ type SectionForm = {
   chess_results_url: string;
 };
 
+type RatingImportSummary = {
+  id: string;
+  file_name: string | null;
+  imported_at: string;
+  imported_count: number | null;
+};
+
 const emptyForm: TournamentForm = {
   tournament_name: "",
   organiser_name: "",
@@ -145,9 +152,23 @@ export default function EditTournamentPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [message, setMessage] = useState("");
+  const [lockedRatingImportId, setLockedRatingImportId] = useState<string | null>(null);
+  const [lockedRatingImport, setLockedRatingImport] =
+    useState<RatingImportSummary | null>(null);
+  const [ratingListLockedAt, setRatingListLockedAt] = useState<string | null>(null);
+  const [latestRatingImport, setLatestRatingImport] =
+    useState<RatingImportSummary | null>(null);
+  const [loadingRatingImport, setLoadingRatingImport] = useState(false);
 
   function updateField(field: keyof TournamentForm, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateRatingType(value: TournamentRatingType) {
+    setForm((current) => ({ ...current, rating_type: value }));
+    setLockedRatingImportId(null);
+    setLockedRatingImport(null);
+    setRatingListLockedAt(null);
   }
 
   function updateSection(index: number, field: keyof SectionForm, value: string) {
@@ -239,7 +260,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, rating_type, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -277,7 +298,12 @@ export default function EditTournamentPage() {
           poster_image_url: fallback.data.poster_image_url ?? "",
           payment_details: fallback.data.payment_details ?? "",
         });
+        setLockedRatingImportId(null);
+        setLockedRatingImport(null);
+        setRatingListLockedAt(null);
       } else {
+        const ratingImportId = data.rating_import_id ?? null;
+
         setForm({
           tournament_name: data.tournament_name ?? "",
           organiser_name: data.organiser_name ?? "",
@@ -296,6 +322,9 @@ export default function EditTournamentPage() {
           poster_image_url: data.poster_image_url ?? "",
           payment_details: data.payment_details ?? "",
         });
+        setLockedRatingImportId(ratingImportId);
+        setRatingListLockedAt(data.rating_list_locked_at ?? null);
+        await loadLockedRatingImport(ratingImportId);
       }
 
       const { data: sectionData } = await supabase
@@ -348,11 +377,73 @@ export default function EditTournamentPage() {
     if (tournamentId) loadTournament();
   }, [tournamentId]);
 
+  useEffect(() => {
+    async function loadLatestRatingImport() {
+      setLoadingRatingImport(true);
+      setLatestRatingImport(null);
+
+      const { data, error } = await supabase
+        .from("rating_imports")
+        .select("id, file_name, imported_at, imported_count")
+        .eq("rating_type", form.rating_type)
+        .eq("import_status", "Completed")
+        .order("imported_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        setLatestRatingImport(null);
+      } else {
+        setLatestRatingImport((data as RatingImportSummary | null) ?? null);
+      }
+
+      setLoadingRatingImport(false);
+    }
+
+    loadLatestRatingImport();
+  }, [form.rating_type]);
+
+  async function loadLockedRatingImport(importId: string | null) {
+    if (!importId) {
+      setLockedRatingImport(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("rating_imports")
+      .select("id, file_name, imported_at, imported_count")
+      .eq("id", importId)
+      .maybeSingle();
+
+    if (!error) {
+      setLockedRatingImport((data as RatingImportSummary | null) ?? null);
+    }
+  }
+
+  function useLatestRatingImport() {
+    if (!latestRatingImport) {
+      setMessage("No completed rating import exists for this rating type yet.");
+      return;
+    }
+
+    setLockedRatingImportId(latestRatingImport.id);
+    setLockedRatingImport(latestRatingImport);
+    setRatingListLockedAt(new Date().toISOString());
+    setMessage("This tournament will use the latest saved rating list after you save.");
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     setSaving(true);
     setMessage("");
+
+    const nextRatingImportId =
+      lockedRatingImportId ??
+      (form.registration_status !== "Completed" ? latestRatingImport?.id ?? null : null);
+    const nextRatingLockedAt = nextRatingImportId
+      ? ratingListLockedAt ?? new Date().toISOString()
+      : null;
 
     const tournamentPayload = {
       tournament_name: form.tournament_name.trim(),
@@ -368,6 +459,8 @@ export default function EditTournamentPage() {
       registration_close_date: form.registration_close_date || form.start_date,
       registration_status: form.registration_status,
       rating_type: form.rating_type,
+      rating_import_id: nextRatingImportId,
+      rating_list_locked_at: nextRatingLockedAt,
       entry_fee: cleanMoney(form.entry_fee),
       poster_image_url: form.poster_image_url.trim() || null,
       payment_details: form.payment_details.trim() || null,
@@ -380,9 +473,16 @@ export default function EditTournamentPage() {
 
     if (
       error &&
-      error.message.toLowerCase().includes("rating_type")
+      (error.message.toLowerCase().includes("rating_type") ||
+        error.message.toLowerCase().includes("rating_import_id") ||
+        error.message.toLowerCase().includes("rating_list_locked_at"))
     ) {
-      const { rating_type: _ratingType, ...legacyPayload } = tournamentPayload;
+      const {
+        rating_type: _ratingType,
+        rating_import_id: _ratingImportId,
+        rating_list_locked_at: _ratingListLockedAt,
+        ...legacyPayload
+      } = tournamentPayload;
       const retry = await supabase
         .from("tournaments")
         .update(legacyPayload)
@@ -607,10 +707,7 @@ export default function EditTournamentPage() {
                 <select
                   value={form.rating_type}
                   onChange={(event) =>
-                    updateField(
-                      "rating_type",
-                      event.target.value as TournamentRatingType
-                    )
+                    updateRatingType(event.target.value as TournamentRatingType)
                   }
                   className={inputClass}
                 >
@@ -621,9 +718,40 @@ export default function EditTournamentPage() {
                   ))}
                 </select>
                 <p className="mt-2 text-xs leading-5 text-gray-500">
-                  Rating bands for this tournament will use the selected rating
-                  list during registration.
+                  Rating bands use the locked rating file for this tournament.
+                  Completed tournaments do not refresh automatically.
                 </p>
+                <div className="mt-2 rounded-lg border border-white/10 bg-zinc-950 p-3 text-xs leading-5 text-gray-400">
+                  <p>
+                    Locked list:{" "}
+                    <span className="font-semibold text-gray-200">
+                      {lockedRatingImport
+                        ? `${lockedRatingImport.file_name ?? "Saved rating list"} (${
+                            lockedRatingImport.imported_count ?? 0
+                          } players)`
+                        : "None locked yet"}
+                    </span>
+                  </p>
+                  <p>
+                    Latest available:{" "}
+                    {loadingRatingImport
+                      ? "checking..."
+                      : latestRatingImport
+                        ? `${latestRatingImport.file_name ?? "Saved rating list"} (${
+                            latestRatingImport.imported_count ?? 0
+                          } players)`
+                        : "none"}
+                  </p>
+                  {form.registration_status !== "Completed" && (
+                    <button
+                      type="button"
+                      onClick={useLatestRatingImport}
+                      className="mt-3 rounded-lg border border-white/10 px-3 py-2 font-bold text-white transition hover:border-red-400"
+                    >
+                      Use latest saved list
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div>

@@ -283,12 +283,17 @@ export default function AdminPlayersPage() {
             </div>
           </section>
 
-          <section className="mt-6 grid gap-3 md:grid-cols-3">
+          <section className="mt-6 grid gap-3 md:grid-cols-4">
+            <ActionLink
+              href="/admin/import-ratings"
+              title="Rating Files"
+              description="Upload Classical, Rapid and Blitz rating lists."
+              primary
+            />
             <ActionLink
               href="/admin/players/sync"
               title="Chess SA Sync"
-              description="Import ratings, IDs, missing details and safe identity matches."
-              primary
+              description="Import IDs, missing details and safe identity matches."
             />
             <ActionLink
               href="/admin/players/duplicates"

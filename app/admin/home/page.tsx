@@ -72,7 +72,8 @@ const adminDirectory = [
     links: [
       { href: "/admin/players", label: "Player Centre", text: "Search, filter and open player records." },
       { href: "/admin/members", label: "Membership Register", text: "Record paid memberships and renewal dates." },
-      { href: "/admin/players/sync", label: "Chess SA Sync", text: "Import ratings and complete missing details." },
+      { href: "/admin/import-ratings", label: "Rating Files", text: "Upload Classical, Rapid and Blitz rating lists." },
+      { href: "/admin/players/sync", label: "Chess SA Sync", text: "Import IDs, missing details and safe identity matches." },
       { href: "/admin/players/duplicates", label: "Duplicate Centre", text: "Find and repair duplicate profiles." },
     ],
   },
@@ -544,6 +545,7 @@ export default function AdminDashboardPage() {
                   <QuickLink href="/admin/organiser-access" label="Organiser access" />
                   <QuickLink href="/admin/organisations" label="Organisations" />
                   <QuickLink href="/admin/admin-access" label="Admin access" />
+                  <QuickLink href="/admin/import-ratings" label="Rating files" />
                   <QuickLink href="/admin/players/sync" label="Chess SA sync" />
                   <QuickLink href="/admin/players/duplicates" label="Duplicate checks" />
                   <QuickLink href="/admin/tournaments" label="Tournament centre" />
