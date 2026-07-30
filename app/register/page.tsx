@@ -705,6 +705,19 @@ export default function RegisterPage() {
         }
       }
 
+      if (searchMethod === "surname") {
+        const { data: ratingFileData } = await supabase.rpc(
+          "find_rating_file_player_for_registration",
+          {
+            p_search_method: "surname_only",
+            p_search_value: cleanSearch,
+            p_birth_date: null,
+          }
+        );
+
+        lookupResults.push(...((ratingFileData ?? []) as ChessSaPlayer[]));
+      }
+
       const { data: pccData, error: pccError } = await supabase.rpc(
         "find_pcc_player_for_registration",
         {

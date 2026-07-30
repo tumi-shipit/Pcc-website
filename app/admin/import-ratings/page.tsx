@@ -33,8 +33,28 @@ type RatingImportRecord = {
   import_status: string | null;
 };
 
+type ImportProgress = {
+  active: boolean;
+  phase: string;
+  current: number;
+  total: number;
+  percent: number;
+};
+
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+
+const emptyProgress: ImportProgress = {
+  active: false,
+  phase: "",
+  current: 0,
+  total: 0,
+  percent: 0,
+};
+
+function pauseForPaint() {
+  return new Promise((resolve) => window.setTimeout(resolve, 0));
+}
 
 function normalizeHeader(value: string) {
   return value
@@ -201,6 +221,102 @@ function parseRatingRows(text: string): RatingRow[] {
   });
 }
 
+async function parseRatingRowsWithProgress(
+  text: string,
+  onProgress: (current: number, total: number) => void
+) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) return [];
+
+  const headers = parseCsvLine(lines[0]).map(normalizeHeader);
+  const dataLines = lines.slice(1);
+  const parsedRows: RatingRow[] = [];
+
+  for (let index = 0; index < dataLines.length; index += 1) {
+    const values = parseCsvLine(dataLines[index]);
+    const raw: Record<string, string> = {};
+
+    headers.forEach((header, headerIndex) => {
+      raw[header] = values[headerIndex]?.trim() ?? "";
+    });
+
+    const firstName = firstValue(raw, ["first_name", "firstname", "names"]);
+    const surname = firstValue(raw, ["surname", "last_name", "lastname"]);
+    const joinedName =
+      firstName && surname ? `${firstName} ${surname}` : surname ?? firstName;
+    const fullName =
+      firstValue(raw, [
+        "full_name",
+        "name",
+        "player",
+        "player_name",
+        "surname_name",
+        "surname_and_names",
+        "surname_names",
+      ]) ?? joinedName ?? "";
+
+    const chessSaId =
+      firstValue(raw, [
+        "chess_sa_id",
+        "chessa_id",
+        "chesssa_id",
+        "chess_sa",
+        "chessa",
+        "idnumber",
+        "id_number",
+        "member_id",
+        "sa_id",
+        "said",
+        "unique_no",
+        "uniqueno",
+        "player_no",
+        "playerno",
+      ]) ?? "";
+    const rating = cleanNumber(
+      firstValue(raw, [
+        "rating",
+        "standard_rating",
+        "rapid_rating",
+        "blitz_rating",
+        "chessa_rating",
+        "rtg",
+        "rate",
+        "national_rating",
+      ])
+    );
+
+    parsedRows.push({
+      rowNumber: index + 2,
+      fullName,
+      chessSaId,
+      rating,
+      club: firstValue(raw, ["club", "club_name"]),
+      province: firstValue(raw, ["province", "region", "fed", "federation"]),
+      dateOfBirth: normalizeDate(
+        firstValue(raw, ["date_of_birth", "dob", "birth_date", "bdate"])
+      ),
+      raw,
+      status:
+        chessSaId && rating !== null && rating !== undefined ? "Ready" : "Skipped",
+      message:
+        chessSaId && rating !== null && rating !== undefined
+          ? "Ready to import"
+          : "Missing Chess SA ID or rating",
+    });
+
+    if ((index + 1) % 250 === 0 || index === dataLines.length - 1) {
+      onProgress(index + 1, dataLines.length);
+      await pauseForPaint();
+    }
+  }
+
+  return parsedRows;
+}
+
 function ratingLabel(value: TournamentRatingType) {
   return (
     tournamentRatingOptions.find((option) => option.value === value)?.label ??
@@ -215,6 +331,7 @@ export default function AdminImportRatingsPage() {
   const [message, setMessage] = useState("");
   const [importing, setImporting] = useState(false);
   const [lastImport, setLastImport] = useState<RatingImportRecord | null>(null);
+  const [progress, setProgress] = useState<ImportProgress>(emptyProgress);
 
   const stats = useMemo(
     () => ({
@@ -233,8 +350,36 @@ export default function AdminImportRatingsPage() {
 
     setFileName(file.name);
     setMessage("Reading rating file...");
+    setProgress({
+      active: true,
+      phase: "Reading file",
+      current: 0,
+      total: 0,
+      percent: 5,
+    });
 
-    const parsedRows = parseRatingRows(await file.text());
+    const fileText = await file.text();
+    setProgress({
+      active: true,
+      phase: "Parsing rows",
+      current: 0,
+      total: 0,
+      percent: 10,
+    });
+    await pauseForPaint();
+
+    const parsedRows = await parseRatingRowsWithProgress(
+      fileText,
+      (current, total) => {
+        setProgress({
+          active: true,
+          phase: "Parsing rows",
+          current,
+          total,
+          percent: total > 0 ? Math.round((current / total) * 100) : 100,
+        });
+      }
+    );
 
     setRows(parsedRows);
     setMessage(
@@ -242,6 +387,7 @@ export default function AdminImportRatingsPage() {
         ? `${parsedRows.length} row(s) loaded for ${ratingLabel(ratingType)} ratings.`
         : "No rows found. Upload a CSV file with headers."
     );
+    setProgress(emptyProgress);
   }
 
   async function importRatings(event: FormEvent<HTMLFormElement>) {
@@ -255,6 +401,13 @@ export default function AdminImportRatingsPage() {
 
     setImporting(true);
     setMessage(`Importing ${ratingLabel(ratingType)} ratings...`);
+    setProgress({
+      active: true,
+      phase: "Starting import",
+      current: 0,
+      total: readyRows.length,
+      percent: 1,
+    });
 
     const nextRows = [...rows];
     let imported = 0;
@@ -285,13 +438,14 @@ export default function AdminImportRatingsPage() {
         }`
       );
       setImporting(false);
+      setProgress(emptyProgress);
       return;
     }
 
     ratingImportId = importRecord.id;
     setLastImport(importRecord as RatingImportRecord);
 
-    for (const row of readyRows) {
+    for (const [readyIndex, row] of readyRows.entries()) {
       const rowIndex = nextRows.findIndex((item) => item.rowNumber === row.rowNumber);
 
       try {
@@ -377,7 +531,31 @@ export default function AdminImportRatingsPage() {
           };
         }
       }
+
+      if ((readyIndex + 1) % 10 === 0 || readyIndex === readyRows.length - 1) {
+        const processed = readyIndex + 1;
+        setProgress({
+          active: true,
+          phase: "Importing ratings",
+          current: processed,
+          total: readyRows.length,
+          percent:
+            readyRows.length > 0
+              ? Math.round((processed / readyRows.length) * 100)
+              : 100,
+        });
+        setRows([...nextRows]);
+        await pauseForPaint();
+      }
     }
+
+    setProgress({
+      active: true,
+      phase: "Saving import summary",
+      current: readyRows.length,
+      total: readyRows.length,
+      percent: 100,
+    });
 
     const importStatus = failed > 0 && imported === 0 ? "Failed" : "Completed";
     const { data: completedImport } = await supabase
@@ -400,6 +578,7 @@ export default function AdminImportRatingsPage() {
       `${ratingLabel(ratingType)} rating list saved. Imported ${imported}, failed ${failed}. New tournaments using ${ratingLabel(ratingType)} will lock to this file.`
     );
     setImporting(false);
+    setProgress(emptyProgress);
   }
 
   return (
@@ -474,6 +653,37 @@ export default function AdminImportRatingsPage() {
               <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm text-gray-300">
                 {message}
               </p>
+            )}
+
+            {progress.active && (
+              <div className="mt-5 rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-black text-white">{progress.phase}</p>
+                    <p className="mt-1 text-xs text-red-100/80">
+                      {progress.total > 0
+                        ? `${progress.current} of ${progress.total} rows`
+                        : "Preparing file..."}
+                    </p>
+                  </div>
+
+                  <p className="text-2xl font-black text-white">
+                    {progress.percent}%
+                  </p>
+                </div>
+
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-black/50">
+                  <div
+                    className="h-full rounded-full bg-red-500 transition-all duration-300"
+                    style={{ width: `${Math.max(progress.percent, 5)}%` }}
+                  />
+                </div>
+
+                <p className="mt-3 text-xs leading-5 text-red-100/75">
+                  Keep this page open until the import finishes. Large files can
+                  take a few minutes.
+                </p>
+              </div>
             )}
 
             {lastImport && (

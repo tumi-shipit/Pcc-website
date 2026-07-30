@@ -9,14 +9,22 @@ function confidenceClass(label: string) {
   return "bg-zinc-800 text-zinc-300";
 }
 
-function sectionTitle(action: "update_existing" | "review") {
-  return action === "update_existing" ? "Ready to verify" : "Needs review";
+function sectionTitle(action: "update_existing" | "create_new" | "review") {
+  if (action === "update_existing") return "Ready to verify";
+  if (action === "create_new") return "Ready to add";
+  return "Needs review";
 }
 
-function sectionDescription(action: "update_existing" | "review") {
-  return action === "update_existing"
-    ? "These rows have a safe Chess SA ID match in the Player Centre and will be marked Verified."
-    : "These rows have duplicate Chess SA IDs or a name conflict with an existing Player Centre profile.";
+function sectionDescription(action: "update_existing" | "create_new" | "review") {
+  if (action === "update_existing") {
+    return "These rows have a safe Chess SA ID match in the Player Centre and will be marked Verified.";
+  }
+
+  if (action === "create_new") {
+    return "These Chess SA records do not safely match an existing Player Centre profile and will be added for public lookup.";
+  }
+
+  return "These rows have duplicate Chess SA IDs or a name conflict with an existing Player Centre profile.";
 }
 
 export default function ChessSaSyncReviewTable({
@@ -36,6 +44,10 @@ export default function ChessSaSyncReviewTable({
     {
       action: "update_existing" as const,
       rows: decisions.filter((decision) => decision.action === "update_existing"),
+    },
+    {
+      action: "create_new" as const,
+      rows: decisions.filter((decision) => decision.action === "create_new"),
     },
     {
       action: "review" as const,

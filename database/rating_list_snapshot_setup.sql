@@ -433,6 +433,126 @@ $$;
 grant execute on function public.find_chessa_player_for_registration(text, text, date)
 to anon, authenticated;
 
+create or replace function public.find_rating_file_player_for_registration(
+  p_search_method text,
+  p_search_value text,
+  p_birth_date date default null
+)
+returns table (
+  pcc_id text,
+  chess_sa_id text,
+  full_name text,
+  date_of_birth date,
+  gender text,
+  title text,
+  federation text,
+  standard_rating integer,
+  rapid_rating integer,
+  blitz_rating integer,
+  email text,
+  phone text,
+  club text,
+  province text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_method text := lower(trim(coalesce(p_search_method, '')));
+  clean_value text := trim(coalesce(p_search_value, ''));
+  clean_id text := regexp_replace(clean_value, '\D', '', 'g');
+  search_pattern text := '%' || replace(clean_value, ',', ' ') || '%';
+begin
+  if clean_value = '' then
+    return;
+  end if;
+
+  return query
+  with latest_imports as (
+    select distinct on (public.normalized_rating_type(rating_imports.rating_type))
+      rating_imports.id,
+      public.normalized_rating_type(rating_imports.rating_type) as clean_rating_type
+    from public.rating_imports
+    where rating_imports.import_status = 'Completed'
+    order by
+      public.normalized_rating_type(rating_imports.rating_type),
+      rating_imports.imported_at desc,
+      rating_imports.id desc
+  ),
+  candidates as (
+    select distinct on (players.id)
+      players.id,
+      players.pcc_id,
+      players.chess_sa_id,
+      players.full_name,
+      players.date_of_birth,
+      players.gender,
+      players.title,
+      players.province,
+      players.email,
+      players.phone,
+      players.club
+    from public.player_rating_history history
+    join latest_imports
+      on latest_imports.id = history.rating_import_id
+    join public.players
+      on players.id = history.player_id
+    where (
+        clean_method in ('chesssa', 'chessa', 'chess_sa_id', 'chess_sa')
+        and (
+          regexp_replace(coalesce(players.chess_sa_id, ''), '\D', '', 'g') = clean_id
+          or players.chess_sa_id = clean_value
+        )
+      )
+      or (
+        clean_method in ('name', 'surname', 'surname_only', 'name_only')
+        and (
+          players.full_name ilike search_pattern
+          or public.registration_name_key(players.full_name) ilike public.registration_name_key(clean_value) || '%'
+        )
+        and (
+          clean_method in ('surname_only', 'name_only')
+          or p_birth_date is null
+          or players.date_of_birth is null
+          or players.date_of_birth = p_birth_date
+        )
+      )
+    order by
+      players.id,
+      case latest_imports.clean_rating_type
+        when 'standard' then 0
+        when 'rapid' then 1
+        when 'blitz' then 2
+        else 3
+      end
+  )
+  select
+    candidates.pcc_id,
+    candidates.chess_sa_id,
+    candidates.full_name,
+    candidates.date_of_birth,
+    candidates.gender,
+    candidates.title,
+    candidates.province as federation,
+    public.latest_player_rating_by_type(candidates.id, 'standard') as standard_rating,
+    public.latest_player_rating_by_type(candidates.id, 'rapid') as rapid_rating,
+    public.latest_player_rating_by_type(candidates.id, 'blitz') as blitz_rating,
+    candidates.email,
+    candidates.phone,
+    candidates.club,
+    candidates.province
+  from candidates
+  order by
+    case when candidates.chess_sa_id is not null and candidates.chess_sa_id <> '' then 0 else 1 end,
+    candidates.full_name
+  limit 40;
+end;
+$$;
+
+grant execute on function public.find_rating_file_player_for_registration(text, text, date)
+to anon, authenticated;
+
 create or replace function public.player_rating_for_tournament(
   p_player_id uuid,
   p_tournament_id uuid

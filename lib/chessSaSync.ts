@@ -533,8 +533,8 @@ function analyseChessSaRow(
       matched_player_name: null,
       confidence_score: 0,
       confidence_label: "None",
-      action: "skip",
-      reasons: ["Not in Player Centre"],
+      action: "create_new",
+      reasons: ["New Chess SA player record"],
       matched_player: null,
     };
 
