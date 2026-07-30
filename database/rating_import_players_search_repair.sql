@@ -70,6 +70,14 @@ on public.rating_import_players (rating_import_id, chess_sa_id);
 create index if not exists rating_import_players_name_idx
 on public.rating_import_players (lower(full_name));
 
+create extension if not exists pg_trgm with schema extensions;
+
+create index if not exists rating_import_players_full_name_trgm_idx
+on public.rating_import_players using gin (full_name gin_trgm_ops);
+
+create index if not exists rating_imports_status_date_idx
+on public.rating_imports (import_status, imported_at desc);
+
 alter table public.rating_import_players enable row level security;
 
 drop policy if exists "Public can read rating import players"
@@ -292,6 +300,157 @@ begin
     candidates.imported_at desc nulls last,
     candidates.full_name
   limit 40;
+end;
+$$;
+
+grant execute on function public.find_rating_file_player_for_registration(text, text, date)
+to anon, authenticated;
+
+create or replace function public.find_rating_file_player_for_registration(
+  p_search_method text,
+  p_search_value text,
+  p_birth_date date default null
+)
+returns table (
+  pcc_id text,
+  chess_sa_id text,
+  full_name text,
+  date_of_birth date,
+  gender text,
+  title text,
+  federation text,
+  standard_rating integer,
+  rapid_rating integer,
+  blitz_rating integer,
+  email text,
+  phone text,
+  club text,
+  province text
+)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  clean_method text := lower(trim(coalesce(p_search_method, '')));
+  clean_value text := trim(coalesce(p_search_value, ''));
+  clean_id text := regexp_replace(clean_value, '\D', '', 'g');
+  search_pattern text := '%' || replace(clean_value, ',', ' ') || '%';
+begin
+  if clean_value = '' then
+    return;
+  end if;
+
+  return query
+  with matched_rows as (
+    select
+      rating_players.chess_sa_id,
+      rating_players.full_name,
+      rating_players.date_of_birth,
+      rating_players.gender,
+      rating_players.title,
+      rating_players.federation,
+      rating_players.club,
+      rating_players.province,
+      imports.imported_at,
+      rating_players.created_at,
+      rating_players.id,
+      row_number() over (
+        partition by rating_players.chess_sa_id
+        order by imports.imported_at desc nulls last,
+          rating_players.created_at desc nulls last,
+          rating_players.id desc
+      ) as identity_rank
+    from public.rating_import_players rating_players
+    join public.rating_imports imports
+      on imports.id = rating_players.rating_import_id
+    where imports.import_status = 'Completed'
+      and rating_players.chess_sa_id is not null
+      and rating_players.chess_sa_id <> ''
+      and (
+        (
+          clean_method in ('chesssa', 'chessa', 'chess_sa_id', 'chess_sa')
+          and (
+            regexp_replace(coalesce(rating_players.chess_sa_id, ''), '\D', '', 'g') = clean_id
+            or rating_players.chess_sa_id = clean_value
+          )
+        )
+        or (
+          clean_method in ('name', 'surname', 'surname_only', 'name_only')
+          and rating_players.full_name ilike search_pattern
+          and (
+            clean_method in ('surname_only', 'name_only')
+            or p_birth_date is null
+            or rating_players.date_of_birth is null
+            or rating_players.date_of_birth = p_birth_date
+          )
+        )
+      )
+    order by imports.imported_at desc nulls last,
+      rating_players.created_at desc nulls last,
+      rating_players.full_name
+    limit 400
+  ),
+  candidates as (
+    select *
+    from matched_rows
+    where identity_rank = 1
+    order by imported_at desc nulls last, full_name
+    limit 40
+  )
+  select
+    null::text as pcc_id,
+    candidates.chess_sa_id,
+    candidates.full_name,
+    candidates.date_of_birth,
+    candidates.gender,
+    candidates.title,
+    coalesce(candidates.federation, candidates.province) as federation,
+    (
+      select rating_players.rating::integer
+      from public.rating_import_players rating_players
+      join public.rating_imports imports
+        on imports.id = rating_players.rating_import_id
+      where imports.import_status = 'Completed'
+        and rating_players.chess_sa_id = candidates.chess_sa_id
+        and public.normalized_rating_type(rating_players.rating_type) = 'standard'
+      order by imports.imported_at desc nulls last,
+        rating_players.created_at desc nulls last,
+        rating_players.id desc
+      limit 1
+    ) as standard_rating,
+    (
+      select rating_players.rating::integer
+      from public.rating_import_players rating_players
+      join public.rating_imports imports
+        on imports.id = rating_players.rating_import_id
+      where imports.import_status = 'Completed'
+        and rating_players.chess_sa_id = candidates.chess_sa_id
+        and public.normalized_rating_type(rating_players.rating_type) = 'rapid'
+      order by imports.imported_at desc nulls last,
+        rating_players.created_at desc nulls last,
+        rating_players.id desc
+      limit 1
+    ) as rapid_rating,
+    (
+      select rating_players.rating::integer
+      from public.rating_import_players rating_players
+      join public.rating_imports imports
+        on imports.id = rating_players.rating_import_id
+      where imports.import_status = 'Completed'
+        and rating_players.chess_sa_id = candidates.chess_sa_id
+        and public.normalized_rating_type(rating_players.rating_type) = 'blitz'
+      order by imports.imported_at desc nulls last,
+        rating_players.created_at desc nulls last,
+        rating_players.id desc
+      limit 1
+    ) as blitz_rating,
+    null::text as email,
+    null::text as phone,
+    candidates.club,
+    candidates.province
+  from candidates
+  order by candidates.imported_at desc nulls last, candidates.full_name;
 end;
 $$;
 
