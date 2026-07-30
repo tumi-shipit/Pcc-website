@@ -6,7 +6,7 @@ import {
   getCalendarYear,
   getSouthAfricaDateParts,
 } from "@/lib/dateHelpers";
-import { supabase } from "../../lib/supabase";
+import { publicSupabase as supabase } from "@/lib/publicSupabase";
 
 type SearchMethod = "surname" | "chesssa";
 
