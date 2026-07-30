@@ -33,6 +33,43 @@ check (import_status in ('Importing', 'Completed', 'Failed'));
 create index if not exists rating_imports_type_date_idx
 on public.rating_imports (rating_type, imported_at desc);
 
+create table if not exists public.rating_import_players (
+  id uuid primary key default gen_random_uuid(),
+  rating_import_id uuid not null references public.rating_imports(id) on delete cascade,
+  rating_type text not null default 'standard',
+  chess_sa_id text not null,
+  full_name text not null,
+  date_of_birth date,
+  gender text,
+  title text,
+  federation text,
+  rating integer,
+  club text,
+  province text,
+  row_number integer,
+  raw_data jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+alter table public.rating_import_players
+drop constraint if exists rating_import_players_rating_type_check;
+
+alter table public.rating_import_players
+add constraint rating_import_players_rating_type_check
+check (rating_type in ('standard', 'rapid', 'blitz', 'classical'));
+
+create index if not exists rating_import_players_import_idx
+on public.rating_import_players (rating_import_id);
+
+create index if not exists rating_import_players_chess_sa_idx
+on public.rating_import_players (chess_sa_id);
+
+create index if not exists rating_import_players_import_chess_sa_idx
+on public.rating_import_players (rating_import_id, chess_sa_id);
+
+create index if not exists rating_import_players_name_idx
+on public.rating_import_players (lower(full_name));
+
 create table if not exists public.player_rating_history (
   id uuid primary key default gen_random_uuid(),
   player_id uuid not null references public.players(id) on delete cascade,
@@ -87,6 +124,7 @@ create index if not exists tournaments_rating_import_idx
 on public.tournaments (rating_import_id);
 
 alter table public.rating_imports enable row level security;
+alter table public.rating_import_players enable row level security;
 alter table public.player_rating_history enable row level security;
 
 drop policy if exists "Public can read rating imports"
@@ -101,6 +139,12 @@ on public.player_rating_history;
 drop policy if exists "Admins can manage player rating history"
 on public.player_rating_history;
 
+drop policy if exists "Public can read rating import players"
+on public.rating_import_players;
+
+drop policy if exists "Admins can manage rating import players"
+on public.rating_import_players;
+
 create policy "Public can read rating imports"
 on public.rating_imports
 for select
@@ -109,6 +153,19 @@ using (true);
 
 create policy "Admins can manage rating imports"
 on public.rating_imports
+for all
+to authenticated
+using (public.has_admin_access())
+with check (public.has_admin_access());
+
+create policy "Public can read rating import players"
+on public.rating_import_players
+for select
+to anon, authenticated
+using (true);
+
+create policy "Admins can manage rating import players"
+on public.rating_import_players
 for all
 to authenticated
 using (public.has_admin_access())
@@ -129,6 +186,8 @@ with check (public.has_admin_access());
 
 grant select on public.rating_imports to anon, authenticated;
 grant insert, update, delete on public.rating_imports to authenticated;
+grant select on public.rating_import_players to anon, authenticated;
+grant insert, update, delete on public.rating_import_players to authenticated;
 grant select on public.player_rating_history to anon, authenticated;
 grant insert, update, delete on public.player_rating_history to authenticated;
 grant select (id, rating_type, rating_import_id, rating_list_locked_at)
@@ -178,10 +237,31 @@ declare
   clean_rating_type text := public.normalized_rating_type(p_rating_type);
   latest_import uuid;
   rating_value integer;
+  player_chess_sa_id text;
 begin
+  select players.chess_sa_id
+  into player_chess_sa_id
+  from public.players
+  where players.id = p_player_id;
+
   latest_import := public.latest_rating_import_id(clean_rating_type);
 
   if latest_import is not null then
+    if player_chess_sa_id is not null and player_chess_sa_id <> '' then
+      select rating_players.rating::integer
+      into rating_value
+      from public.rating_import_players rating_players
+      where rating_players.rating_import_id = latest_import
+        and rating_players.chess_sa_id = player_chess_sa_id
+        and rating_players.rating is not null
+      order by rating_players.created_at desc nulls last, rating_players.id desc
+      limit 1;
+    end if;
+
+    if rating_value is not null then
+      return rating_value;
+    end if;
+
     select history.rating::integer
     into rating_value
     from public.player_rating_history history
@@ -480,47 +560,56 @@ begin
       rating_imports.imported_at desc,
       rating_imports.id desc
   ),
-  candidates as (
-    select distinct on (players.id)
-      players.id,
-      players.pcc_id,
-      players.chess_sa_id,
-      players.full_name,
-      players.date_of_birth,
-      players.gender,
-      players.title,
-      players.province,
-      players.email,
-      players.phone,
-      players.club
-    from public.player_rating_history history
+  latest_rows as (
+    select
+      rating_players.*,
+      latest_imports.clean_rating_type
+    from public.rating_import_players rating_players
     join latest_imports
-      on latest_imports.id = history.rating_import_id
-    join public.players
-      on players.id = history.player_id
+      on latest_imports.id = rating_players.rating_import_id
+    where rating_players.chess_sa_id is not null
+      and rating_players.chess_sa_id <> ''
+  ),
+  matched_ids as (
+    select distinct latest_rows.chess_sa_id
+    from latest_rows
     where (
         clean_method in ('chesssa', 'chessa', 'chess_sa_id', 'chess_sa')
         and (
-          regexp_replace(coalesce(players.chess_sa_id, ''), '\D', '', 'g') = clean_id
-          or players.chess_sa_id = clean_value
+          regexp_replace(coalesce(latest_rows.chess_sa_id, ''), '\D', '', 'g') = clean_id
+          or latest_rows.chess_sa_id = clean_value
         )
       )
       or (
         clean_method in ('name', 'surname', 'surname_only', 'name_only')
         and (
-          players.full_name ilike search_pattern
-          or public.registration_name_key(players.full_name) ilike public.registration_name_key(clean_value) || '%'
+          latest_rows.full_name ilike search_pattern
+          or public.registration_name_key(latest_rows.full_name) ilike public.registration_name_key(clean_value) || '%'
         )
         and (
           clean_method in ('surname_only', 'name_only')
           or p_birth_date is null
-          or players.date_of_birth is null
-          or players.date_of_birth = p_birth_date
+          or latest_rows.date_of_birth is null
+          or latest_rows.date_of_birth = p_birth_date
         )
       )
+  ),
+  candidates as (
+    select distinct on (latest_rows.chess_sa_id)
+      latest_rows.chess_sa_id,
+      latest_rows.full_name,
+      latest_rows.date_of_birth,
+      latest_rows.gender,
+      latest_rows.title,
+      latest_rows.federation,
+      latest_rows.club,
+      latest_rows.province
+    from latest_rows
+    join matched_ids
+      on matched_ids.chess_sa_id = latest_rows.chess_sa_id
     order by
-      players.id,
-      case latest_imports.clean_rating_type
+      latest_rows.chess_sa_id,
+      case latest_rows.clean_rating_type
         when 'standard' then 0
         when 'rapid' then 1
         when 'blitz' then 2
@@ -528,18 +617,39 @@ begin
       end
   )
   select
-    candidates.pcc_id,
+    null::text as pcc_id,
     candidates.chess_sa_id,
     candidates.full_name,
     candidates.date_of_birth,
     candidates.gender,
     candidates.title,
-    candidates.province as federation,
-    public.latest_player_rating_by_type(candidates.id, 'standard') as standard_rating,
-    public.latest_player_rating_by_type(candidates.id, 'rapid') as rapid_rating,
-    public.latest_player_rating_by_type(candidates.id, 'blitz') as blitz_rating,
-    candidates.email,
-    candidates.phone,
+    coalesce(candidates.federation, candidates.province) as federation,
+    (
+      select latest_rows.rating::integer
+      from latest_rows
+      where latest_rows.chess_sa_id = candidates.chess_sa_id
+        and latest_rows.clean_rating_type = 'standard'
+      order by latest_rows.created_at desc nulls last, latest_rows.id desc
+      limit 1
+    ) as standard_rating,
+    (
+      select latest_rows.rating::integer
+      from latest_rows
+      where latest_rows.chess_sa_id = candidates.chess_sa_id
+        and latest_rows.clean_rating_type = 'rapid'
+      order by latest_rows.created_at desc nulls last, latest_rows.id desc
+      limit 1
+    ) as rapid_rating,
+    (
+      select latest_rows.rating::integer
+      from latest_rows
+      where latest_rows.chess_sa_id = candidates.chess_sa_id
+        and latest_rows.clean_rating_type = 'blitz'
+      order by latest_rows.created_at desc nulls last, latest_rows.id desc
+      limit 1
+    ) as blitz_rating,
+    null::text as email,
+    null::text as phone,
     candidates.club,
     candidates.province
   from candidates
@@ -565,6 +675,7 @@ as $$
 declare
   tournament_record record;
   rating_value integer;
+  player_chess_sa_id text;
 begin
   select rating_type, rating_import_id
   into tournament_record
@@ -576,6 +687,26 @@ begin
   end if;
 
   if tournament_record.rating_import_id is not null then
+    select players.chess_sa_id
+    into player_chess_sa_id
+    from public.players
+    where players.id = p_player_id;
+
+    if player_chess_sa_id is not null and player_chess_sa_id <> '' then
+      select rating_players.rating::integer
+      into rating_value
+      from public.rating_import_players rating_players
+      where rating_players.rating_import_id = tournament_record.rating_import_id
+        and rating_players.chess_sa_id = player_chess_sa_id
+        and rating_players.rating is not null
+      order by rating_players.created_at desc nulls last, rating_players.id desc
+      limit 1;
+
+      if rating_value is not null then
+        return rating_value;
+      end if;
+    end if;
+
     select history.rating::integer
     into rating_value
     from public.player_rating_history history

@@ -583,35 +583,60 @@ export default function RegisterPage() {
 
       setLoadingLockedRating(true);
 
-      let query = supabase.from("players").select("id").limit(1);
-      query = selectedChessSaPlayer.chess_sa_id
-        ? query.eq("chess_sa_id", selectedChessSaPlayer.chess_sa_id)
-        : query.eq("pcc_id", selectedChessSaPlayer.pcc_id);
+      if (selectedChessSaPlayer.chess_sa_id) {
+        const { data: ratingRecord } = await supabase
+          .from("rating_import_players")
+          .select("rating")
+          .eq("chess_sa_id", selectedChessSaPlayer.chess_sa_id)
+          .eq("rating_import_id", selectedTournament.rating_import_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      const { data: playerRecord, error: playerError } = await query.maybeSingle();
-
-      if (playerError || !playerRecord?.id) {
+        setLockedPlayerRating(
+          typeof ratingRecord?.rating === "number" ? ratingRecord.rating : null
+        );
         setLoadingLockedRating(false);
         return;
       }
 
-      const { data: ratingRecord } = await supabase
-        .from("player_rating_history")
-        .select("rating")
-        .eq("player_id", playerRecord.id)
-        .eq("rating_import_id", selectedTournament.rating_import_id)
-        .order("created_at", { ascending: false })
+      if (!selectedChessSaPlayer.pcc_id) {
+        setLoadingLockedRating(false);
+        return;
+      }
+
+      const { data: playerRecord } = await supabase
+        .from("players")
+        .select("id")
+        .eq("pcc_id", selectedChessSaPlayer.pcc_id)
         .limit(1)
         .maybeSingle();
 
+      if (!playerRecord?.id) {
+        setLoadingLockedRating(false);
+        return;
+      }
+
+      const { data: ratingRecord } = await supabase.rpc(
+        "player_rating_for_tournament",
+        {
+          p_player_id: playerRecord.id,
+          p_tournament_id: selectedTournament.id,
+        }
+      );
+
       setLockedPlayerRating(
-        typeof ratingRecord?.rating === "number" ? ratingRecord.rating : null
+        typeof ratingRecord === "number" ? ratingRecord : null
       );
       setLoadingLockedRating(false);
     }
 
     loadLockedPlayerRating();
-  }, [selectedChessSaPlayer, selectedTournament?.rating_import_id]);
+  }, [
+    selectedChessSaPlayer,
+    selectedTournament?.id,
+    selectedTournament?.rating_import_id,
+  ]);
 
   useEffect(() => {
     async function loadSections() {
