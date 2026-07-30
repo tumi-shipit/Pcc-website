@@ -1,6 +1,13 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import {
@@ -33,6 +40,17 @@ type RatingImportRecord = {
   import_status: string | null;
 };
 
+type ExistingRatingPlayer = {
+  id: string;
+  full_name: string | null;
+  chess_sa_id: string | null;
+  rating: number | null;
+  club: string | null;
+  province: string | null;
+  date_of_birth: string | null;
+  verification_status: string | null;
+};
+
 type ImportProgress = {
   active: boolean;
   phase: string;
@@ -58,6 +76,16 @@ function pauseForPaint() {
   return new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
+function chunkRows<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
 function formatDuration(milliseconds: number) {
   const totalSeconds = Math.max(0, Math.round(milliseconds / 1000));
   const minutes = Math.floor(totalSeconds / 60);
@@ -74,6 +102,16 @@ function estimateRemaining(progress: ImportProgress) {
   const averagePerRow = elapsed / progress.current;
   const remainingRows = Math.max(progress.total - progress.current, 0);
   return averagePerRow * remainingRows;
+}
+
+function formatImportDate(value: string | null | undefined) {
+  if (!value) return "Date not saved";
+
+  return new Intl.DateTimeFormat("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Africa/Johannesburg",
+  }).format(new Date(value));
 }
 
 function normalizeHeader(value: string) {
@@ -351,6 +389,10 @@ export default function AdminImportRatingsPage() {
   const [message, setMessage] = useState("");
   const [importing, setImporting] = useState(false);
   const [lastImport, setLastImport] = useState<RatingImportRecord | null>(null);
+  const [successfulImports, setSuccessfulImports] = useState<
+    RatingImportRecord[]
+  >([]);
+  const [loadingImports, setLoadingImports] = useState(true);
   const [progress, setProgress] = useState<ImportProgress>(emptyProgress);
 
   const stats = useMemo(
@@ -363,6 +405,30 @@ export default function AdminImportRatingsPage() {
     }),
     [rows]
   );
+
+  const loadSuccessfulImports = useCallback(async () => {
+    setLoadingImports(true);
+
+    const { data, error } = await supabase
+      .from("rating_imports")
+      .select(
+        "id, rating_type, file_name, imported_at, imported_count, failed_count, import_status"
+      )
+      .eq("import_status", "Completed")
+      .gt("imported_count", 0)
+      .order("imported_at", { ascending: false })
+      .limit(20);
+
+    if (!error) {
+      setSuccessfulImports((data ?? []) as RatingImportRecord[]);
+    }
+
+    setLoadingImports(false);
+  }, []);
+
+  useEffect(() => {
+    void loadSuccessfulImports();
+  }, [loadSuccessfulImports]);
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -483,108 +549,208 @@ export default function AdminImportRatingsPage() {
     ratingImportId = importRecord.id;
     setLastImport(importRecord as RatingImportRecord);
 
-    for (const [readyIndex, row] of readyRows.entries()) {
-      const rowIndex = nextRows.findIndex((item) => item.rowNumber === row.rowNumber);
+    const rowsByChessSaId = new Map<string, RatingRow[]>();
+    const rowIndexByNumber = new Map<number, number>();
+    nextRows.forEach((row, index) => rowIndexByNumber.set(row.rowNumber, index));
 
-      try {
-        const { data: player, error: playerError } = await supabase
-          .from("players")
-          .select("id, full_name, chess_sa_id, rating, club, province, date_of_birth, verification_status")
-          .eq("chess_sa_id", row.chessSaId)
-          .maybeSingle();
+    readyRows.forEach((row) => {
+      const currentRows = rowsByChessSaId.get(row.chessSaId) ?? [];
+      currentRows.push(row);
+      rowsByChessSaId.set(row.chessSaId, currentRows);
+    });
 
-        if (playerError) throw playerError;
+    const uniqueChessSaIds = Array.from(rowsByChessSaId.keys());
+    const playerIdByChessSaId = new Map<string, string>();
+    const existingPlayersByChessSaId = new Map<string, ExistingRatingPlayer>();
+    const failedChessSaIds = new Map<string, string>();
+    const lookupChunks = chunkRows(uniqueChessSaIds, 500);
+    let checkedIds = 0;
 
-        let playerId = (player as { id: string } | null)?.id ?? null;
+    for (const chunk of lookupChunks) {
+      const { data, error } = await supabase
+        .from("players")
+        .select("id, full_name, chess_sa_id, rating, club, province, date_of_birth, verification_status")
+        .in("chess_sa_id", chunk);
 
-        if (playerId) {
-          const updatePayload: Record<string, string | number | null> = {
-            full_name: player?.full_name || row.fullName || null,
-            club: player?.club || row.club || null,
-            province: player?.province || row.province || null,
-            date_of_birth: player?.date_of_birth || row.dateOfBirth || null,
-            verification_status: player?.verification_status ?? "Verified",
-            updated_at: new Date().toISOString(),
-          };
-
-          if (ratingType === "standard") {
-            updatePayload.rating = row.rating;
-          }
-
-          const { error } = await supabase
-            .from("players")
-            .update(updatePayload)
-            .eq("id", playerId);
-
-          if (error) throw error;
-        } else {
-          const { data: createdPlayer, error } = await supabase
-            .from("players")
-            .insert({
-              full_name: row.fullName || `Chess SA ${row.chessSaId}`,
-              chess_sa_id: row.chessSaId,
-              rating: ratingType === "standard" ? row.rating : null,
-              club: row.club,
-              province: row.province,
-              date_of_birth: row.dateOfBirth,
-              verification_status: "Verified",
-            })
-            .select("id")
-            .single();
-
-          if (error) throw error;
-          playerId = createdPlayer.id;
-        }
-
-        if (!playerId || !ratingImportId) {
-          throw new Error("Rating import could not link this row to a player.");
-        }
-
-        ratingHistoryRows.push({
-          player_id: playerId,
-          rating_import_id: ratingImportId,
-          rating_type: ratingType,
-          rating: row.rating,
-          rating_date: ratingDate,
-          source: ratingSource,
+      if (error) {
+        chunk.forEach((chessSaId) =>
+          failedChessSaIds.set(chessSaId, error.message)
+        );
+      } else {
+        ((data ?? []) as ExistingRatingPlayer[]).forEach((player) => {
+          if (!player.chess_sa_id) return;
+          existingPlayersByChessSaId.set(player.chess_sa_id, player);
+          playerIdByChessSaId.set(player.chess_sa_id, player.id);
         });
+      }
 
-        imported += 1;
-        if (rowIndex >= 0) {
-          nextRows[rowIndex] = {
-            ...nextRows[rowIndex],
-            status: "Imported",
-            message: "Imported",
-          };
+      checkedIds += chunk.length;
+      setProgress({
+        active: true,
+        phase: "Checking Player Centre",
+        current: checkedIds,
+        total: uniqueChessSaIds.length,
+        percent:
+          uniqueChessSaIds.length > 0
+            ? Math.round((checkedIds / uniqueChessSaIds.length) * 100)
+            : 100,
+        startedAt: importStartedAt,
+      });
+      await pauseForPaint();
+    }
+
+    const nowIso = new Date().toISOString();
+    const updateRows: Array<Record<string, string | number | null>> = [];
+    const createRows: Array<Record<string, string | number | null>> = [];
+
+    uniqueChessSaIds.forEach((chessSaId) => {
+      if (failedChessSaIds.has(chessSaId)) return;
+
+      const sampleRow = rowsByChessSaId.get(chessSaId)?.[0];
+      if (!sampleRow) return;
+
+      const existingPlayer = existingPlayersByChessSaId.get(chessSaId);
+
+      if (existingPlayer) {
+        const updatePayload: Record<string, string | number | null> = {
+          id: existingPlayer.id,
+          chess_sa_id: chessSaId,
+          full_name: existingPlayer.full_name || sampleRow.fullName || null,
+          club: existingPlayer.club || sampleRow.club || null,
+          province: existingPlayer.province || sampleRow.province || null,
+          date_of_birth: existingPlayer.date_of_birth || sampleRow.dateOfBirth || null,
+          verification_status: existingPlayer.verification_status ?? "Verified",
+          updated_at: nowIso,
+        };
+
+        if (ratingType === "standard") {
+          updatePayload.rating = sampleRow.rating;
         }
-      } catch (error: any) {
+
+        updateRows.push(updatePayload);
+        return;
+      }
+
+      createRows.push({
+        full_name: sampleRow.fullName || `Chess SA ${chessSaId}`,
+        chess_sa_id: chessSaId,
+        rating: ratingType === "standard" ? sampleRow.rating : null,
+        club: sampleRow.club,
+        province: sampleRow.province,
+        date_of_birth: sampleRow.dateOfBirth,
+        verification_status: "Verified",
+      });
+    });
+
+    const updateChunks = chunkRows(updateRows, 500);
+    let savedPlayerRecords = 0;
+    const totalPlayerRecords = updateRows.length + createRows.length;
+
+    for (const chunk of updateChunks) {
+      const { error } = await supabase
+        .from("players")
+        .upsert(chunk, { onConflict: "id" });
+
+      if (error) {
+        chunk.forEach((row) => {
+          if (typeof row.chess_sa_id === "string") {
+            failedChessSaIds.set(row.chess_sa_id, error.message);
+            playerIdByChessSaId.delete(row.chess_sa_id);
+          }
+        });
+      }
+
+      savedPlayerRecords += chunk.length;
+      setProgress({
+        active: true,
+        phase: "Updating Player Centre",
+        current: savedPlayerRecords,
+        total: totalPlayerRecords,
+        percent:
+          totalPlayerRecords > 0
+            ? Math.round((savedPlayerRecords / totalPlayerRecords) * 100)
+            : 100,
+        startedAt: importStartedAt,
+      });
+      await pauseForPaint();
+    }
+
+    const createChunks = chunkRows(createRows, 500);
+
+    for (const chunk of createChunks) {
+      const { data, error } = await supabase
+        .from("players")
+        .insert(chunk)
+        .select("id, chess_sa_id");
+
+      if (error) {
+        chunk.forEach((row) => {
+          if (typeof row.chess_sa_id === "string") {
+            failedChessSaIds.set(row.chess_sa_id, error.message);
+          }
+        });
+      } else {
+        ((data ?? []) as Array<{ id: string; chess_sa_id: string | null }>).forEach(
+          (player) => {
+            if (!player.chess_sa_id) return;
+            playerIdByChessSaId.set(player.chess_sa_id, player.id);
+          }
+        );
+      }
+
+      savedPlayerRecords += chunk.length;
+      setProgress({
+        active: true,
+        phase: "Creating Player Centre records",
+        current: savedPlayerRecords,
+        total: totalPlayerRecords,
+        percent:
+          totalPlayerRecords > 0
+            ? Math.round((savedPlayerRecords / totalPlayerRecords) * 100)
+            : 100,
+        startedAt: importStartedAt,
+      });
+      await pauseForPaint();
+    }
+
+    readyRows.forEach((row) => {
+      const playerId = playerIdByChessSaId.get(row.chessSaId);
+      const rowIndex = rowIndexByNumber.get(row.rowNumber);
+
+      if (!playerId || !ratingImportId || failedChessSaIds.has(row.chessSaId)) {
         failed += 1;
-        if (rowIndex >= 0) {
+        if (rowIndex !== undefined) {
           nextRows[rowIndex] = {
             ...nextRows[rowIndex],
             status: "Failed",
-            message: error?.message ?? "Import failed",
+            message:
+              failedChessSaIds.get(row.chessSaId) ??
+              "Rating import could not link this row to a player.",
           };
         }
+        return;
       }
 
-      if ((readyIndex + 1) % 100 === 0 || readyIndex === readyRows.length - 1) {
-        const processed = readyIndex + 1;
-        setProgress({
-          active: true,
-          phase: "Importing ratings",
-          current: processed,
-          total: readyRows.length,
-          percent:
-            readyRows.length > 0
-              ? Math.round((processed / readyRows.length) * 100)
-              : 100,
-          startedAt: importStartedAt,
-        });
-        setRows([...nextRows]);
-        await pauseForPaint();
+      ratingHistoryRows.push({
+        player_id: playerId,
+        rating_import_id: ratingImportId,
+        rating_type: ratingType,
+        rating: row.rating,
+        rating_date: ratingDate,
+        source: ratingSource,
+      });
+
+      imported += 1;
+      if (rowIndex !== undefined) {
+        nextRows[rowIndex] = {
+          ...nextRows[rowIndex],
+          status: "Imported",
+          message: "Imported",
+        };
       }
-    }
+    });
+
+    setRows([...nextRows]);
 
     setProgress({
       active: true,
@@ -650,6 +816,9 @@ export default function AdminImportRatingsPage() {
 
     if (completedImport) {
       setLastImport(completedImport as RatingImportRecord);
+      if (importStatus === "Completed" && imported > 0) {
+        await loadSuccessfulImports();
+      }
     }
 
     setRows(nextRows);
@@ -799,6 +968,77 @@ export default function AdminImportRatingsPage() {
               <Stat label="Failed" value={stats.failed} tone="red" />
             </div>
           </div>
+
+          <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 p-4">
+              <div>
+                <h2 className="text-xl font-black">Successful imports</h2>
+                <p className="mt-1 text-sm text-gray-400">
+                  Completed rating lists are shown here with the date and time
+                  they were saved.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadSuccessfulImports()}
+                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-400 hover:text-red-200"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="bg-zinc-950 text-xs uppercase tracking-[0.18em] text-gray-500">
+                  <tr>
+                    <th className="p-4">Rating list</th>
+                    <th className="p-4">File</th>
+                    <th className="p-4">Imported</th>
+                    <th className="p-4">Saved</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/10">
+                  {successfulImports.map((importRow) => (
+                    <tr key={importRow.id}>
+                      <td className="p-4 font-bold text-white">
+                        {ratingLabel(
+                          normalizeTournamentRatingType(importRow.rating_type)
+                        )}
+                      </td>
+                      <td className="p-4 text-gray-300">
+                        {importRow.file_name ?? "Rating file"}
+                      </td>
+                      <td className="p-4 text-gray-300">
+                        {importRow.imported_count ?? 0} players
+                        {(importRow.failed_count ?? 0) > 0
+                          ? `, ${importRow.failed_count} failed`
+                          : ""}
+                      </td>
+                      <td className="p-4 text-gray-300">
+                        {formatImportDate(importRow.imported_at)}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {!loadingImports && successfulImports.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
+                        No successful rating imports yet.
+                      </td>
+                    </tr>
+                  )}
+
+                  {loadingImports && (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
+                        Loading successful imports...
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <section className="mt-6 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
             <div className="border-b border-white/10 p-4">
