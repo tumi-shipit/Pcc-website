@@ -17,7 +17,14 @@ type Tournament = {
   end_date: string | null;
   venue: string;
   province: string | null;
-  registration_status: "Draft" | "Open" | "Closed" | "Live" | "Completed" | null;
+  registration_status:
+    | "Draft"
+    | "Open"
+    | "Closed"
+    | "Postponed"
+    | "Live"
+    | "Completed"
+    | null;
   entry_fee: number;
   poster_image_url: string | null;
 };
@@ -110,6 +117,7 @@ function isActiveTournament(tournament: Tournament) {
 function getStatusLabel(status: Tournament["registration_status"]) {
   if (status === "Open") return "Open";
   if (status === "Live") return "Live";
+  if (status === "Postponed") return "Postponed";
   if (status === "Completed") return "Completed";
   if (status === "Closed") return "Not Open";
   return "Coming Soon";
@@ -118,8 +126,19 @@ function getStatusLabel(status: Tournament["registration_status"]) {
 function getStatusClass(status: Tournament["registration_status"]) {
   if (status === "Open") return "bg-green-600";
   if (status === "Live") return "bg-red-600";
+  if (status === "Postponed") return "bg-orange-600";
   if (status === "Completed") return "bg-blue-600";
   return "bg-zinc-700";
+}
+
+function PostponedPosterStamp() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/25">
+      <div className="-rotate-12 border-4 border-red-600 bg-white/90 px-8 py-3 text-2xl font-black uppercase text-red-700 shadow-2xl shadow-black/50 sm:text-3xl">
+        Postponed
+      </div>
+    </div>
+  );
 }
 
 function TournamentCard({
@@ -151,8 +170,10 @@ function TournamentCard({
           </div>
         )}
 
+        {tournament.registration_status === "Postponed" && <PostponedPosterStamp />}
+
         <span
-          className={`absolute left-2 top-2 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white ${getStatusClass(
+          className={`absolute left-2 top-2 z-20 rounded-full px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white ${getStatusClass(
             tournament.registration_status
           )}`}
         >
@@ -203,7 +224,7 @@ function TournamentCard({
               </Link>
             ) : (
               <span className="block rounded-lg bg-zinc-800 px-3 py-2 text-center text-xs text-gray-400">
-                Not Open
+                {getStatusLabel(tournament.registration_status)}
               </span>
             ))}
         </div>

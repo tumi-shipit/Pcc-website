@@ -74,7 +74,7 @@ const emptyAnnouncement: AnnouncementForm = {
   published: true,
 };
 
-const liveStatuses = ["Open", "Closed", "Live", "Completed"];
+const liveStatuses = ["Open", "Closed", "Postponed", "Live", "Completed"];
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
@@ -376,7 +376,7 @@ Tournament ID: ${tournamentId}`;
                 </p>
                 <h2 className="mt-3 text-2xl font-black">Control state</h2>
 
-                <div className="mt-6 grid gap-3 sm:grid-cols-4">
+                <div className="mt-6 grid gap-3 sm:grid-cols-5">
                   {liveStatuses.map((status) => (
                     <button
                       key={status}

@@ -512,6 +512,7 @@ export default function AdminOfficialsPage() {
                 <option value="All">All status</option>
                 <option value="Open">Open tournaments</option>
                 <option value="Live">Live tournaments</option>
+                <option value="Postponed">Postponed tournaments</option>
                 <option value="Completed">Completed</option>
                 <option value="Missing Profile">Missing profile</option>
                 <option value="Unverified Player">Unverified player</option>

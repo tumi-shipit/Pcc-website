@@ -11,7 +11,13 @@ import {
 } from "@/lib/dateHelpers";
 import { supabase } from "@/lib/supabase";
 
-type TournamentStatus = "Draft" | "Open" | "Closed" | "Live" | "Completed";
+type TournamentStatus =
+  | "Draft"
+  | "Open"
+  | "Closed"
+  | "Postponed"
+  | "Live"
+  | "Completed";
 
 type Tournament = {
   id: string;
@@ -37,8 +43,19 @@ function statusClass(status: TournamentStatus) {
   if (status === "Open") return "bg-green-500/10 text-green-300";
   if (status === "Live") return "bg-red-500/10 text-red-300";
   if (status === "Completed") return "bg-blue-500/10 text-blue-300";
+  if (status === "Postponed") return "bg-orange-500/10 text-orange-300";
   if (status === "Closed") return "bg-yellow-500/10 text-yellow-300";
   return "bg-zinc-800 text-zinc-300";
+}
+
+function PostponedPosterStamp() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/25">
+      <div className="-rotate-12 border-4 border-red-600 bg-white/90 px-8 py-3 text-2xl font-black uppercase text-red-700 shadow-2xl shadow-black/50">
+        Postponed
+      </div>
+    </div>
+  );
 }
 
 function isUpcoming(date: string | null) {
@@ -51,7 +68,7 @@ function isUpcoming(date: string | null) {
 export default function AdminTournamentsPage() {
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
   const [statusFilter, setStatusFilter] = useState<
-    "Active" | "Upcoming" | "Draft" | "Completed" | "All"
+    "Active" | "Upcoming" | "Postponed" | "Draft" | "Completed" | "All"
   >("All");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -86,7 +103,9 @@ export default function AdminTournamentsPage() {
 
   const stats = useMemo(() => {
     const active = tournaments.filter((tournament) =>
-      ["Open", "Live", "Closed"].includes(tournament.registration_status)
+      ["Open", "Live", "Closed", "Postponed"].includes(
+        tournament.registration_status
+      )
     ).length;
     const upcoming = tournaments.filter((tournament) =>
       isUpcoming(tournament.start_date)
@@ -97,19 +116,32 @@ export default function AdminTournamentsPage() {
     const completed = tournaments.filter(
       (tournament) => tournament.registration_status === "Completed"
     ).length;
+    const postponed = tournaments.filter(
+      (tournament) => tournament.registration_status === "Postponed"
+    ).length;
 
-    return { active, upcoming, drafts, completed, total: tournaments.length };
+    return {
+      active,
+      upcoming,
+      drafts,
+      completed,
+      postponed,
+      total: tournaments.length,
+    };
   }, [tournaments]);
 
   const visibleTournaments = useMemo(() => {
     return tournaments.filter((tournament) => {
       if (statusFilter === "All") return true;
       if (statusFilter === "Active") {
-        return ["Open", "Live", "Closed"].includes(
+        return ["Open", "Live", "Closed", "Postponed"].includes(
           tournament.registration_status
         );
       }
       if (statusFilter === "Upcoming") return isUpcoming(tournament.start_date);
+      if (statusFilter === "Postponed") {
+        return tournament.registration_status === "Postponed";
+      }
       if (statusFilter === "Draft") {
         return tournament.registration_status === "Draft";
       }
@@ -144,9 +176,10 @@ export default function AdminTournamentsPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
               <BoardStat label="Active" value={stats.active} />
               <BoardStat label="Upcoming" value={stats.upcoming} />
+              <BoardStat label="Postponed" value={stats.postponed} />
               <BoardStat label="Drafts" value={stats.drafts} tone="muted" />
               <BoardStat label="Completed" value={stats.completed} />
               <BoardStat label="Total" value={stats.total} />
@@ -154,9 +187,10 @@ export default function AdminTournamentsPage() {
           </div>
 
           <section className="mt-6 grid gap-3 rounded-2xl border border-white/10 bg-zinc-900 p-3 md:grid-cols-[1fr_auto] md:items-center">
-            <div className="grid gap-2 sm:grid-cols-5">
-              {(["All", "Active", "Upcoming", "Completed", "Draft"] as const).map(
-                (filter) => (
+            <div className="grid gap-2 sm:grid-cols-6">
+              {(
+                ["All", "Active", "Upcoming", "Postponed", "Completed", "Draft"] as const
+              ).map((filter) => (
                   <button
                     key={filter}
                     type="button"
@@ -169,8 +203,7 @@ export default function AdminTournamentsPage() {
                   >
                     {filter}
                   </button>
-                )
-              )}
+                ))}
             </div>
 
             <Link
@@ -212,9 +245,12 @@ export default function AdminTournamentsPage() {
                         Poster not uploaded
                       </div>
                     )}
+                    {tournament.registration_status === "Postponed" && (
+                      <PostponedPosterStamp />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/15 to-transparent" />
                     <span
-                      className={`absolute left-4 top-4 rounded-full px-3 py-1 text-xs font-black ${statusClass(
+                      className={`absolute left-4 top-4 z-20 rounded-full px-3 py-1 text-xs font-black ${statusClass(
                         tournament.registration_status
                       )}`}
                     >

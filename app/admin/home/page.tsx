@@ -102,6 +102,7 @@ function statusClass(status: string | null) {
   if (status === "Open") return "bg-green-500/10 text-green-300";
   if (status === "Completed") return "bg-blue-500/10 text-blue-300";
   if (status === "Closed") return "bg-yellow-500/10 text-yellow-300";
+  if (status === "Postponed") return "bg-orange-500/10 text-orange-300";
   if (status === "Live") return "bg-red-500/10 text-red-300";
   return "bg-zinc-800 text-zinc-300";
 }

@@ -10,7 +10,7 @@ import {
 } from "@/lib/ratingTypes";
 import { supabase } from "@/lib/supabase";
 
-type TournamentStatus = "Draft" | "Open" | "Closed" | "Completed";
+type TournamentStatus = "Draft" | "Open" | "Closed" | "Postponed" | "Completed";
 type GenderRestriction = "All" | "Male" | "Female";
 
 type TournamentForm = {
@@ -18,6 +18,7 @@ type TournamentForm = {
   organiser_name: string;
   description: string;
   tournament_report: string;
+  postponement_reason: string;
   chess_results_url: string;
   start_date: string;
   end_date: string;
@@ -57,6 +58,7 @@ const emptyForm: TournamentForm = {
   organiser_name: "",
   description: "",
   tournament_report: "",
+  postponement_reason: "",
   chess_results_url: "",
   start_date: "",
   end_date: "",
@@ -71,7 +73,26 @@ const emptyForm: TournamentForm = {
   payment_details: "",
 };
 
-const statusOptions: TournamentStatus[] = ["Draft", "Closed", "Open", "Completed"];
+const statusOptions: TournamentStatus[] = [
+  "Draft",
+  "Closed",
+  "Open",
+  "Postponed",
+  "Completed",
+];
+
+const postponementReasonOptions = [
+  { label: "Select a reason", value: "" },
+  { label: "Not enough registrations", value: "not enough registrations" },
+  {
+    label: "Circumstances beyond organisers",
+    value: "circumstances beyond the organisers",
+  },
+  { label: "Venue unavailable", value: "venue availability issues" },
+  { label: "Date clash", value: "a date clash" },
+  { label: "Weather or safety concerns", value: "weather or safety concerns" },
+  { label: "Other reason", value: "__custom__" },
+];
 
 const provinces = [
   "Eastern Cape",
@@ -114,6 +135,14 @@ function cleanOptionalNumber(value: string) {
   if (value.trim() === "") return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function selectedPostponementReason(value: string) {
+  if (!value) return "";
+
+  return postponementReasonOptions.some((option) => option.value === value)
+    ? value
+    : "__custom__";
 }
 
 function cleanFileName(name: string) {
@@ -284,6 +313,7 @@ export default function NewTournamentPage() {
       organiser_name: form.organiser_name.trim() || null,
       description: form.description.trim() || null,
       tournament_report: form.tournament_report.trim() || null,
+      postponement_reason: form.postponement_reason.trim() || null,
       chess_results_url: form.chess_results_url.trim() || null,
       start_date: form.start_date,
       end_date: form.end_date || form.start_date,
@@ -310,12 +340,14 @@ export default function NewTournamentPage() {
       error &&
       (error.message.toLowerCase().includes("rating_type") ||
         error.message.toLowerCase().includes("rating_import_id") ||
-        error.message.toLowerCase().includes("rating_list_locked_at"))
+        error.message.toLowerCase().includes("rating_list_locked_at") ||
+        error.message.toLowerCase().includes("postponement_reason"))
     ) {
       const {
         rating_type: _ratingType,
         rating_import_id: _ratingImportId,
         rating_list_locked_at: _ratingListLockedAt,
+        postponement_reason: _postponementReason,
         ...legacyPayload
       } = tournamentPayload;
       const retry = await supabase
@@ -609,6 +641,42 @@ export default function NewTournamentPage() {
                   rows={3}
                   className={inputClass}
                 />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
+                  Postponement reason
+                </label>
+                <select
+                  value={selectedPostponementReason(form.postponement_reason)}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    updateField(
+                      "postponement_reason",
+                      value === "__custom__" ? "" : value
+                    );
+                  }}
+                  className={inputClass}
+                >
+                  {postponementReasonOptions.map((option) => (
+                    <option key={option.value || "blank"} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <textarea
+                  value={form.postponement_reason}
+                  onChange={(event) =>
+                    updateField("postponement_reason", event.target.value)
+                  }
+                  className={`${inputClass} mt-3`}
+                  rows={3}
+                  placeholder="Write a custom reason or edit the selected reason..."
+                />
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  This appears on the public page only when the status is
+                  Postponed.
+                </p>
               </div>
 
               <div className="md:col-span-2">

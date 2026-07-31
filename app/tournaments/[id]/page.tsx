@@ -13,6 +13,7 @@ type Tournament = {
   tournament_name: string;
   description: string | null;
   tournament_report: string | null;
+  postponement_reason: string | null;
   start_date: string;
   end_date: string | null;
   venue: string;
@@ -203,6 +204,8 @@ function statusStyle(status: string) {
     return "border-blue-500/40 bg-blue-500/10 text-blue-300";
   if (status === "Live")
     return "border-red-500/40 bg-red-500/10 text-red-300";
+  if (status === "Postponed")
+    return "border-orange-500/40 bg-orange-500/10 text-orange-300";
   return "border-zinc-500/40 bg-zinc-500/10 text-zinc-300";
 }
 
@@ -210,7 +213,26 @@ function statusLabel(status: string) {
   if (status === "Open") return "Registration Open";
   if (status === "Completed") return "Completed Tournament";
   if (status === "Live") return "Live Tournament";
+  if (status === "Postponed") return "Tournament Postponed";
   return "Registration Not Open";
+}
+
+function postponementNotice(reason: string | null | undefined) {
+  const cleanReason = reason?.trim();
+
+  return cleanReason
+    ? `This tournament has been postponed by the organisers because of ${cleanReason}. A new date will be announced as soon as it is confirmed. The tournament is not cancelled, so it will remain paused until the organisers confirm the new date and only then will registrations open again.`
+    : "This tournament has been postponed by the organisers. A new date will be announced as soon as it is confirmed. The tournament is not cancelled, so it will remain paused until the organisers confirm the new date and only then will registrations open again.";
+}
+
+function PostponedPosterStamp() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/25">
+      <div className="-rotate-12 border-4 border-red-600 bg-white/90 px-10 py-4 text-4xl font-black uppercase text-red-700 shadow-2xl shadow-black/60 md:text-5xl">
+        Postponed
+      </div>
+    </div>
+  );
 }
 
 function publicResultName(result: ResultWithPlayer) {
@@ -369,6 +391,7 @@ export default function TournamentHubPage() {
 
   const isOpen = tournament?.registration_status === "Open";
   const isCompleted = tournament?.registration_status === "Completed";
+  const isPostponed = tournament?.registration_status === "Postponed";
 
   const isShere = useMemo(() => {
     return tournament?.tournament_name.toLowerCase().includes("shere") ?? false;
@@ -379,13 +402,30 @@ export default function TournamentHubPage() {
       setLoading(true);
       setMessage("");
 
-      const { data: tournamentData, error: tournamentError } = await supabase
+      let { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, tournament_report, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
+          "id, tournament_name, description, tournament_report, postponement_reason, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
         )
         .eq("id", tournamentId)
         .single();
+
+      if (
+        tournamentError?.message.toLowerCase().includes("postponement_reason")
+      ) {
+        const fallback = await supabase
+          .from("tournaments")
+          .select(
+            "id, tournament_name, description, tournament_report, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
+          )
+          .eq("id", tournamentId)
+          .single();
+
+        tournamentData = fallback.data
+          ? { ...fallback.data, postponement_reason: null }
+          : null;
+        tournamentError = fallback.error;
+      }
 
       if (tournamentError || !tournamentData) {
         setMessage("Tournament could not be found.");
@@ -676,6 +716,9 @@ export default function TournamentHubPage() {
                   Poster coming soon
                 </div>
               )}
+              {tournament.registration_status === "Postponed" && (
+                <PostponedPosterStamp />
+              )}
             </div>
           </div>
 
@@ -727,7 +770,11 @@ export default function TournamentHubPage() {
                 </Link>
               ) : (
                 <span className="rounded-xl bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-400">
-                  {isCompleted ? "Completed Event" : "Registration Not Open"}
+                  {isCompleted
+                    ? "Completed Event"
+                    : isPostponed
+                      ? "Tournament Postponed"
+                      : "Registration Not Open"}
                 </span>
               )}
 
@@ -757,6 +804,12 @@ export default function TournamentHubPage() {
                 <NextStep label="1. Check details" text="Confirm date, venue, section and fee." />
                 <NextStep label="2. Register" text="Use the registration form when entries are open." />
                 <NextStep label="3. Follow updates" text="Results and completed event material appear here." />
+              </div>
+            )}
+
+            {isPostponed && (
+              <div className="mt-6 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm leading-6 text-orange-100">
+                {postponementNotice(tournament.postponement_reason)}
               </div>
             )}
           </div>
