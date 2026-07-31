@@ -52,6 +52,16 @@ export function cleanText(value: string | undefined) {
   return text || null;
 }
 
+function cleanChessSaId(value: string | undefined) {
+  const text = cleanText(value);
+  if (!text) return null;
+
+  const normalized = text.replace(/\.0$/, "").trim();
+  const invalidIds = new Set(["0", "n/a", "na", "none", "null", "-"]);
+
+  return invalidIds.has(normalized.toLowerCase()) ? null : normalized;
+}
+
 function parseCsvLine(line: string) {
   const values: string[] = [];
   let current = "";
@@ -337,7 +347,7 @@ export function parseChessSaCsv(text: string): ChessSaSyncRow[] {
     return {
       row_number: index + 2,
       full_name: fullName,
-      chess_sa_id: cleanText(
+      chess_sa_id: cleanChessSaId(
         raw.chess_sa_id ||
           raw.chessa_id ||
           raw.chesssa_id ||
@@ -533,8 +543,10 @@ function analyseChessSaRow(
       matched_player_name: null,
       confidence_score: 0,
       confidence_label: "None",
-      action: "create_new",
-      reasons: ["New Chess SA player record"],
+      action: "skip",
+      reasons: [
+        "No existing Player Centre match. Chess SA Sync does not create new PCC player records.",
+      ],
       matched_player: null,
     };
 

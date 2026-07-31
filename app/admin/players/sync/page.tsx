@@ -226,7 +226,6 @@ export default function AdminPlayersSyncPage() {
       total: rows.length,
       withChessSa: rows.filter((row) => row.chess_sa_id).length,
       updateExisting: decisions.filter((d) => d.action === "update_existing").length,
-      createNew: decisions.filter((d) => d.action === "create_new").length,
       review: decisions.filter((d) => d.action === "review").length,
       alreadySynced: decisions.filter((d) => d.reasons.includes("Already synced")).length,
       skipped: decisions.filter(
@@ -249,7 +248,6 @@ export default function AdminPlayersSyncPage() {
     setMessage("");
 
     let updatedRows = 0;
-    let createdRows = 0;
     const ignoredRows = decisions.filter((decision) => decision.action === "skip").length;
     let skippedRows = ignoredRows;
     let failedRows = 0;
@@ -259,7 +257,8 @@ export default function AdminPlayersSyncPage() {
     const historyRows: any[] = [];
     const failureMessages: string[] = [];
     const actionableDecisions = decisions.filter(
-      (decision) => decision.action !== "skip"
+      (decision) =>
+        decision.action === "update_existing" || decision.action === "review"
     );
 
     for (const [index, decision] of actionableDecisions.entries()) {
@@ -287,42 +286,6 @@ export default function AdminPlayersSyncPage() {
             message: decision.reasons.join(", "),
             row_data: row.raw,
           });
-          continue;
-        }
-
-        if (decision.action === "create_new") {
-          const { data: createdPlayer, error } = await supabase
-            .from("players")
-            .insert({
-              full_name: row.full_name || `Chess SA ${row.chess_sa_id}`,
-              chess_sa_id: row.chess_sa_id,
-              fide_id: row.fide_id,
-              club: row.club,
-              province: row.province,
-              rating: row.rating,
-              date_of_birth: row.date_of_birth,
-              gender: row.gender,
-              title: row.title,
-              verification_status: "Verified",
-            })
-            .select("id, full_name")
-            .single();
-
-          if (error) throw error;
-
-          createdRows += 1;
-
-          historyRows.push({
-            row_number: row.row_number,
-            imported_name: row.full_name,
-            matched_player_id: createdPlayer.id,
-            matched_player_name: createdPlayer.full_name,
-            confidence_score: decision.confidence_score,
-            status: "Created",
-            message: decision.reasons.join(", "),
-            row_data: row.raw,
-          });
-
           continue;
         }
 
@@ -396,7 +359,7 @@ export default function AdminPlayersSyncPage() {
       total_rows: decisions.length,
       matched_rows: updatedRows,
       unmatched_rows: skippedRows,
-      created_rows: createdRows,
+      created_rows: 0,
       updated_rows: updatedRows,
       skipped_rows: skippedRows,
       failed_rows: failedRows,
@@ -405,7 +368,7 @@ export default function AdminPlayersSyncPage() {
         purpose: "Master Chess SA player database synchronization",
         ignored_rows: ignoredRows,
         applied_rows: actionableDecisions.length,
-        note: "Safe Chess SA-only rows are added to Player Centre so public registration can find them by surname.",
+        note: "Chess SA Sync updates existing PCC Player Centre records only. It does not create new player records.",
         relinked_tournament_rows: relinkedTournamentRows,
         merged_imported_profiles: mergedImportedProfiles,
       },
@@ -418,7 +381,7 @@ export default function AdminPlayersSyncPage() {
       total_rows: decisions.length,
       matched_rows: updatedRows,
       unmatched_rows: skippedRows,
-      created_rows: createdRows,
+      created_rows: 0,
       updated_rows: updatedRows,
       skipped_rows: skippedRows,
       failed_rows: failedRows,
@@ -439,9 +402,7 @@ export default function AdminPlayersSyncPage() {
           }. ${failureMessages.slice(0, 3).join(" ")}`
         : `Chess SA synchronization complete. ${relinkedTournamentRows} imported tournament ranking row${
             relinkedTournamentRows === 1 ? "" : "s"
-          } relinked, ${createdRows} Chess SA player record${
-            createdRows === 1 ? "" : "s"
-          } added and ${mergedImportedProfiles} imported duplicate profile${
+          } relinked, no new Player Centre records created, and ${mergedImportedProfiles} imported duplicate profile${
             mergedImportedProfiles === 1 ? "" : "s"
           } merged.`
     );
@@ -467,7 +428,9 @@ export default function AdminPlayersSyncPage() {
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
               Upload the latest Chess SA ratings file. PCC checks Chess SA IDs
               against the Player Centre, fills missing profile details, verifies
-              safe matches and separates review rows.
+              safe matches and separates review rows. It will not create Player
+              Centre records for players who have not registered or appeared in
+              PCC tournament imports.
             </p>
           </section>
 
@@ -498,11 +461,10 @@ export default function AdminPlayersSyncPage() {
             </p>
           )}
 
-          <section className="mt-8 grid gap-4 md:grid-cols-3 xl:grid-cols-7">
+          <section className="mt-8 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
             <StatCard label="Rows" value={stats.total} />
             <StatCard label="With Chess SA" value={stats.withChessSa} tone="green" />
             <StatCard label="Ready to Verify" value={stats.updateExisting} tone="green" />
-            <StatCard label="Ready to Add" value={stats.createNew} tone="green" />
             <StatCard label="Needs Review" value={stats.review} tone="yellow" />
             <StatCard label="Already Synced" value={stats.alreadySynced} tone="blue" />
             <StatCard label="Ignored" value={stats.skipped} />

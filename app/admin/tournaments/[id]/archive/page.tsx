@@ -390,7 +390,10 @@ function cleanImportedId(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const text = String(value).trim();
   if (!text || text.toLowerCase() === "nan") return null;
-  return text.replace(/\.0$/, "");
+  const normalized = text.replace(/\.0$/, "");
+  const invalidIds = new Set(["0", "-", "n/a", "na", "none", "null"]);
+
+  return invalidIds.has(normalized.toLowerCase()) ? null : normalized;
 }
 
 function findHeaderRowByColumns(
@@ -546,13 +549,16 @@ function parseStartingRankRows(rows: unknown[][]) {
   return rows
     .slice(headerRowIndex + 1)
     .map((row) => {
+      const firstCell = String(row[0] ?? "").trim().toLowerCase();
+      if (firstCell.startsWith("total")) return null;
+
       const directName = nameIndex >= 0 ? String(row[nameIndex] ?? "").trim() : "";
       const surname =
         surnameIndex >= 0 ? String(row[surnameIndex] ?? "").trim() : "";
       const firstNames =
         firstNamesIndex >= 0 ? String(row[firstNamesIndex] ?? "").trim() : "";
       const name = directName || [surname, firstNames].filter(Boolean).join(" ");
-      if (!name) return null;
+      if (!name || /^\d+$/.test(name)) return null;
 
       return {
         starting_number:
