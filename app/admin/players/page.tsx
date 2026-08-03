@@ -93,6 +93,14 @@ type PlayerWithStats = Player & {
 
 const inputClass =
   "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
+const cleanupBatchSize = 25;
+
+type SupabaseRequestError = {
+  code?: string;
+  details?: string;
+  hint?: string;
+  message?: string;
+};
 
 function calculateAge(dateOfBirth: string | null) {
   if (!dateOfBirth) return null;
@@ -125,6 +133,37 @@ function formatDate(value: string | null) {
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
+}
+
+function chunkValues<T>(items: T[], size = cleanupBatchSize) {
+  const chunks: T[][] = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+function describeSupabaseError(error: SupabaseRequestError | null | undefined) {
+  if (!error) return "Unknown Supabase error.";
+
+  return [error.message, error.code, error.details, error.hint]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function isOptionalCleanupTableMissing(error: SupabaseRequestError | null) {
+  if (!error) return false;
+  const text = describeSupabaseError(error).toLowerCase();
+
+  return (
+    error.code === "42P01" ||
+    error.code === "PGRST205" ||
+    text.includes("could not find the table") ||
+    text.includes("does not exist") ||
+    text.includes("schema cache")
+  );
 }
 
 function singleRelation<T>(value: T | T[] | null | undefined) {
@@ -269,6 +308,60 @@ export default function AdminPlayersPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  async function collectLinkedPlayerIds(table: string, column: string, playerIds: string[]) {
+    const linkedIds = new Set<string>();
+
+    for (const playerIdChunk of chunkValues(playerIds)) {
+      const { data, error } = await supabase
+        .from(table)
+        .select(column)
+        .in(column, playerIdChunk);
+
+      if (error) {
+        return { linkedIds, error };
+      }
+
+      ((data ?? []) as unknown as Array<Record<string, string | null>>).forEach((row) => {
+        const value = row[column];
+        if (value) linkedIds.add(value);
+      });
+    }
+
+    return { linkedIds, error: null };
+  }
+
+  async function deleteRowsByPlayerIds({
+    label,
+    table,
+    column,
+    playerIds,
+    optional = false,
+  }: {
+    label: string;
+    table: string;
+    column: string;
+    playerIds: string[];
+    optional?: boolean;
+  }) {
+    for (const playerIdChunk of chunkValues(playerIds)) {
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .in(column, playerIdChunk);
+
+      if (error) {
+        if (optional && isOptionalCleanupTableMissing(error)) continue;
+
+        return {
+          error,
+          message: `${label} failed: ${describeSupabaseError(error)}`,
+        };
+      }
+    }
+
+    return { error: null, message: "" };
+  }
+
   async function deleteInactivePlayer(player: PlayerWithStats) {
     if (currentRole !== "super_admin") {
       setMessage("Only the super admin can delete Player Centre records.");
@@ -320,20 +413,59 @@ export default function AdminPlayersPage() {
       return;
     }
 
-    await supabase.from("player_rating_history").delete().eq("player_id", player.id);
-    await supabase
-      .from("player_duplicate_ignores")
-      .delete()
-      .or(`player_a.eq.${player.id},player_b.eq.${player.id}`);
-    await supabase
-      .from("player_merge_history")
-      .delete()
-      .or(`primary_player_id.eq.${player.id},duplicate_player_id.eq.${player.id}`);
+    const cleanupSteps = [
+      {
+        label: "Rating history cleanup",
+        table: "player_rating_history",
+        column: "player_id",
+      },
+      {
+        label: "Duplicate ignore cleanup",
+        table: "player_duplicate_ignores",
+        column: "player_a",
+      },
+      {
+        label: "Duplicate ignore cleanup",
+        table: "player_duplicate_ignores",
+        column: "player_b",
+      },
+      {
+        label: "Merge history cleanup",
+        table: "player_merge_history",
+        column: "primary_player_id",
+      },
+      {
+        label: "Merge history cleanup",
+        table: "player_merge_history",
+        column: "duplicate_player_id",
+      },
+    ];
 
-    const { error } = await supabase.from("players").delete().eq("id", player.id);
+    for (const cleanupStep of cleanupSteps) {
+      const cleanupResult = await deleteRowsByPlayerIds({
+        ...cleanupStep,
+        playerIds: [player.id],
+        optional: true,
+      });
+
+      if (cleanupResult.error) {
+        setMessage(cleanupResult.message);
+        setDeletingPlayerId(null);
+        return;
+      }
+    }
+
+    const deleteResult = await deleteRowsByPlayerIds({
+      label: "Player Centre delete",
+      table: "players",
+      column: "id",
+      playerIds: [player.id],
+    });
+
+    const error = deleteResult.error;
 
     if (error) {
-      setMessage(`Could not delete ${player.full_name}: ${error.message}`);
+      setMessage(`Could not delete ${player.full_name}: ${deleteResult.message}`);
     } else {
       setPlayers((current) => current.filter((item) => item.id !== player.id));
       setSelectedInactiveIds((current) =>
@@ -650,21 +782,20 @@ export default function AdminPlayersPage() {
 
     const selectedIds = selectedInactivePlayers.map((player) => player.id);
 
-    const { data: linkedRegistrations, error: registrationCheckError } =
-      await supabase
-        .from("registrations")
-        .select("player_id")
-        .in("player_id", selectedIds);
+    const registrationCheck = await collectLinkedPlayerIds(
+      "registrations",
+      "player_id",
+      selectedIds
+    );
+    const resultCheck = await collectLinkedPlayerIds(
+      "tournament_results",
+      "player_id",
+      selectedIds
+    );
 
-    const { data: linkedResults, error: resultCheckError } = await supabase
-      .from("tournament_results")
-      .select("player_id")
-      .in("player_id", selectedIds);
-
-    if (registrationCheckError || resultCheckError) {
+    if (registrationCheck.error || resultCheck.error) {
       setMessage(
-        registrationCheckError?.message ||
-          resultCheckError?.message ||
+        describeSupabaseError(registrationCheck.error || resultCheck.error) ||
           "Could not verify selected players before deletion."
       );
       setBulkDeleting(false);
@@ -672,12 +803,8 @@ export default function AdminPlayersPage() {
     }
 
     const blockedIds = new Set([
-      ...((linkedRegistrations ?? [])
-        .map((item) => item.player_id)
-        .filter(Boolean) as string[]),
-      ...((linkedResults ?? [])
-        .map((item) => item.player_id)
-        .filter(Boolean) as string[]),
+      ...registrationCheck.linkedIds,
+      ...resultCheck.linkedIds,
     ]);
     const safeIds = selectedIds.filter((playerId) => !blockedIds.has(playerId));
 
@@ -691,42 +818,56 @@ export default function AdminPlayersPage() {
     }
 
     const cleanupSteps = [
-      () => supabase.from("player_rating_history").delete().in("player_id", safeIds),
-      () =>
-        supabase
-          .from("player_duplicate_ignores")
-          .delete()
-          .in("player_a", safeIds),
-      () =>
-        supabase
-          .from("player_duplicate_ignores")
-          .delete()
-          .in("player_b", safeIds),
-      () =>
-        supabase
-          .from("player_merge_history")
-          .delete()
-          .in("primary_player_id", safeIds),
-      () =>
-        supabase
-          .from("player_merge_history")
-          .delete()
-          .in("duplicate_player_id", safeIds),
+      {
+        label: "Rating history cleanup",
+        table: "player_rating_history",
+        column: "player_id",
+      },
+      {
+        label: "Duplicate ignore cleanup",
+        table: "player_duplicate_ignores",
+        column: "player_a",
+      },
+      {
+        label: "Duplicate ignore cleanup",
+        table: "player_duplicate_ignores",
+        column: "player_b",
+      },
+      {
+        label: "Merge history cleanup",
+        table: "player_merge_history",
+        column: "primary_player_id",
+      },
+      {
+        label: "Merge history cleanup",
+        table: "player_merge_history",
+        column: "duplicate_player_id",
+      },
     ];
 
     for (const cleanupStep of cleanupSteps) {
-      const { error } = await cleanupStep();
-      if (error) {
-        setMessage(`Could not prepare bulk delete: ${error.message}`);
+      const cleanupResult = await deleteRowsByPlayerIds({
+        ...cleanupStep,
+        playerIds: safeIds,
+        optional: true,
+      });
+
+      if (cleanupResult.error) {
+        setMessage(cleanupResult.message);
         setBulkDeleting(false);
         return;
       }
     }
 
-    const { error } = await supabase.from("players").delete().in("id", safeIds);
+    const deleteResult = await deleteRowsByPlayerIds({
+      label: "Player Centre bulk delete",
+      table: "players",
+      column: "id",
+      playerIds: safeIds,
+    });
 
-    if (error) {
-      setMessage(`Could not delete selected players: ${error.message}`);
+    if (deleteResult.error) {
+      setMessage(`Could not delete selected players: ${deleteResult.message}`);
     } else {
       setPlayers((current) =>
         current.filter((player) => !safeIds.includes(player.id))
