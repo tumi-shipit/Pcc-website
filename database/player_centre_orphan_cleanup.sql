@@ -294,6 +294,338 @@ $$;
 grant execute on function public.delete_player_centre_orphan_cleanup()
 to authenticated;
 
+drop function if exists public.delete_player_centre_selected_inactive(uuid[]);
+
+create function public.delete_player_centre_selected_inactive(p_player_ids uuid[])
+returns table (
+  id uuid,
+  full_name text,
+  chess_sa_id text,
+  pcc_id text,
+  action text,
+  reason text,
+  deleted_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  allowed boolean := false;
+begin
+  if current_user in ('postgres', 'supabase_admin', 'service_role')
+    or session_user in ('postgres', 'supabase_admin', 'service_role')
+  then
+    allowed := true;
+  elsif to_regprocedure('public.is_super_admin()') is not null then
+    execute 'select public.is_super_admin()' into allowed;
+  end if;
+
+  if not allowed then
+    raise exception 'Only the PCC super admin can delete selected Player Centre records.';
+  end if;
+
+  create temp table if not exists pcc_requested_player_cleanup (
+    id uuid primary key
+  ) on commit drop;
+
+  create temp table if not exists pcc_selected_player_cleanup_status (
+    id uuid primary key,
+    full_name text,
+    chess_sa_id text,
+    pcc_id text,
+    action text not null,
+    reason text,
+    deleted_at timestamptz
+  ) on commit drop;
+
+  truncate table pcc_requested_player_cleanup;
+  truncate table pcc_selected_player_cleanup_status;
+
+  insert into pcc_requested_player_cleanup (id)
+  select distinct requested_id
+  from unnest(coalesce(p_player_ids, array[]::uuid[])) as requested(requested_id)
+  where requested_id is not null;
+
+  insert into pcc_selected_player_cleanup_status (
+    id,
+    full_name,
+    chess_sa_id,
+    pcc_id,
+    action
+  )
+  select
+    players.id,
+    players.full_name,
+    players.chess_sa_id,
+    players.pcc_id,
+    'delete'
+  from public.players players
+  join pcc_requested_player_cleanup requested on requested.id = players.id;
+
+  insert into pcc_selected_player_cleanup_status (
+    id,
+    action,
+    reason
+  )
+  select
+    requested.id,
+    'not_found',
+    'Player record no longer exists.'
+  from pcc_requested_player_cleanup requested
+  where not exists (
+    select 1
+    from public.players players
+    where players.id = requested.id
+  );
+
+  if to_regclass('public.registrations') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked tournament registration''
+      from public.registrations registrations
+      where status.action = ''delete''
+        and registrations.player_id = status.id
+    ';
+  end if;
+
+  if to_regclass('public.tournament_results') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked final ranking''
+      from public.tournament_results results
+      where status.action = ''delete''
+        and results.player_id = status.id
+    ';
+
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Imported final ranking name match''
+      from public.tournament_results results
+      where status.action = ''delete''
+        and results.player_id is null
+        and results.imported_name is not null
+        and public.player_centre_cleanup_name_key(results.imported_name) =
+          public.player_centre_cleanup_name_key(status.full_name)
+    ';
+  end if;
+
+  if to_regclass('public.tournament_officials') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked tournament official role''
+      from public.tournament_officials officials
+      where status.action = ''delete''
+        and officials.player_id = status.id
+    ';
+  end if;
+
+  if to_regclass('public.tournament_organiser_access') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked tournament organiser access''
+      from public.tournament_organiser_access access
+      where status.action = ''delete''
+        and access.player_id = status.id
+    ';
+  end if;
+
+  if to_regclass('public.member_memberships') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked PCC membership''
+      from public.member_memberships memberships
+      where status.action = ''delete''
+        and memberships.player_id = status.id
+    ';
+  end if;
+
+  if to_regclass('public.organisation_committee_members') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked organisation committee member''
+      from public.organisation_committee_members members
+      where status.action = ''delete''
+        and members.player_id = status.id
+    ';
+  end if;
+
+  if to_regclass('public.player_achievements') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked player achievement''
+      from public.player_achievements achievements
+      where status.action = ''delete''
+        and achievements.player_id = status.id
+    ';
+  end if;
+
+  if to_regclass('public.player_news_tags') is not null then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked news tag''
+      from public.player_news_tags news_tags
+      where status.action = ''delete''
+        and news_tags.player_id = status.id
+    ';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tournaments'
+      and column_name = 'arbiter_player_id'
+  ) then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked legacy tournament arbiter''
+      from public.tournaments tournaments
+      where status.action = ''delete''
+        and tournaments.arbiter_player_id = status.id
+    ';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tournaments'
+      and column_name = 'organiser_player_id'
+  ) then
+    execute '
+      update pcc_selected_player_cleanup_status status
+      set action = ''protected'',
+          reason = ''Linked legacy tournament organiser''
+      from public.tournaments tournaments
+      where status.action = ''delete''
+        and tournaments.organiser_player_id = status.id
+    ';
+  end if;
+
+  create temp table if not exists pcc_selected_players_to_delete (
+    id uuid primary key
+  ) on commit drop;
+
+  truncate table pcc_selected_players_to_delete;
+
+  insert into pcc_selected_players_to_delete (id)
+  select status.id
+  from pcc_selected_player_cleanup_status status
+  where status.action = 'delete';
+
+  if to_regclass('public.import_session_rows') is not null then
+    execute '
+      update public.import_session_rows rows
+      set matched_player_id = null
+      from pcc_selected_players_to_delete doomed
+      where rows.matched_player_id = doomed.id
+    ';
+  end if;
+
+  if to_regclass('public.player_rating_history') is not null then
+    execute '
+      delete from public.player_rating_history history
+      using pcc_selected_players_to_delete doomed
+      where history.player_id = doomed.id
+    ';
+  end if;
+
+  if to_regclass('public.player_duplicate_ignores') is not null then
+    execute '
+      delete from public.player_duplicate_ignores ignores
+      using pcc_selected_players_to_delete doomed
+      where ignores.player_a = doomed.id
+         or ignores.player_b = doomed.id
+    ';
+  end if;
+
+  if to_regclass('public.player_merge_history') is not null then
+    execute '
+      delete from public.player_merge_history history
+      using pcc_selected_players_to_delete doomed
+      where history.primary_player_id = doomed.id
+         or history.duplicate_player_id = doomed.id
+    ';
+  end if;
+
+  create temp table if not exists pcc_selected_deleted_players (
+    id uuid primary key,
+    full_name text,
+    chess_sa_id text,
+    pcc_id text,
+    deleted_at timestamptz
+  ) on commit drop;
+
+  truncate table pcc_selected_deleted_players;
+
+  insert into pcc_selected_deleted_players (
+    id,
+    full_name,
+    chess_sa_id,
+    pcc_id,
+    deleted_at
+  )
+  select
+    deleted.id,
+    deleted.full_name,
+    deleted.chess_sa_id,
+    deleted.pcc_id,
+    now()
+  from (
+    delete from public.players players
+    using pcc_selected_players_to_delete doomed
+    where players.id = doomed.id
+    returning players.id, players.full_name, players.chess_sa_id, players.pcc_id
+  ) deleted;
+
+  update pcc_selected_player_cleanup_status status
+  set action = 'deleted',
+      reason = 'Deleted from Player Centre',
+      deleted_at = deleted.deleted_at
+  from pcc_selected_deleted_players deleted
+  where status.id = deleted.id;
+
+  update pcc_selected_player_cleanup_status status
+  set action = 'not_deleted',
+      reason = 'Supabase returned 0 deleted rows'
+  where status.action = 'delete';
+
+  return query
+  select
+    status.id,
+    status.full_name,
+    status.chess_sa_id,
+    status.pcc_id,
+    status.action,
+    status.reason,
+    status.deleted_at
+  from pcc_selected_player_cleanup_status status
+  order by
+    case status.action
+      when 'deleted' then 1
+      when 'protected' then 2
+      when 'not_deleted' then 3
+      else 4
+    end,
+    status.full_name nulls last,
+    status.id;
+end;
+$$;
+
+grant execute on function public.delete_player_centre_selected_inactive(uuid[])
+to authenticated;
+
 -- Preview first. Check the list before deleting.
 select * from public.preview_player_centre_orphan_cleanup();
 

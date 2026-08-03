@@ -80,6 +80,27 @@ type ActivityFilter =
   | "Different activity"
   | "No activity";
 
+type CleanupProgress = {
+  step: string;
+  selected: number;
+  checked: number;
+  protected: number;
+  ready: number;
+  deleted: number;
+  workDone: number;
+  workTotal: number;
+};
+
+type CleanupRpcRow = {
+  id: string;
+  full_name: string | null;
+  chess_sa_id: string | null;
+  pcc_id: string | null;
+  action: "deleted" | "protected" | "not_deleted" | "not_found";
+  reason: string | null;
+  deleted_at: string | null;
+};
+
 type PlayerWithStats = Player & {
   tournaments_entered: number;
   final_ranking_events: number;
@@ -153,17 +174,9 @@ function describeSupabaseError(error: SupabaseRequestError | null | undefined) {
     .join(" ");
 }
 
-function isOptionalCleanupTableMissing(error: SupabaseRequestError | null) {
-  if (!error) return false;
-  const text = describeSupabaseError(error).toLowerCase();
-
-  return (
-    error.code === "42P01" ||
-    error.code === "PGRST205" ||
-    text.includes("could not find the table") ||
-    text.includes("does not exist") ||
-    text.includes("schema cache")
-  );
+function progressPercent(progress: CleanupProgress | null) {
+  if (!progress || progress.workTotal <= 0) return 0;
+  return Math.min(100, Math.round((progress.workDone / progress.workTotal) * 100));
 }
 
 function singleRelation<T>(value: T | T[] | null | undefined) {
@@ -247,6 +260,9 @@ export default function AdminPlayersPage() {
   const [deletingPlayerId, setDeletingPlayerId] = useState<string | null>(null);
   const [selectedInactiveIds, setSelectedInactiveIds] = useState<string[]>([]);
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [cleanupProgress, setCleanupProgress] = useState<CleanupProgress | null>(
+    null
+  );
 
   async function loadPlayers() {
     setLoading(true);
@@ -308,58 +324,39 @@ export default function AdminPlayersPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  async function collectLinkedPlayerIds(table: string, column: string, playerIds: string[]) {
-    const linkedIds = new Set<string>();
+  async function deleteInactiveIdsInSupabase(
+    playerIds: string[],
+    onChunkComplete?: (processedCount: number, rows: CleanupRpcRow[]) => void
+  ) {
+    const rows: CleanupRpcRow[] = [];
 
-    for (const playerIdChunk of chunkValues(playerIds)) {
-      const { data, error } = await supabase
-        .from(table)
-        .select(column)
-        .in(column, playerIdChunk);
-
-      if (error) {
-        return { linkedIds, error };
-      }
-
-      ((data ?? []) as unknown as Array<Record<string, string | null>>).forEach((row) => {
-        const value = row[column];
-        if (value) linkedIds.add(value);
-      });
-    }
-
-    return { linkedIds, error: null };
-  }
-
-  async function deleteRowsByPlayerIds({
-    label,
-    table,
-    column,
-    playerIds,
-    optional = false,
-  }: {
-    label: string;
-    table: string;
-    column: string;
-    playerIds: string[];
-    optional?: boolean;
-  }) {
-    for (const playerIdChunk of chunkValues(playerIds)) {
-      const { error } = await supabase
-        .from(table)
-        .delete()
-        .in(column, playerIdChunk);
+    for (const playerIdChunk of chunkValues(playerIds, 50)) {
+      const { data, error } = await supabase.rpc(
+        "delete_player_centre_selected_inactive",
+        { p_player_ids: playerIdChunk }
+      );
 
       if (error) {
-        if (optional && isOptionalCleanupTableMissing(error)) continue;
+        const message = describeSupabaseError(error);
+        const installHint =
+          message.toLowerCase().includes("could not find the function") ||
+          message.toLowerCase().includes("schema cache")
+            ? " Run database/player_centre_orphan_cleanup.sql in Supabase first."
+            : "";
 
         return {
+          rows,
           error,
-          message: `${label} failed: ${describeSupabaseError(error)}`,
+          message: `Supabase selected-list cleanup failed: ${message}.${installHint}`,
         };
       }
+
+      const chunkRows = (data ?? []) as unknown as CleanupRpcRow[];
+      rows.push(...chunkRows);
+      onChunkComplete?.(playerIdChunk.length, chunkRows);
     }
 
-    return { error: null, message: "" };
+    return { rows, error: null, message: "" };
   }
 
   async function deleteInactivePlayer(player: PlayerWithStats) {
@@ -384,88 +381,17 @@ export default function AdminPlayersPage() {
     setDeletingPlayerId(player.id);
     setMessage("");
 
-    const { count: registrationCount, error: registrationCheckError } = await supabase
-      .from("registrations")
-      .select("id", { count: "exact", head: true })
-      .eq("player_id", player.id);
+    const deleteResult = await deleteInactiveIdsInSupabase([player.id]);
+    const row = deleteResult.rows.find((item) => item.id === player.id);
 
-    const { count: resultCount, error: resultCheckError } = await supabase
-      .from("tournament_results")
-      .select("id", { count: "exact", head: true })
-      .eq("player_id", player.id);
-
-    if (registrationCheckError || resultCheckError) {
-      setMessage(
-        registrationCheckError?.message ||
-          resultCheckError?.message ||
-          "Could not verify this player before deletion."
-      );
-      setDeletingPlayerId(null);
-      return;
-    }
-
-    if ((registrationCount ?? 0) > 0 || (resultCount ?? 0) > 0) {
-      setMessage(
-        `${player.full_name} now has linked tournament activity, so the record was not deleted.`
-      );
-      setDeletingPlayerId(null);
-      await loadPlayers();
-      return;
-    }
-
-    const cleanupSteps = [
-      {
-        label: "Rating history cleanup",
-        table: "player_rating_history",
-        column: "player_id",
-      },
-      {
-        label: "Duplicate ignore cleanup",
-        table: "player_duplicate_ignores",
-        column: "player_a",
-      },
-      {
-        label: "Duplicate ignore cleanup",
-        table: "player_duplicate_ignores",
-        column: "player_b",
-      },
-      {
-        label: "Merge history cleanup",
-        table: "player_merge_history",
-        column: "primary_player_id",
-      },
-      {
-        label: "Merge history cleanup",
-        table: "player_merge_history",
-        column: "duplicate_player_id",
-      },
-    ];
-
-    for (const cleanupStep of cleanupSteps) {
-      const cleanupResult = await deleteRowsByPlayerIds({
-        ...cleanupStep,
-        playerIds: [player.id],
-        optional: true,
-      });
-
-      if (cleanupResult.error) {
-        setMessage(cleanupResult.message);
-        setDeletingPlayerId(null);
-        return;
-      }
-    }
-
-    const deleteResult = await deleteRowsByPlayerIds({
-      label: "Player Centre delete",
-      table: "players",
-      column: "id",
-      playerIds: [player.id],
-    });
-
-    const error = deleteResult.error;
-
-    if (error) {
+    if (deleteResult.error) {
       setMessage(`Could not delete ${player.full_name}: ${deleteResult.message}`);
+    } else if (row?.action !== "deleted") {
+      setMessage(
+        `${player.full_name} was not deleted. ${
+          row?.reason ?? "Supabase did not return this player as deleted."
+        }`
+      );
     } else {
       setPlayers((current) => current.filter((item) => item.id !== player.id));
       setSelectedInactiveIds((current) =>
@@ -781,111 +707,120 @@ export default function AdminPlayersPage() {
     setMessage("");
 
     const selectedIds = selectedInactivePlayers.map((player) => player.id);
+    let completedWork = 0;
+    let deletedCount = 0;
+    let protectedCount = 0;
+    let notDeletedCount = 0;
+    let notFoundCount = 0;
+    const workTotal = selectedIds.length;
 
-    const registrationCheck = await collectLinkedPlayerIds(
-      "registrations",
-      "player_id",
-      selectedIds
-    );
-    const resultCheck = await collectLinkedPlayerIds(
-      "tournament_results",
-      "player_id",
-      selectedIds
-    );
-
-    if (registrationCheck.error || resultCheck.error) {
-      setMessage(
-        describeSupabaseError(registrationCheck.error || resultCheck.error) ||
-          "Could not verify selected players before deletion."
-      );
-      setBulkDeleting(false);
-      return;
+    function updateCleanupProgress(updates: Partial<CleanupProgress>) {
+      setCleanupProgress((current) => ({
+        step: "Preparing cleanup",
+        selected: selectedIds.length,
+        checked: 0,
+        protected: 0,
+        ready: 0,
+        deleted: 0,
+        workDone: completedWork,
+        workTotal,
+        ...(current ?? {}),
+        ...updates,
+      }));
     }
 
-    const blockedIds = new Set([
-      ...registrationCheck.linkedIds,
-      ...resultCheck.linkedIds,
-    ]);
-    const safeIds = selectedIds.filter((playerId) => !blockedIds.has(playerId));
-
-    if (safeIds.length === 0) {
-      setMessage(
-        "No records were deleted because the selected players now have linked tournament activity."
-      );
-      setBulkDeleting(false);
-      await loadPlayers();
-      return;
-    }
-
-    const cleanupSteps = [
-      {
-        label: "Rating history cleanup",
-        table: "player_rating_history",
-        column: "player_id",
-      },
-      {
-        label: "Duplicate ignore cleanup",
-        table: "player_duplicate_ignores",
-        column: "player_a",
-      },
-      {
-        label: "Duplicate ignore cleanup",
-        table: "player_duplicate_ignores",
-        column: "player_b",
-      },
-      {
-        label: "Merge history cleanup",
-        table: "player_merge_history",
-        column: "primary_player_id",
-      },
-      {
-        label: "Merge history cleanup",
-        table: "player_merge_history",
-        column: "duplicate_player_id",
-      },
-    ];
-
-    for (const cleanupStep of cleanupSteps) {
-      const cleanupResult = await deleteRowsByPlayerIds({
-        ...cleanupStep,
-        playerIds: safeIds,
-        optional: true,
+    function addCleanupWork(
+      processedCount: number,
+      updates: Partial<CleanupProgress> = {}
+    ) {
+      completedWork += processedCount;
+      updateCleanupProgress({
+        workDone: completedWork,
+        workTotal,
+        ...updates,
       });
-
-      if (cleanupResult.error) {
-        setMessage(cleanupResult.message);
-        setBulkDeleting(false);
-        return;
-      }
     }
 
-    const deleteResult = await deleteRowsByPlayerIds({
-      label: "Player Centre bulk delete",
-      table: "players",
-      column: "id",
-      playerIds: safeIds,
+    updateCleanupProgress({
+      step: "Deleting selected list in Supabase",
+      workDone: 0,
+      workTotal,
     });
+
+    const deleteResult = await deleteInactiveIdsInSupabase(
+      selectedIds,
+      (processedCount, rows) => {
+        deletedCount += rows.filter((row) => row.action === "deleted").length;
+        protectedCount += rows.filter((row) => row.action === "protected").length;
+        notDeletedCount += rows.filter(
+          (row) => row.action === "not_deleted"
+        ).length;
+        notFoundCount += rows.filter((row) => row.action === "not_found").length;
+        addCleanupWork(processedCount, {
+          step: "Deleting selected list in Supabase",
+          checked: completedWork + processedCount,
+          protected: protectedCount + notDeletedCount + notFoundCount,
+          ready: deletedCount + notDeletedCount,
+          deleted: deletedCount,
+        });
+      }
+    );
 
     if (deleteResult.error) {
       setMessage(`Could not delete selected players: ${deleteResult.message}`);
     } else {
+      const deletedIds = deleteResult.rows
+        .filter((row) => row.action === "deleted")
+        .map((row) => row.id);
+      const deletedIdSet = new Set(deletedIds);
+      const protectedRows = deleteResult.rows.filter(
+        (row) => row.action === "protected"
+      );
+      const notDeletedRows = deleteResult.rows.filter(
+        (row) => row.action === "not_deleted"
+      );
+      const notFoundRows = deleteResult.rows.filter(
+        (row) => row.action === "not_found"
+      );
+
       setPlayers((current) =>
-        current.filter((player) => !safeIds.includes(player.id))
+        current.filter((player) => !deletedIdSet.has(player.id))
       );
       setSelectedInactiveIds((current) =>
-        current.filter((playerId) => !safeIds.includes(playerId))
+        current.filter((playerId) => !deletedIdSet.has(playerId))
       );
       setMessage(
-        `Deleted ${safeIds.length} inactive Player Centre record${
-          safeIds.length === 1 ? "" : "s"
+        `Deleted ${deletedIds.length} inactive Player Centre record${
+          deletedIds.length === 1 ? "" : "s"
         }. ${
-          blockedIds.size > 0
-            ? `${blockedIds.size} selected record${
-                blockedIds.size === 1 ? " was" : "s were"
-              } protected because tournament activity was found.`
+          protectedRows.length > 0
+            ? `${protectedRows.length} selected record${
+                protectedRows.length === 1 ? " was" : "s were"
+              } protected by Supabase safety checks.`
+            : ""
+        } ${
+          notDeletedRows.length > 0
+            ? `${notDeletedRows.length} record${
+                notDeletedRows.length === 1 ? " was" : "s were"
+              } not deleted after Supabase checked them.`
+            : ""
+        } ${
+          notFoundRows.length > 0
+            ? `${notFoundRows.length} record${
+                notFoundRows.length === 1 ? " was" : "s were"
+              } already gone.`
             : ""
         }`
       );
+      completedWork = workTotal;
+      updateCleanupProgress({
+        step: "Cleanup complete",
+        checked: selectedIds.length,
+        protected: protectedRows.length + notDeletedRows.length + notFoundRows.length,
+        ready: deletedIds.length + notDeletedRows.length,
+        deleted: deletedIds.length,
+        workDone: workTotal,
+      });
     }
 
     setBulkDeleting(false);
@@ -1148,6 +1083,61 @@ export default function AdminPlayersPage() {
                   </button>
                 </div>
               </div>
+
+              {cleanupProgress && (
+                <div className="mt-4 rounded-lg border border-red-300/20 bg-zinc-950/70 p-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-red-100">
+                      {cleanupProgress.step}
+                    </p>
+                    <p className="text-xs font-bold text-red-50/80">
+                      {progressPercent(cleanupProgress)}%
+                    </p>
+                  </div>
+
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-red-950">
+                    <div
+                      className="h-full rounded-full bg-red-400 transition-all duration-300"
+                      style={{
+                        width: `${Math.max(progressPercent(cleanupProgress), 3)}%`,
+                      }}
+                    />
+                  </div>
+
+                  <div className="mt-3 grid gap-2 text-xs text-red-50/75 sm:grid-cols-5">
+                    <p>
+                      Selected{" "}
+                      <span className="font-black text-white">
+                        {cleanupProgress.selected}
+                      </span>
+                    </p>
+                    <p>
+                      Checked{" "}
+                      <span className="font-black text-white">
+                        {cleanupProgress.checked}
+                      </span>
+                    </p>
+                    <p>
+                      Protected{" "}
+                      <span className="font-black text-white">
+                        {cleanupProgress.protected}
+                      </span>
+                    </p>
+                    <p>
+                      Ready{" "}
+                      <span className="font-black text-white">
+                        {cleanupProgress.ready}
+                      </span>
+                    </p>
+                    <p>
+                      Deleted{" "}
+                      <span className="font-black text-white">
+                        {cleanupProgress.deleted}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
