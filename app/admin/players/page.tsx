@@ -169,6 +169,13 @@ function hasDifferentActivity(player: PlayerWithStats) {
   return false;
 }
 
+function isInactivePlayer(player: PlayerWithStats) {
+  return (
+    player.registered_tournaments.length === 0 &&
+    player.final_ranking_tournaments.length === 0
+  );
+}
+
 function profileHealth(player: Player): PlayerWithStats["profile_health"] {
   if (!player.chess_sa_id && !player.fide_id) return "Missing IDs";
   if (
@@ -197,6 +204,8 @@ export default function AdminPlayersPage() {
   const [message, setMessage] = useState("");
   const [currentRole, setCurrentRole] = useState<string | null>(null);
   const [deletingPlayerId, setDeletingPlayerId] = useState<string | null>(null);
+  const [selectedInactiveIds, setSelectedInactiveIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   async function loadPlayers() {
     setLoading(true);
@@ -259,16 +268,12 @@ export default function AdminPlayersPage() {
   }, []);
 
   async function deleteInactivePlayer(player: PlayerWithStats) {
-    const hasActivity =
-      player.registered_tournaments.length > 0 ||
-      player.final_ranking_tournaments.length > 0;
-
     if (currentRole !== "super_admin") {
       setMessage("Only the super admin can delete Player Centre records.");
       return;
     }
 
-    if (hasActivity) {
+    if (!isInactivePlayer(player)) {
       setMessage(
         `${player.full_name} is protected because tournament activity is linked to this record.`
       );
@@ -329,6 +334,9 @@ export default function AdminPlayersPage() {
       setMessage(`Could not delete ${player.full_name}: ${error.message}`);
     } else {
       setPlayers((current) => current.filter((item) => item.id !== player.id));
+      setSelectedInactiveIds((current) =>
+        current.filter((playerId) => playerId !== player.id)
+      );
       setMessage(`${player.full_name} was deleted from the Player Centre.`);
     }
 
@@ -554,6 +562,161 @@ export default function AdminPlayersPage() {
     verificationView,
   ]);
 
+  const displayedPlayers = useMemo(() => filteredPlayers.slice(0, 500), [
+    filteredPlayers,
+  ]);
+
+  const visibleInactivePlayers = useMemo(
+    () => displayedPlayers.filter(isInactivePlayer),
+    [displayedPlayers]
+  );
+
+  const selectedInactivePlayers = useMemo(
+    () =>
+      playerRows.filter(
+        (player) =>
+          selectedInactiveIds.includes(player.id) && isInactivePlayer(player)
+      ),
+    [playerRows, selectedInactiveIds]
+  );
+
+  function toggleInactiveSelection(playerId: string) {
+    setSelectedInactiveIds((current) =>
+      current.includes(playerId)
+        ? current.filter((id) => id !== playerId)
+        : [...current, playerId]
+    );
+  }
+
+  function selectVisibleInactivePlayers() {
+    setSelectedInactiveIds((current) =>
+      Array.from(
+        new Set([
+          ...current,
+          ...visibleInactivePlayers.map((player) => player.id),
+        ])
+      )
+    );
+  }
+
+  async function deleteSelectedInactivePlayers() {
+    if (currentRole !== "super_admin") {
+      setMessage("Only the super admin can delete Player Centre records.");
+      return;
+    }
+
+    if (selectedInactivePlayers.length === 0) {
+      setMessage("Select inactive Player Centre records first.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Delete ${selectedInactivePlayers.length} inactive Player Centre record${
+        selectedInactivePlayers.length === 1 ? "" : "s"
+      }? Records with tournament activity will stay protected.`
+    );
+
+    if (!confirmed) return;
+
+    setBulkDeleting(true);
+    setMessage("");
+
+    const selectedIds = selectedInactivePlayers.map((player) => player.id);
+
+    const { data: linkedRegistrations, error: registrationCheckError } =
+      await supabase
+        .from("registrations")
+        .select("player_id")
+        .in("player_id", selectedIds);
+
+    const { data: linkedResults, error: resultCheckError } = await supabase
+      .from("tournament_results")
+      .select("player_id")
+      .in("player_id", selectedIds);
+
+    if (registrationCheckError || resultCheckError) {
+      setMessage(
+        registrationCheckError?.message ||
+          resultCheckError?.message ||
+          "Could not verify selected players before deletion."
+      );
+      setBulkDeleting(false);
+      return;
+    }
+
+    const blockedIds = new Set([
+      ...((linkedRegistrations ?? [])
+        .map((item) => item.player_id)
+        .filter(Boolean) as string[]),
+      ...((linkedResults ?? [])
+        .map((item) => item.player_id)
+        .filter(Boolean) as string[]),
+    ]);
+    const safeIds = selectedIds.filter((playerId) => !blockedIds.has(playerId));
+
+    if (safeIds.length === 0) {
+      setMessage(
+        "No records were deleted because the selected players now have linked tournament activity."
+      );
+      setBulkDeleting(false);
+      await loadPlayers();
+      return;
+    }
+
+    const idList = safeIds.join(",");
+
+    const cleanupSteps = [
+      () => supabase.from("player_rating_history").delete().in("player_id", safeIds),
+      () =>
+        supabase
+          .from("player_duplicate_ignores")
+          .delete()
+          .or(`player_a.in.(${idList}),player_b.in.(${idList})`),
+      () =>
+        supabase
+          .from("player_merge_history")
+          .delete()
+          .or(
+            `primary_player_id.in.(${idList}),duplicate_player_id.in.(${idList})`
+          ),
+    ];
+
+    for (const cleanupStep of cleanupSteps) {
+      const { error } = await cleanupStep();
+      if (error) {
+        setMessage(`Could not prepare bulk delete: ${error.message}`);
+        setBulkDeleting(false);
+        return;
+      }
+    }
+
+    const { error } = await supabase.from("players").delete().in("id", safeIds);
+
+    if (error) {
+      setMessage(`Could not delete selected players: ${error.message}`);
+    } else {
+      setPlayers((current) =>
+        current.filter((player) => !safeIds.includes(player.id))
+      );
+      setSelectedInactiveIds((current) =>
+        current.filter((playerId) => !safeIds.includes(playerId))
+      );
+      setMessage(
+        `Deleted ${safeIds.length} inactive Player Centre record${
+          safeIds.length === 1 ? "" : "s"
+        }. ${
+          blockedIds.size > 0
+            ? `${blockedIds.size} selected record${
+                blockedIds.size === 1 ? " was" : "s were"
+              } protected because tournament activity was found.`
+            : ""
+        }`
+      );
+    }
+
+    setBulkDeleting(false);
+  }
+
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
@@ -717,6 +880,50 @@ export default function AdminPlayersPage() {
             </p>
           </section>
 
+          {currentRole === "super_admin" && (
+            <section className="mt-4 rounded-xl border border-red-500/20 bg-red-500/10 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-black text-red-100">
+                    Bulk inactive cleanup
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-red-50/70">
+                    {visibleInactivePlayers.length} inactive record
+                    {visibleInactivePlayers.length === 1 ? "" : "s"} in this
+                    view. {selectedInactivePlayers.length} selected for delete.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={selectVisibleInactivePlayers}
+                    disabled={visibleInactivePlayers.length === 0 || bulkDeleting}
+                    className="rounded-lg border border-red-300/30 px-4 py-2 text-xs font-black text-red-50 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Select inactive shown
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedInactiveIds([])}
+                    disabled={selectedInactivePlayers.length === 0 || bulkDeleting}
+                    className="rounded-lg border border-white/10 px-4 py-2 text-xs font-black text-white transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void deleteSelectedInactivePlayers()}
+                    disabled={selectedInactivePlayers.length === 0 || bulkDeleting}
+                    className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {bulkDeleting ? "Deleting..." : "Delete selected"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
           {loading ? (
             <p className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-6 text-sm text-zinc-400">
               Loading players...
@@ -728,8 +935,9 @@ export default function AdminPlayersPage() {
           ) : (
             <>
             <section className="mt-8 space-y-3 lg:hidden">
-              {filteredPlayers.slice(0, 500).map((player) => {
+              {displayedPlayers.map((player) => {
                 const age = calculateAge(player.date_of_birth);
+                const canSelect = currentRole === "super_admin" && isInactivePlayer(player);
 
                 return (
                   <article
@@ -755,6 +963,18 @@ export default function AdminPlayersPage() {
                       </div>
                       <HealthBadge health={player.profile_health} />
                     </div>
+
+                    {canSelect && (
+                      <label className="mt-4 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-100">
+                        <input
+                          type="checkbox"
+                          checked={selectedInactiveIds.includes(player.id)}
+                          onChange={() => toggleInactiveSelection(player.id)}
+                          className="h-4 w-4 accent-red-600"
+                        />
+                        Select for bulk cleanup
+                      </label>
+                    )}
 
                     <div className="mt-4 grid gap-2 text-sm text-zinc-400">
                       <p>PCC ID: {valueOrDash(player.pcc_id)}</p>
@@ -800,6 +1020,9 @@ export default function AdminPlayersPage() {
               <table className="w-full min-w-[1100px] text-left text-sm">
                 <thead className="bg-zinc-950 text-xs uppercase tracking-wide text-zinc-500">
                   <tr>
+                    {currentRole === "super_admin" && (
+                      <th className="p-4">Select</th>
+                    )}
                     <th className="p-4">Player</th>
                     <th className="p-4">Identity</th>
                     <th className="p-4">Rating</th>
@@ -811,11 +1034,28 @@ export default function AdminPlayersPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredPlayers.slice(0, 500).map((player) => {
+                  {displayedPlayers.map((player) => {
                     const age = calculateAge(player.date_of_birth);
+                    const canSelect =
+                      currentRole === "super_admin" && isInactivePlayer(player);
 
                     return (
                       <tr key={player.id} className="border-t border-white/10">
+                        {currentRole === "super_admin" && (
+                          <td className="p-4">
+                            {canSelect ? (
+                              <input
+                                type="checkbox"
+                                checked={selectedInactiveIds.includes(player.id)}
+                                onChange={() => toggleInactiveSelection(player.id)}
+                                aria-label={`Select ${player.full_name} for cleanup`}
+                                className="h-4 w-4 accent-red-600"
+                              />
+                            ) : (
+                              <span className="text-xs text-zinc-700">Protected</span>
+                            )}
+                          </td>
+                        )}
                         <td className="p-4">
                           <div className="flex items-center gap-3">
                             <PlayerAvatar
