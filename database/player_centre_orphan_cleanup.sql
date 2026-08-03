@@ -33,8 +33,112 @@ as $$
   )
 $$;
 
+create or replace function public.player_centre_cleanup_digits(p_value text)
+returns text
+language sql
+immutable
+set search_path = public, pg_temp
+as $$
+  select nullif(regexp_replace(coalesce(p_value, ''), '\D', '', 'g'), '')
+$$;
+
+create or replace function public.player_centre_cleanup_has_activity_identity(p_player_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  with candidate as (
+    select
+      players.id,
+      players.full_name,
+      players.chess_sa_id,
+      public.player_centre_cleanup_digits(players.chess_sa_id) as chess_sa_key,
+      players.date_of_birth,
+      lower(nullif(trim(coalesce(players.email, '')), '')) as email_key,
+      public.player_centre_cleanup_digits(players.phone) as phone_key,
+      public.player_centre_cleanup_name_key(players.full_name) as name_key
+    from public.players players
+    where players.id = p_player_id
+  )
+  select exists (
+    select 1
+    from candidate
+    join public.registrations registrations on true
+    join public.players linked_player on linked_player.id = registrations.player_id
+    where linked_player.id <> candidate.id
+      and coalesce(registrations.registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn')
+      and (
+        (
+          candidate.chess_sa_key is not null
+          and public.player_centre_cleanup_digits(linked_player.chess_sa_id) = candidate.chess_sa_key
+        )
+        or (
+          candidate.name_key <> ''
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+        or (
+          candidate.date_of_birth is not null
+          and linked_player.date_of_birth = candidate.date_of_birth
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+        or (
+          candidate.email_key is not null
+          and lower(nullif(trim(coalesce(linked_player.email, '')), '')) = candidate.email_key
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+        or (
+          candidate.phone_key is not null
+          and public.player_centre_cleanup_digits(linked_player.phone) = candidate.phone_key
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+      )
+  )
+  or exists (
+    select 1
+    from candidate
+    join public.tournament_results results on results.player_id is not null
+    join public.players linked_player on linked_player.id = results.player_id
+    where linked_player.id <> candidate.id
+      and (
+        (
+          candidate.chess_sa_key is not null
+          and public.player_centre_cleanup_digits(linked_player.chess_sa_id) = candidate.chess_sa_key
+        )
+        or (
+          candidate.name_key <> ''
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+        or (
+          candidate.date_of_birth is not null
+          and linked_player.date_of_birth = candidate.date_of_birth
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+        or (
+          candidate.email_key is not null
+          and lower(nullif(trim(coalesce(linked_player.email, '')), '')) = candidate.email_key
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+        or (
+          candidate.phone_key is not null
+          and public.player_centre_cleanup_digits(linked_player.phone) = candidate.phone_key
+          and public.player_centre_cleanup_name_key(linked_player.full_name) = candidate.name_key
+        )
+      )
+  );
+$$;
+
+grant execute on function public.player_centre_cleanup_has_activity_identity(uuid)
+to authenticated;
+
 do $$
 begin
+  execute 'create index if not exists players_chess_sa_id_cleanup_idx on public.players (chess_sa_id) where chess_sa_id is not null';
+  execute 'create index if not exists players_chess_sa_digits_cleanup_idx on public.players (public.player_centre_cleanup_digits(chess_sa_id)) where chess_sa_id is not null';
+  execute 'create index if not exists players_email_cleanup_idx on public.players (lower(email)) where email is not null';
+  execute 'create index if not exists players_phone_digits_cleanup_idx on public.players (public.player_centre_cleanup_digits(phone)) where phone is not null';
+
   if to_regclass('public.registrations') is not null then
     execute 'create index if not exists registrations_player_id_cleanup_idx on public.registrations (player_id) where player_id is not null';
   end if;
@@ -167,6 +271,9 @@ begin
       where results.player_id = candidates.id
     ';
   end if;
+
+  delete from pcc_orphan_player_candidates candidates
+  where public.player_centre_cleanup_has_activity_identity(candidates.id);
 
   if to_regclass('public.tournament_officials') is not null then
     execute '
@@ -467,6 +574,12 @@ begin
     ';
 
   end if;
+
+  update pcc_selected_player_cleanup_status status
+  set action = 'protected',
+      reason = 'Matching Player Centre identity has tournament activity'
+  where status.action = 'delete'
+    and public.player_centre_cleanup_has_activity_identity(status.id);
 
   if to_regclass('public.tournament_officials') is not null then
     execute '
@@ -917,6 +1030,14 @@ begin
 
   end if;
 
+  update public.player_centre_cleanup_request_rows rows
+  set action = 'protected',
+      reason = 'Matching Player Centre identity has tournament activity',
+      updated_at = now()
+  where rows.request_id = p_request_id
+    and rows.action = 'delete'
+    and public.player_centre_cleanup_has_activity_identity(rows.player_id);
+
   if to_regclass('public.tournament_officials') is not null then
     execute '
       update public.player_centre_cleanup_request_rows rows
@@ -1251,7 +1372,13 @@ returns table (
   rating integer,
   club text,
   province text,
-  created_at timestamptz
+  created_at timestamptz,
+  exact_registration_count integer,
+  exact_final_ranking_count integer,
+  same_chessa_registration_count integer,
+  same_name_registration_count integer,
+  same_name_final_ranking_count integer,
+  cleanup_note text
 )
 language plpgsql
 security definer
@@ -1266,7 +1393,70 @@ begin
     preview.rating,
     preview.club,
     preview.province,
-    preview.created_at
+    preview.created_at,
+    (
+      select count(*)::integer
+      from public.registrations registrations
+      where registrations.player_id = preview.id
+    ) as exact_registration_count,
+    (
+      select count(*)::integer
+      from public.tournament_results results
+      where results.player_id = preview.id
+    ) as exact_final_ranking_count,
+    (
+      select count(*)::integer
+      from public.registrations registrations
+      join public.players linked_player on linked_player.id = registrations.player_id
+      where public.player_centre_cleanup_digits(preview.chess_sa_id) is not null
+        and linked_player.id <> preview.id
+        and public.player_centre_cleanup_digits(linked_player.chess_sa_id) =
+          public.player_centre_cleanup_digits(preview.chess_sa_id)
+    ) as same_chessa_registration_count,
+    (
+      select count(*)::integer
+      from public.registrations registrations
+      join public.players linked_player on linked_player.id = registrations.player_id
+      where linked_player.id <> preview.id
+        and public.player_centre_cleanup_name_key(linked_player.full_name) =
+          public.player_centre_cleanup_name_key(preview.full_name)
+    ) as same_name_registration_count,
+    (
+      select count(*)::integer
+      from public.tournament_results results
+      where results.player_id is null
+        and results.imported_name is not null
+        and public.player_centre_cleanup_name_key(results.imported_name) =
+          public.player_centre_cleanup_name_key(preview.full_name)
+    ) as same_name_final_ranking_count,
+    case
+      when exists (
+        select 1
+        from public.registrations registrations
+        join public.players linked_player on linked_player.id = registrations.player_id
+        where public.player_centre_cleanup_digits(preview.chess_sa_id) is not null
+          and linked_player.id <> preview.id
+          and public.player_centre_cleanup_digits(linked_player.chess_sa_id) =
+            public.player_centre_cleanup_digits(preview.chess_sa_id)
+      ) then 'This looks like a duplicate Player Centre record. Another player with the same Chess SA ID has registrations.'
+      when exists (
+        select 1
+        from public.registrations registrations
+        join public.players linked_player on linked_player.id = registrations.player_id
+        where linked_player.id <> preview.id
+          and public.player_centre_cleanup_name_key(linked_player.full_name) =
+            public.player_centre_cleanup_name_key(preview.full_name)
+      ) then 'This name appears in registrations through another Player Centre record.'
+      when exists (
+        select 1
+        from public.tournament_results results
+        where results.player_id is null
+          and results.imported_name is not null
+          and public.player_centre_cleanup_name_key(results.imported_name) =
+            public.player_centre_cleanup_name_key(preview.full_name)
+      ) then 'This name appears in an unlinked final ranking, but this exact Player Centre record is not linked.'
+      else 'No exact registrations, final rankings, official roles, membership, or organiser links found for this Player Centre record.'
+    end as cleanup_note
   from public.preview_player_centre_orphan_cleanup() preview
   order by preview.created_at desc nulls last, preview.full_name
   limit greatest(1, least(coalesce(p_limit, 100), 500));
