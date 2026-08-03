@@ -569,6 +569,12 @@ begin
 
   truncate table pcc_selected_deleted_players;
 
+  with deleted as (
+    delete from public.players players
+    using pcc_selected_players_to_delete doomed
+    where players.id = doomed.id
+    returning players.id, players.full_name, players.chess_sa_id, players.pcc_id
+  )
   insert into pcc_selected_deleted_players (
     id,
     full_name,
@@ -582,12 +588,7 @@ begin
     deleted.chess_sa_id,
     deleted.pcc_id,
     now()
-  from (
-    delete from public.players players
-    using pcc_selected_players_to_delete doomed
-    where players.id = doomed.id
-    returning players.id, players.full_name, players.chess_sa_id, players.pcc_id
-  ) deleted;
+  from deleted;
 
   update pcc_selected_player_cleanup_status status
   set action = 'deleted',
