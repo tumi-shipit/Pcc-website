@@ -101,6 +101,12 @@ type CleanupRpcRow = {
   deleted_at: string | null;
 };
 
+type CleanupRequestRpcRow = {
+  request_id: string;
+  requested_count: number;
+  created_at: string;
+};
+
 type PlayerWithStats = Player & {
   tournaments_entered: number;
   final_ranking_events: number;
@@ -263,6 +269,7 @@ export default function AdminPlayersPage() {
   const [cleanupProgress, setCleanupProgress] = useState<CleanupProgress | null>(
     null
   );
+  const [cleanupRequestSql, setCleanupRequestSql] = useState("");
 
   async function loadPlayers() {
     setLoading(true);
@@ -357,6 +364,41 @@ export default function AdminPlayersPage() {
     }
 
     return { rows, error: null, message: "" };
+  }
+
+  async function createCleanupRequestInSupabase(playerIds: string[]) {
+    const { data, error } = await supabase.rpc(
+      "create_player_centre_cleanup_request",
+      { p_player_ids: playerIds }
+    );
+
+    if (error) {
+      const message = describeSupabaseError(error);
+      const installHint =
+        message.toLowerCase().includes("could not find the function") ||
+        message.toLowerCase().includes("schema cache") ||
+        message.toLowerCase().includes("does not exist")
+          ? " Run the updated database/player_centre_orphan_cleanup.sql in Supabase first."
+          : "";
+
+      return {
+        row: null,
+        error,
+        message: `Could not create Supabase cleanup request: ${message}.${installHint}`,
+      };
+    }
+
+    const row = ((data ?? []) as unknown as CleanupRequestRpcRow[])[0] ?? null;
+
+    if (!row) {
+      return {
+        row: null,
+        error: null,
+        message: "Supabase did not return a cleanup request ID.",
+      };
+    }
+
+    return { row, error: null, message: "" };
   }
 
   async function deleteInactivePlayer(player: PlayerWithStats) {
@@ -696,22 +738,19 @@ export default function AdminPlayersPage() {
     }
 
     const confirmed = window.confirm(
-      `Delete ${selectedInactivePlayers.length} inactive Player Centre record${
+      `Send ${selectedInactivePlayers.length} inactive Player Centre record${
         selectedInactivePlayers.length === 1 ? "" : "s"
-      }? Records with tournament activity will stay protected.`
+      } to Supabase as a saved cleanup list? You can review the exact list before deleting it.`
     );
 
     if (!confirmed) return;
 
     setBulkDeleting(true);
     setMessage("");
+    setCleanupRequestSql("");
 
     const selectedIds = selectedInactivePlayers.map((player) => player.id);
     let completedWork = 0;
-    let deletedCount = 0;
-    let protectedCount = 0;
-    let notDeletedCount = 0;
-    let notFoundCount = 0;
     const workTotal = selectedIds.length;
 
     function updateCleanupProgress(updates: Partial<CleanupProgress>) {
@@ -742,85 +781,48 @@ export default function AdminPlayersPage() {
     }
 
     updateCleanupProgress({
-      step: "Deleting selected list in Supabase",
+      step: "Sending selected list to Supabase",
       workDone: 0,
       workTotal,
     });
 
-    const deleteResult = await deleteInactiveIdsInSupabase(
-      selectedIds,
-      (processedCount, rows) => {
-        deletedCount += rows.filter((row) => row.action === "deleted").length;
-        protectedCount += rows.filter((row) => row.action === "protected").length;
-        notDeletedCount += rows.filter(
-          (row) => row.action === "not_deleted"
-        ).length;
-        notFoundCount += rows.filter((row) => row.action === "not_found").length;
-        addCleanupWork(processedCount, {
-          step: "Deleting selected list in Supabase",
-          checked: completedWork + processedCount,
-          protected: protectedCount + notDeletedCount + notFoundCount,
-          ready: deletedCount + notDeletedCount,
-          deleted: deletedCount,
-        });
-      }
-    );
+    const requestResult = await createCleanupRequestInSupabase(selectedIds);
 
-    if (deleteResult.error) {
-      setMessage(`Could not delete selected players: ${deleteResult.message}`);
+    if (requestResult.error || !requestResult.row) {
+      setMessage(requestResult.message);
     } else {
-      const deletedIds = deleteResult.rows
-        .filter((row) => row.action === "deleted")
-        .map((row) => row.id);
-      const deletedIdSet = new Set(deletedIds);
-      const protectedRows = deleteResult.rows.filter(
-        (row) => row.action === "protected"
-      );
-      const notDeletedRows = deleteResult.rows.filter(
-        (row) => row.action === "not_deleted"
-      );
-      const notFoundRows = deleteResult.rows.filter(
-        (row) => row.action === "not_found"
-      );
-
-      setPlayers((current) =>
-        current.filter((player) => !deletedIdSet.has(player.id))
-      );
-      setSelectedInactiveIds((current) =>
-        current.filter((playerId) => !deletedIdSet.has(playerId))
-      );
-      setMessage(
-        `Deleted ${deletedIds.length} inactive Player Centre record${
-          deletedIds.length === 1 ? "" : "s"
-        }. ${
-          protectedRows.length > 0
-            ? `${protectedRows.length} selected record${
-                protectedRows.length === 1 ? " was" : "s were"
-              } protected by Supabase safety checks.`
-            : ""
-        } ${
-          notDeletedRows.length > 0
-            ? `${notDeletedRows.length} record${
-                notDeletedRows.length === 1 ? " was" : "s were"
-              } not deleted after Supabase checked them.`
-            : ""
-        } ${
-          notFoundRows.length > 0
-            ? `${notFoundRows.length} record${
-                notFoundRows.length === 1 ? " was" : "s were"
-              } already gone.`
-            : ""
-        }`
-      );
+      const requestId = requestResult.row.request_id;
+      const requestedCount = requestResult.row.requested_count;
       completedWork = workTotal;
-      updateCleanupProgress({
-        step: "Cleanup complete",
+      addCleanupWork(0, {
+        step: "Supabase cleanup list created",
         checked: selectedIds.length,
-        protected: protectedRows.length + notDeletedRows.length + notFoundRows.length,
-        ready: deletedIds.length + notDeletedRows.length,
-        deleted: deletedIds.length,
+        protected: 0,
+        ready: requestedCount,
+        deleted: 0,
         workDone: workTotal,
       });
+      setSelectedInactiveIds([]);
+      setCleanupRequestSql(`-- Review this exact saved Player Centre cleanup list.
+select action, count(*) as records
+from public.player_centre_cleanup_request_rows
+where request_id = '${requestId}'::uuid
+group by action
+order by action;
+
+select full_name, chess_sa_id, pcc_id, action, reason
+from public.player_centre_cleanup_request_rows
+where request_id = '${requestId}'::uuid
+order by full_name nulls last;
+
+-- Delete only this saved list after you have reviewed it.
+select *
+from public.delete_player_centre_cleanup_request('${requestId}'::uuid);`);
+      setMessage(
+        `Created Supabase cleanup request ${requestId} for ${requestedCount} selected Player Centre record${
+          requestedCount === 1 ? "" : "s"
+        }. Review the saved list, then run the delete SQL shown below.`
+      );
     }
 
     setBulkDeleting(false);
@@ -1079,7 +1081,7 @@ export default function AdminPlayersPage() {
                     disabled={selectedInactivePlayers.length === 0 || bulkDeleting}
                     className="rounded-lg bg-red-600 px-4 py-2 text-xs font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    {bulkDeleting ? "Deleting..." : "Delete selected"}
+                    {bulkDeleting ? "Sending..." : "Send list to Supabase"}
                   </button>
                 </div>
               </div>
@@ -1136,6 +1138,17 @@ export default function AdminPlayersPage() {
                       </span>
                     </p>
                   </div>
+                </div>
+              )}
+
+              {cleanupRequestSql && (
+                <div className="mt-4 rounded-lg border border-red-300/20 bg-black p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-red-100">
+                    Supabase Cleanup Request SQL
+                  </p>
+                  <pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-white/10 bg-zinc-950 p-3 text-xs leading-6 text-red-50/85">
+                    {cleanupRequestSql}
+                  </pre>
                 </div>
               )}
             </section>
