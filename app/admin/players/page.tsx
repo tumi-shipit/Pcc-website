@@ -816,8 +816,9 @@ where request_id = '${requestId}'::uuid
 order by full_name nulls last;
 
 -- Delete only this saved list after you have reviewed it.
+-- This returns one summary row so the Supabase editor does not choke on a large result.
 select *
-from public.delete_player_centre_cleanup_request('${requestId}'::uuid);`);
+from public.delete_player_centre_cleanup_request_summary('${requestId}'::uuid);`);
       setMessage(
         `Created Supabase cleanup request ${requestId} for ${requestedCount} selected Player Centre record${
           requestedCount === 1 ? "" : "s"

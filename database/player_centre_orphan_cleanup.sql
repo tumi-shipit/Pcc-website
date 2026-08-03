@@ -1117,6 +1117,59 @@ $$;
 grant execute on function public.delete_player_centre_cleanup_request(uuid)
 to authenticated;
 
+drop function if exists public.delete_player_centre_cleanup_request_summary(uuid);
+
+create function public.delete_player_centre_cleanup_request_summary(p_request_id uuid)
+returns table (
+  request_id uuid,
+  requested_count integer,
+  deleted_count integer,
+  protected_count integer,
+  not_found_count integer,
+  not_deleted_count integer,
+  status text,
+  completed_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  allowed boolean := false;
+begin
+  if current_user in ('postgres', 'supabase_admin', 'service_role')
+    or session_user in ('postgres', 'supabase_admin', 'service_role')
+  then
+    allowed := true;
+  elsif to_regprocedure('public.is_super_admin()') is not null then
+    execute 'select public.is_super_admin()' into allowed;
+  end if;
+
+  if not allowed then
+    raise exception 'Only the PCC super admin can delete Player Centre cleanup requests.';
+  end if;
+
+  perform *
+  from public.delete_player_centre_cleanup_request(p_request_id);
+
+  return query
+  select
+    requests.id,
+    requests.requested_count,
+    requests.deleted_count,
+    requests.protected_count,
+    requests.not_found_count,
+    requests.not_deleted_count,
+    requests.status,
+    requests.completed_at
+  from public.player_centre_cleanup_requests requests
+  where requests.id = p_request_id;
+end;
+$$;
+
+grant execute on function public.delete_player_centre_cleanup_request_summary(uuid)
+to authenticated;
+
 -- Preview first. Check the list before deleting.
 select * from public.preview_player_centre_orphan_cleanup();
 
