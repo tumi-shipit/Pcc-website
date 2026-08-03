@@ -933,9 +933,7 @@ function parseTeamStandingRows(rows: unknown[][]) {
   }
 
   if (headerRowIndex === -1) {
-    throw new Error(
-      'Could not find the team results header. Expected columns such as "Rk.", "Team" and "Pts.".'
-    );
+    return parseHeaderlessChessResultsTeamRows(rows);
   }
 
   const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
@@ -1018,6 +1016,50 @@ function parseTeamStandingRows(rows: unknown[][]) {
       } as ImportedTeamStanding;
     })
     .filter(Boolean) as ImportedTeamStanding[];
+}
+
+function parseHeaderlessChessResultsTeamRows(rows: unknown[][]) {
+  const parsed = rows
+    .map((row) => {
+      const rank = toNumber(row[0]);
+      const teamName = String(row[1] ?? "").trim();
+      const lowerTeamName = teamName.toLowerCase();
+
+      if (!rank || !teamName) return null;
+      if (teamName.includes(",")) return null;
+      if (
+        lowerTeamName.includes("http") ||
+        lowerTeamName.includes("last update") ||
+        lowerTeamName.includes("chess-results")
+      ) {
+        return null;
+      }
+
+      const tieBreak = [row[3], row[4], row[5]]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(" / ");
+
+      return {
+        rank,
+        team_name: teamName,
+        federation: null,
+        match_points: toNumber(row[2]),
+        board_points: null,
+        tieBreak: tieBreak || null,
+        status: "Ready",
+        message: "Ready to import from Chess-Results team list",
+      } as ImportedTeamStanding;
+    })
+    .filter(Boolean) as ImportedTeamStanding[];
+
+  if (parsed.length === 0) {
+    throw new Error(
+      'Could not find team results. Expected columns such as "Rk.", "Team" and "Pts.", or a Chess-Results grouped team list.'
+    );
+  }
+
+  return parsed;
 }
 
 export default function TournamentArchiveContinuationPage() {
@@ -2609,7 +2651,7 @@ export default function TournamentArchiveContinuationPage() {
 
             <PreviewTable
               emptyText="Upload the Team Results file only for Swiss system with team tiebreaks."
-              headers={["Rank", "Team", "FED", "Match pts", "Board pts", "Tie-break", "Status", "Message"]}
+              headers={["Rank", "Team", "FED", "Pts", "Board pts", "Tie-break", "Status", "Message"]}
               rows={teamRows.map((row) => [
                 row.rank ?? "-",
                 row.team_name,

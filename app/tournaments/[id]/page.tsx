@@ -2090,7 +2090,7 @@ function TeamRankingTable({
                       <th className="border border-white/10 px-2 py-3 sm:px-3">Rk</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">Team</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">FED</th>
-                      <th className="border border-white/10 px-2 py-3 sm:px-3">MP</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Pts</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">BP</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">TB</th>
                     </tr>
