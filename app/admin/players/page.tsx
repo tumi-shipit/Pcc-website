@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import PlayerAvatar from "@/components/PlayerAvatar";
@@ -107,6 +107,19 @@ type CleanupRequestRpcRow = {
   created_at: string;
 };
 
+type CleanupPreviewRow = {
+  id: string;
+};
+
+type SupabaseFetchError = {
+  message: string;
+};
+
+type PagedRowsResult<T> = {
+  rows: T[];
+  error: SupabaseFetchError | null;
+};
+
 type PlayerWithStats = Player & {
   tournaments_entered: number;
   final_ranking_events: number;
@@ -121,6 +134,7 @@ type PlayerWithStats = Player & {
 const inputClass =
   "w-full rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-sm text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
 const cleanupBatchSize = 25;
+const supabasePageSize = 1000;
 
 type SupabaseRequestError = {
   code?: string;
@@ -170,6 +184,31 @@ function chunkValues<T>(items: T[], size = cleanupBatchSize) {
   }
 
   return chunks;
+}
+
+async function fetchPagedRows<T>(
+  getPage: (
+    from: number,
+    to: number
+  ) => Promise<{ data: T[] | null; error: SupabaseFetchError | null }>
+): Promise<PagedRowsResult<T>> {
+  const rows: T[] = [];
+
+  for (let from = 0; ; from += supabasePageSize) {
+    const to = from + supabasePageSize - 1;
+    const { data, error } = await getPage(from, to);
+
+    if (error) {
+      return { rows, error };
+    }
+
+    const pageRows = data ?? [];
+    rows.push(...pageRows);
+
+    if (pageRows.length < supabasePageSize) {
+      return { rows, error: null };
+    }
+  }
 }
 
 function describeSupabaseError(error: SupabaseRequestError | null | undefined) {
@@ -270,6 +309,9 @@ export default function AdminPlayersPage() {
     null
   );
   const [cleanupRequestSql, setCleanupRequestSql] = useState("");
+  const [cleanupPreviewIds, setCleanupPreviewIds] = useState<string[] | null>(
+    null
+  );
 
   async function loadPlayers() {
     setLoading(true);
@@ -278,46 +320,80 @@ export default function AdminPlayersPage() {
     const { data: roleData } = await supabase.rpc("current_admin_role");
     setCurrentRole(typeof roleData === "string" ? roleData : null);
 
-    const { data: playerData, error: playerError } = await supabase
-      .from("players")
-      .select(
-        "id, pcc_id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, created_at, updated_at"
-      )
-      .order("full_name", { ascending: true })
-      .limit(5000);
+    const [playerResult, registrationResult, resultResult, cleanupPreviewResult] =
+      await Promise.all([
+        fetchPagedRows<Player>(async (from, to) => {
+          const { data, error } = await supabase
+            .from("players")
+            .select(
+              "id, pcc_id, full_name, fide_id, chess_sa_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, created_at, updated_at"
+            )
+            .order("full_name", { ascending: true })
+            .range(from, to);
 
-    const { data: registrationData, error: registrationError } = await supabase
-      .from("registrations")
-      .select(
-        "player_id, tournament_id, section_id, payment_status, proof_of_payment_url, registration_status, created_at, updated_at, tournaments(id, tournament_name, start_date, registration_status), tournament_sections(id, section_name)"
-      );
+          return { data: (data ?? []) as unknown as Player[], error };
+        }),
+        fetchPagedRows<Registration>(async (from, to) => {
+          const { data, error } = await supabase
+            .from("registrations")
+            .select(
+              "player_id, tournament_id, section_id, payment_status, proof_of_payment_url, registration_status, created_at, updated_at, tournaments(id, tournament_name, start_date, registration_status), tournament_sections(id, section_name)"
+            )
+            .range(from, to);
 
-    const { data: resultData, error: resultError } = await supabase
-      .from("tournament_results")
-      .select(
-        "player_id, imported_name, tournament_id, section_id, final_position, points, created_at, tournaments(id, tournament_name, start_date, registration_status), tournament_sections(id, section_name)"
-      );
+          return { data: (data ?? []) as unknown as Registration[], error };
+        }),
+        fetchPagedRows<TournamentResult>(async (from, to) => {
+          const { data, error } = await supabase
+            .from("tournament_results")
+            .select(
+              "player_id, imported_name, tournament_id, section_id, final_position, points, created_at, tournaments(id, tournament_name, start_date, registration_status), tournament_sections(id, section_name)"
+            )
+            .range(from, to);
 
-    if (playerError) {
-      setMessage(`Could not load players: ${playerError.message}`);
+          return { data: (data ?? []) as unknown as TournamentResult[], error };
+        }),
+        fetchPagedRows<CleanupPreviewRow>(async (from, to) => {
+          const { data, error } = await supabase
+            .rpc("preview_player_centre_orphan_cleanup")
+            .range(from, to);
+
+          return { data: (data ?? []) as unknown as CleanupPreviewRow[], error };
+        }),
+      ]);
+
+    if (playerResult.error) {
+      setMessage(`Could not load players: ${playerResult.error.message}`);
     } else {
-      setPlayers((playerData ?? []) as unknown as Player[]);
+      setPlayers(playerResult.rows);
     }
 
-    if (registrationError) {
+    if (registrationResult.error) {
+      const errorMessage = registrationResult.error.message;
       setMessage((current) =>
-        current || `Could not load player activity: ${registrationError.message}`
+        current || `Could not load player activity: ${errorMessage}`
       );
     } else {
-      setRegistrations((registrationData ?? []) as unknown as Registration[]);
+      setRegistrations(registrationResult.rows);
     }
 
-    if (resultError) {
+    if (resultResult.error) {
+      const errorMessage = resultResult.error.message;
       setMessage((current) =>
-        current || `Could not load final ranking activity: ${resultError.message}`
+        current || `Could not load final ranking activity: ${errorMessage}`
       );
     } else {
-      setResults((resultData ?? []) as unknown as TournamentResult[]);
+      setResults(resultResult.rows);
+    }
+
+    if (cleanupPreviewResult.error) {
+      const errorMessage = cleanupPreviewResult.error.message;
+      setCleanupPreviewIds(null);
+      setMessage((current) =>
+        current || `Could not load Supabase cleanup preview: ${errorMessage}`
+      );
+    } else {
+      setCleanupPreviewIds(cleanupPreviewResult.rows.map((row) => row.id));
     }
 
     setLoading(false);
@@ -407,9 +483,9 @@ export default function AdminPlayersPage() {
       return;
     }
 
-    if (!isInactivePlayer(player)) {
+    if (!canCleanupPlayer(player)) {
       setMessage(
-        `${player.full_name} is protected because tournament activity is linked to this record.`
+        `${player.full_name} is protected because Supabase found linked activity or official records.`
       );
       return;
     }
@@ -585,6 +661,19 @@ export default function AdminPlayersPage() {
     };
   }, [playerRows]);
 
+  const cleanupPreviewIdSet = useMemo(
+    () => (cleanupPreviewIds ? new Set(cleanupPreviewIds) : null),
+    [cleanupPreviewIds]
+  );
+
+  const canCleanupPlayer = useCallback(
+    (player: PlayerWithStats) =>
+      cleanupPreviewIdSet
+        ? cleanupPreviewIdSet.has(player.id)
+        : isInactivePlayer(player),
+    [cleanupPreviewIdSet]
+  );
+
   const filteredPlayers = useMemo(() => {
     const text = search.trim().toLowerCase();
 
@@ -632,9 +721,7 @@ export default function AdminPlayersPage() {
         (activityFilter === "Different activity" &&
           (hasRegistrations || hasFinalRankings) &&
           hasDifferentActivity(player)) ||
-        (activityFilter === "No activity" &&
-          !hasRegistrations &&
-          !hasFinalRankings);
+        (activityFilter === "No activity" && canCleanupPlayer(player));
 
       const healthMatch =
         healthFilter === "All" || player.profile_health === healthFilter;
@@ -658,6 +745,7 @@ export default function AdminPlayersPage() {
     activityFilter,
     genderFilter,
     healthFilter,
+    canCleanupPlayer,
     playerRows,
     ratingFilter,
     search,
@@ -675,22 +763,22 @@ export default function AdminPlayersPage() {
   );
 
   const visibleInactivePlayers = useMemo(
-    () => displayedPlayers.filter(isInactivePlayer),
-    [displayedPlayers]
+    () => displayedPlayers.filter(canCleanupPlayer),
+    [canCleanupPlayer, displayedPlayers]
   );
 
   const allInactivePlayers = useMemo(
-    () => playerRows.filter(isInactivePlayer),
-    [playerRows]
+    () => playerRows.filter(canCleanupPlayer),
+    [canCleanupPlayer, playerRows]
   );
 
   const selectedInactivePlayers = useMemo(
     () =>
       playerRows.filter(
         (player) =>
-          selectedInactiveIds.includes(player.id) && isInactivePlayer(player)
+          selectedInactiveIds.includes(player.id) && canCleanupPlayer(player)
       ),
-    [playerRows, selectedInactiveIds]
+    [canCleanupPlayer, playerRows, selectedInactiveIds]
   );
 
   function toggleInactiveSelection(playerId: string) {
@@ -1196,7 +1284,8 @@ from public.delete_player_centre_cleanup_request_summary('${requestId}'::uuid);`
             <section className="mt-8 space-y-3 lg:hidden">
               {displayedPlayers.map((player) => {
                 const age = calculateAge(player.date_of_birth);
-                const canSelect = currentRole === "super_admin" && isInactivePlayer(player);
+                const canSelect =
+                  currentRole === "super_admin" && canCleanupPlayer(player);
 
                 return (
                   <article
@@ -1258,18 +1347,18 @@ from public.delete_player_centre_cleanup_request_summary('${requestId}'::uuid);`
                       Open Player
                     </Link>
 
-                    {currentRole === "super_admin" &&
-                      player.registered_tournaments.length === 0 &&
-                      player.final_ranking_tournaments.length === 0 && (
-                        <button
-                          type="button"
-                          onClick={() => void deleteInactivePlayer(player)}
-                          disabled={deletingPlayerId === player.id}
-                          className="mt-2 block w-full rounded-lg border border-red-500/40 px-4 py-3 text-center text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                          {deletingPlayerId === player.id ? "Deleting..." : "Delete inactive record"}
-                        </button>
-                      )}
+                    {canSelect && (
+                      <button
+                        type="button"
+                        onClick={() => void deleteInactivePlayer(player)}
+                        disabled={deletingPlayerId === player.id}
+                        className="mt-2 block w-full rounded-lg border border-red-500/40 px-4 py-3 text-center text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {deletingPlayerId === player.id
+                          ? "Deleting..."
+                          : "Delete inactive record"}
+                      </button>
+                    )}
                   </article>
                 );
               })}
@@ -1296,7 +1385,7 @@ from public.delete_player_centre_cleanup_request_summary('${requestId}'::uuid);`
                   {displayedPlayers.map((player) => {
                     const age = calculateAge(player.date_of_birth);
                     const canSelect =
-                      currentRole === "super_admin" && isInactivePlayer(player);
+                      currentRole === "super_admin" && canCleanupPlayer(player);
 
                     return (
                       <tr key={player.id} className="border-t border-white/10">
@@ -1374,18 +1463,18 @@ from public.delete_player_centre_cleanup_request_summary('${requestId}'::uuid);`
                             >
                               Open
                             </Link>
-                            {currentRole === "super_admin" &&
-                              player.registered_tournaments.length === 0 &&
-                              player.final_ranking_tournaments.length === 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => void deleteInactivePlayer(player)}
-                                  disabled={deletingPlayerId === player.id}
-                                  className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {deletingPlayerId === player.id ? "Deleting..." : "Delete"}
-                                </button>
-                              )}
+                            {canSelect && (
+                              <button
+                                type="button"
+                                onClick={() => void deleteInactivePlayer(player)}
+                                disabled={deletingPlayerId === player.id}
+                                className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {deletingPlayerId === player.id
+                                  ? "Deleting..."
+                                  : "Delete"}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>

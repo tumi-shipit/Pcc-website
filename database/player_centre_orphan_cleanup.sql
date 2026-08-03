@@ -89,16 +89,8 @@ begin
   if to_regclass('public.tournament_results') is not null then
     execute '
       delete from pcc_orphan_player_candidates candidates
-      using public.players players, public.tournament_results results
-      where players.id = candidates.id
-        and (
-          results.player_id = candidates.id
-          or (
-            results.imported_name is not null
-            and public.player_centre_cleanup_name_key(results.imported_name) =
-              public.player_centre_cleanup_name_key(players.full_name)
-          )
-        )
+      using public.tournament_results results
+      where results.player_id = candidates.id
     ';
   end if;
 
@@ -400,17 +392,6 @@ begin
         and results.player_id = status.id
     ';
 
-    execute '
-      update pcc_selected_player_cleanup_status status
-      set action = ''protected'',
-          reason = ''Imported final ranking name match''
-      from public.tournament_results results
-      where status.action = ''delete''
-        and results.player_id is null
-        and results.imported_name is not null
-        and public.player_centre_cleanup_name_key(results.imported_name) =
-          public.player_centre_cleanup_name_key(status.full_name)
-    ';
   end if;
 
   if to_regclass('public.tournament_officials') is not null then
@@ -860,19 +841,6 @@ begin
         and results.player_id = rows.player_id
     ' using p_request_id;
 
-    execute '
-      update public.player_centre_cleanup_request_rows rows
-      set action = ''protected'',
-          reason = ''Imported final ranking name match'',
-          updated_at = now()
-      from public.tournament_results results
-      where rows.request_id = $1
-        and rows.action = ''delete''
-        and results.player_id is null
-        and results.imported_name is not null
-        and public.player_centre_cleanup_name_key(results.imported_name) =
-          public.player_centre_cleanup_name_key(rows.full_name)
-    ' using p_request_id;
   end if;
 
   if to_regclass('public.tournament_officials') is not null then
@@ -1173,8 +1141,9 @@ to authenticated;
 -- Preview first. Check the list before deleting.
 select * from public.preview_player_centre_orphan_cleanup();
 
--- Optional audit: players with no linked player_id result, but protected because
--- their name appears in an imported final ranking.
+-- Optional audit: players with no linked player_id result, but a similar name
+-- appears in an imported final ranking. These are not protected from cleanup
+-- unless the final ranking is linked by player_id.
 select distinct
   players.id,
   players.full_name,
