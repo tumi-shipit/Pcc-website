@@ -690,22 +690,28 @@ export default function AdminPlayersPage() {
       return;
     }
 
-    const idList = safeIds.join(",");
-
     const cleanupSteps = [
       () => supabase.from("player_rating_history").delete().in("player_id", safeIds),
       () =>
         supabase
           .from("player_duplicate_ignores")
           .delete()
-          .or(`player_a.in.(${idList}),player_b.in.(${idList})`),
+          .in("player_a", safeIds),
+      () =>
+        supabase
+          .from("player_duplicate_ignores")
+          .delete()
+          .in("player_b", safeIds),
       () =>
         supabase
           .from("player_merge_history")
           .delete()
-          .or(
-            `primary_player_id.in.(${idList}),duplicate_player_id.in.(${idList})`
-          ),
+          .in("primary_player_id", safeIds),
+      () =>
+        supabase
+          .from("player_merge_history")
+          .delete()
+          .in("duplicate_player_id", safeIds),
     ];
 
     for (const cleanupStep of cleanupSteps) {
