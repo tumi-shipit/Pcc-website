@@ -61,6 +61,17 @@ type ImportedStanding = {
   message: string;
 };
 
+type ImportedTeamStanding = {
+  rank: number | null;
+  team_name: string;
+  federation: string | null;
+  match_points: number | null;
+  board_points: number | null;
+  tieBreak: string | null;
+  status: "Ready" | "Imported" | "Failed";
+  message: string;
+};
+
 type SectionPlayer = {
   registration_id: string | null;
   player_id: string;
@@ -425,6 +436,31 @@ function findTieBreakIndex(headers: string[]) {
       normalized === "tb2"
     );
   });
+}
+
+function findTieBreakIndexes(headers: string[], excludedIndexes: number[]) {
+  const excluded = new Set(excludedIndexes.filter((index) => index >= 0));
+
+  return headers
+    .map((header, index) => {
+      const normalized = normalizeHeaderName(header);
+
+      if (excluded.has(index)) return -1;
+      if (
+        normalized.includes("bh") ||
+        normalized.includes("buchholz") ||
+        normalized.includes("tiebreak") ||
+        normalized === "tb1" ||
+        normalized === "tb2" ||
+        normalized === "tb3" ||
+        normalized === "tb4"
+      ) {
+        return index;
+      }
+
+      return -1;
+    })
+    .filter((index) => index >= 0);
 }
 
 async function readExcelRows(file: File) {
@@ -883,6 +919,107 @@ function parseFinalRankingRows(
     .filter(Boolean) as ImportedStanding[];
 }
 
+function parseTeamStandingRows(rows: unknown[][]) {
+  let headerRowIndex = findHeaderRowByColumns(rows, [
+    ["Rank", "Rk.", "Rk", "Position", "Pos"],
+    ["Team", "Team Name", "Club", "School", "Organisation", "Name"],
+  ]);
+
+  if (headerRowIndex === -1) {
+    headerRowIndex = findHeaderRowByColumns(rows, [
+      ["Team", "Team Name", "Club", "School", "Organisation", "Name"],
+      ["Pts", "Pts.", "Points", "Score", "Match Points", "MP"],
+    ]);
+  }
+
+  if (headerRowIndex === -1) {
+    throw new Error(
+      'Could not find the team results header. Expected columns such as "Rk.", "Team" and "Pts.".'
+    );
+  }
+
+  const headers = rows[headerRowIndex].map((cell) => String(cell ?? "").trim());
+  const rankIndex = getFlexibleColumnIndex(headers, [
+    "Rank",
+    "Rk.",
+    "Rk",
+    "Position",
+    "Pos",
+  ]);
+  const teamNameIndex = getFlexibleColumnIndex(headers, [
+    "Team",
+    "Team Name",
+    "Club",
+    "School",
+    "Organisation",
+    "Organization",
+    "Name",
+  ]);
+  const federationIndex = getFlexibleColumnIndex(headers, [
+    "FED",
+    "Federation",
+    "Province",
+    "Region",
+  ]);
+  const matchPointsIndex = getFlexibleColumnIndex(headers, [
+    "MP",
+    "Match Points",
+    "Pts",
+    "Pts.",
+    "Points",
+    "Score",
+  ]);
+  const boardPointsIndex = getFlexibleColumnIndex(headers, [
+    "BP",
+    "Board Points",
+    "Game Points",
+    "Board Pts",
+    "Board Pts.",
+  ]);
+  const tieBreakIndexes = findTieBreakIndexes(headers, [
+    rankIndex,
+    teamNameIndex,
+    federationIndex,
+    matchPointsIndex,
+    boardPointsIndex,
+  ]);
+
+  if (teamNameIndex === -1) {
+    throw new Error("Team results columns could not be mapped. Required: team name.");
+  }
+
+  return rows
+    .slice(headerRowIndex + 1)
+    .map((row) => {
+      const firstCell = String(row[0] ?? "").trim().toLowerCase();
+      const teamName = String(row[teamNameIndex] ?? "").trim();
+
+      if (!teamName || firstCell.startsWith("total")) return null;
+
+      const tieBreak = tieBreakIndexes
+        .map((index) => String(row[index] ?? "").trim())
+        .filter(Boolean)
+        .join(" / ");
+
+      return {
+        rank: rankIndex >= 0 ? toNumber(row[rankIndex]) : null,
+        team_name: teamName,
+        federation:
+          federationIndex >= 0 && row[federationIndex] !== ""
+            ? String(row[federationIndex]).trim()
+            : null,
+        match_points:
+          matchPointsIndex >= 0 ? toNumber(row[matchPointsIndex]) : null,
+        board_points:
+          boardPointsIndex >= 0 ? toNumber(row[boardPointsIndex]) : null,
+        tieBreak: tieBreak || null,
+        status: "Ready",
+        message: "Ready to import",
+      } as ImportedTeamStanding;
+    })
+    .filter(Boolean) as ImportedTeamStanding[];
+}
+
 export default function TournamentArchiveContinuationPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = String(params.id ?? "");
@@ -895,15 +1032,18 @@ export default function TournamentArchiveContinuationPage() {
   const [tournamentPlayers, setTournamentPlayers] = useState<SectionPlayer[]>([]);
   const [playerRows, setPlayerRows] = useState<ImportedPlayer[]>([]);
   const [rankingRows, setRankingRows] = useState<ImportedStanding[]>([]);
+  const [teamRows, setTeamRows] = useState<ImportedTeamStanding[]>([]);
 
   const [playerFileName, setPlayerFileName] = useState("");
   const [rankingFileName, setRankingFileName] = useState("");
+  const [teamFileName, setTeamFileName] = useState("");
   const [message, setMessage] = useState("");
   const [lastImportSummary, setLastImportSummary] = useState<ImportSummary | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [importingPlayers, setImportingPlayers] = useState(false);
   const [importingRankings, setImportingRankings] = useState(false);
+  const [importingTeamResults, setImportingTeamResults] = useState(false);
 
   async function loadArchiveData() {
     setLoading(true);
@@ -1094,6 +1234,14 @@ export default function TournamentArchiveContinuationPage() {
     };
   }, [rankingRows]);
 
+  const teamStats = useMemo(() => {
+    return {
+      rows: teamRows.length,
+      imported: teamRows.filter((row) => row.status === "Imported").length,
+      failed: teamRows.filter((row) => row.status === "Failed").length,
+    };
+  }, [teamRows]);
+
   const rankingMatchPlayers = useMemo(() => {
     const playersByRegistration = new Map<string, SectionPlayer>();
 
@@ -1174,6 +1322,36 @@ export default function TournamentArchiveContinuationPage() {
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Could not read ranking file."
+      );
+    }
+
+    event.target.value = "";
+  }
+
+  async function parseTeamFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!selectedSectionId) {
+      setMessage("Select a section first.");
+      event.target.value = "";
+      return;
+    }
+
+    setTeamFileName(file.name);
+    setTeamRows([]);
+    setLastImportSummary(null);
+    setMessage("Reading team standings file...");
+
+    try {
+      const rows = await readExcelRows(file);
+      const parsed = parseTeamStandingRows(rows);
+
+      setTeamRows(parsed);
+      setMessage(`Parsed ${parsed.length} team rows from ${file.name}.`);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Could not read team standings file."
       );
     }
 
@@ -1948,6 +2126,150 @@ export default function TournamentArchiveContinuationPage() {
     );
   }
 
+  async function importTeamResultsForSection() {
+    if (!tournament) {
+      setMessage("Completed tournament data not loaded.");
+      return;
+    }
+
+    if (!selectedSectionId) {
+      setMessage("Select a section first.");
+      return;
+    }
+
+    const rowsToImport = teamRows.filter((row) => row.team_name.trim());
+
+    if (rowsToImport.length === 0) {
+      setMessage("No team rows to import. Upload this section's Team Results file first.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Import ${rowsToImport.length} team result rows for this section? Existing team results for this section will be deleted first.`
+    );
+
+    if (!confirmed) return;
+
+    setImportingTeamResults(true);
+    setMessage("");
+
+    const { error: deleteError } = await supabase
+      .from("tournament_team_results")
+      .delete()
+      .eq("tournament_id", tournament.id)
+      .eq("section_id", selectedSectionId);
+
+    if (deleteError) {
+      setMessage(
+        `Could not clear old team results for this section: ${deleteError.message}. Run database/tournament_team_results_setup.sql if this is the first team-results import.`
+      );
+      setImportingTeamResults(false);
+      return;
+    }
+
+    const updatedRows: ImportedTeamStanding[] = [];
+
+    for (const row of teamRows) {
+      try {
+        const { error } = await supabase.from("tournament_team_results").insert({
+          tournament_id: tournament.id,
+          section_id: selectedSectionId,
+          final_position: row.rank,
+          team_name: row.team_name,
+          federation: row.federation,
+          match_points: row.match_points,
+          board_points: row.board_points,
+          tie_break: row.tieBreak,
+          notes: `Imported from team results file: ${teamFileName || "Swiss Manager file"}`,
+        });
+
+        if (error) throw error;
+
+        updatedRows.push({
+          ...row,
+          status: "Imported",
+          message: "Team result imported",
+        });
+      } catch (error) {
+        updatedRows.push({
+          ...row,
+          status: "Failed",
+          message:
+            error instanceof Error
+              ? error.message
+              : typeof error === "object"
+              ? JSON.stringify(error)
+              : "Unknown error",
+        });
+      }
+
+      setTeamRows([...updatedRows, ...teamRows.slice(updatedRows.length)]);
+    }
+
+    const importedCount = updatedRows.filter((row) => row.status === "Imported").length;
+    const failedCount = updatedRows.filter((row) => row.status === "Failed").length;
+
+    try {
+      const importSession = await createImportSession({
+        import_type: "Tournament Section Team Results",
+        source_page: `/admin/tournaments/${tournament.id}/archive`,
+        tournament_id: tournament.id,
+        file_name: teamFileName || null,
+        status: failedCount > 0 ? "Completed with errors" : "Completed",
+        total_rows: teamRows.length,
+        matched_rows: importedCount,
+        unmatched_rows: 0,
+        created_rows: importedCount,
+        updated_rows: 0,
+        skipped_rows: 0,
+        failed_rows: failedCount,
+        summary: {
+          section_id: selectedSectionId,
+          note: "Imported team standings into tournament_team_results for one section.",
+        },
+      });
+
+      await createImportSessionRows(
+        importSession.id,
+        updatedRows.map((row, index) => ({
+          row_number: index + 1,
+          imported_name: row.team_name,
+          matched_player_id: null,
+          matched_player_name: null,
+          confidence_score: row.status === "Imported" ? 100 : 0,
+          status: row.status,
+          message: row.message,
+          row_data: {
+            rank: row.rank,
+            team_name: row.team_name,
+            federation: row.federation,
+            match_points: row.match_points,
+            board_points: row.board_points,
+            tieBreak: row.tieBreak,
+            section_id: selectedSectionId,
+          },
+        }))
+      );
+    } catch (summaryError) {
+      console.error(summaryError);
+    }
+
+    setLastImportSummary({
+      total_rows: teamRows.length,
+      matched_rows: importedCount,
+      unmatched_rows: 0,
+      created_rows: importedCount,
+      updated_rows: 0,
+      skipped_rows: 0,
+      failed_rows: failedCount,
+      file_name: teamFileName || null,
+      status: failedCount > 0 ? "Completed with errors" : "Completed",
+    });
+
+    setImportingTeamResults(false);
+    setMessage("Team standings import completed.");
+  }
+
   if (loading) {
     return (
       <AdminGuard>
@@ -2024,6 +2346,7 @@ export default function TournamentArchiveContinuationPage() {
                     setSelectedSectionId(event.target.value);
                     setPlayerRows([]);
                     setRankingRows([]);
+                    setTeamRows([]);
                     setLastImportSummary(null);
                   }}
                   className={inputClass}
@@ -2224,6 +2547,80 @@ export default function TournamentArchiveContinuationPage() {
                 onAssign={assignRankingPlayer}
               />
             </section>
+          </section>
+
+          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                  Swiss team tiebreaks
+                </p>
+
+                <h2 className="mt-2 text-2xl font-black">Team standings</h2>
+
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
+                  Upload the team results for the selected section when the
+                  event uses Swiss system with team tiebreaks. This is separate
+                  from individual standings and does not create player records.
+                </p>
+              </div>
+
+              <span className="w-fit rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
+                {teamRows.length} rows
+              </span>
+            </div>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-[1fr_180px]">
+              <input
+                type="file"
+                accept=".xls,.xlsx,.csv"
+                onChange={parseTeamFile}
+                disabled={!selectedSectionId}
+                className="block w-full rounded-xl border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-red-600 file:px-4 file:py-2 file:font-semibold file:text-white disabled:opacity-60"
+              />
+
+              <button
+                type="button"
+                onClick={importTeamResultsForSection}
+                disabled={
+                  !selectedSectionId ||
+                  teamRows.length === 0 ||
+                  importingTeamResults
+                }
+                className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {importingTeamResults ? "Importing..." : "Import Teams"}
+              </button>
+            </div>
+
+            <div className="mt-6 grid grid-cols-3 gap-3">
+              <MiniStat label="Rows" value={teamStats.rows} />
+              <MiniStat
+                label="Imported"
+                value={teamStats.imported}
+                valueClass="text-green-300"
+              />
+              <MiniStat
+                label="Failed"
+                value={teamStats.failed}
+                valueClass="text-red-300"
+              />
+            </div>
+
+            <PreviewTable
+              emptyText="Upload the Team Results file only for Swiss system with team tiebreaks."
+              headers={["Rank", "Team", "FED", "Match pts", "Board pts", "Tie-break", "Status", "Message"]}
+              rows={teamRows.map((row) => [
+                row.rank ?? "-",
+                row.team_name,
+                row.federation ?? "-",
+                row.match_points ?? "-",
+                row.board_points ?? "-",
+                row.tieBreak ?? "-",
+                row.status,
+                row.message,
+              ])}
+            />
           </section>
 
           <div className="mt-8 flex flex-wrap gap-3">

@@ -82,6 +82,19 @@ type TournamentResult = {
   notes: string | null;
 };
 
+type TournamentTeamResult = {
+  id: string;
+  tournament_id: string;
+  section_id: string | null;
+  final_position: number | null;
+  team_name: string;
+  federation: string | null;
+  match_points: number | null;
+  board_points: number | null;
+  tie_break: string | null;
+  notes: string | null;
+};
+
 type ResultWithPlayer = TournamentResult & {
   player: Player | null;
   section: TournamentSection | null;
@@ -379,6 +392,7 @@ export default function TournamentHubPage() {
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
+  const [teamResults, setTeamResults] = useState<TournamentTeamResult[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<PublicRegistrationRow[]>([]);
   const [arbiter, setArbiter] = useState<Player | null>(null);
   const [officials, setOfficials] = useState<PublicOfficial[]>([]);
@@ -470,6 +484,21 @@ export default function TournamentHubPage() {
         .order("points", { ascending: false, nullsFirst: false });
 
       const resultRows = (resultData ?? []) as TournamentResult[];
+
+      let teamResultRows: TournamentTeamResult[] = [];
+      const { data: teamResultData, error: teamResultError } = await supabase
+        .from("tournament_team_results")
+        .select(
+          "id, tournament_id, section_id, final_position, team_name, federation, match_points, board_points, tie_break, notes"
+        )
+        .eq("tournament_id", tournamentId)
+        .order("section_id", { ascending: true, nullsFirst: true })
+        .order("final_position", { ascending: true, nullsFirst: false })
+        .order("match_points", { ascending: false, nullsFirst: false });
+
+      if (!teamResultError) {
+        teamResultRows = (teamResultData ?? []) as TournamentTeamResult[];
+      }
 
       const { data: registrationListData } = await supabase
         .from("public_tournament_registration_list")
@@ -617,6 +646,7 @@ export default function TournamentHubPage() {
       setStats((statsData ?? null) as TournamentStats | null);
       setGallery((galleryData ?? []) as unknown as GalleryImage[]);
       setResults(resultRowsWithPlayers);
+      setTeamResults(teamResultRows);
       setRegisteredPlayers(
         (registrationListData ?? []) as unknown as PublicRegistrationRow[]
       );
@@ -873,6 +903,7 @@ export default function TournamentHubPage() {
             isShere={isShere}
             sections={sections}
             results={results}
+            teamResults={teamResults}
           />
         )}
 
@@ -1581,11 +1612,13 @@ function ArchiveContent({
   isShere,
   sections,
   results,
+  teamResults,
 }: {
   tournament: Tournament;
   isShere: boolean;
   sections: TournamentSection[];
   results: ResultWithPlayer[];
+  teamResults: TournamentTeamResult[];
 }) {
   const upsets = results.filter((result) =>
     `${result.award_title ?? ""} ${result.notes ?? ""}`
@@ -1633,6 +1666,12 @@ function ArchiveContent({
 
       <FinalRankingTable
         results={results}
+        sections={sections}
+        chessResultsUrl={tournament.chess_results_url}
+      />
+
+      <TeamRankingTable
+        teamResults={teamResults}
         sections={sections}
         chessResultsUrl={tournament.chess_results_url}
       />
@@ -1918,6 +1957,189 @@ function FinalRankingTable({
                       target="_blank"
                       rel="noopener noreferrer"
                       className="font-bold text-red-300 transition hover:text-red-200"
+                    >
+                      View full list on Chess-Results.
+                    </a>
+                  ) : (
+                    "Full Chess-Results link will be added by the organiser."
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function sortTeamResults(sectionResults: TournamentTeamResult[]) {
+  return [...sectionResults].sort((a, b) => {
+    const aPosition = a.final_position ?? 999999;
+    const bPosition = b.final_position ?? 999999;
+
+    if (aPosition !== bPosition) return aPosition - bPosition;
+    return (b.match_points ?? 0) - (a.match_points ?? 0);
+  });
+}
+
+function groupTeamResultsBySection(
+  teamResults: TournamentTeamResult[],
+  sections: TournamentSection[]
+) {
+  if (sections.length > 0) {
+    return sections
+      .map((section) => ({
+        sectionId: section.id,
+        sectionName: section.section_name,
+        chessResultsUrl: section.chess_results_url,
+        results: sortTeamResults(
+          teamResults.filter((result) => result.section_id === section.id)
+        ),
+      }))
+      .filter((section) => section.results.length > 0);
+  }
+
+  return [
+    {
+      sectionId: "overall",
+      sectionName: "Overall",
+      chessResultsUrl: null,
+      results: sortTeamResults(teamResults),
+    },
+  ].filter((section) => section.results.length > 0);
+}
+
+function TeamRankingTable({
+  teamResults,
+  sections,
+  chessResultsUrl,
+}: {
+  teamResults: TournamentTeamResult[];
+  sections: TournamentSection[];
+  chessResultsUrl: string | null;
+}) {
+  const sectionEntries = groupTeamResultsBySection(teamResults, sections);
+
+  if (teamResults.length === 0 || sectionEntries.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Team Standings
+          </p>
+          <h2 className="mt-3 text-2xl font-black md:text-4xl">
+            Team top 10 by section
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-gray-400">
+            Team results are shown separately for Swiss system events with team
+            tiebreaks.
+          </p>
+        </div>
+
+        <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+          Swiss team tiebreaks
+        </span>
+      </div>
+
+      <div className="mt-8 grid gap-4 lg:grid-cols-3">
+        {sectionEntries.map((section) => {
+          const topResults = section.results.slice(0, 10);
+          const hiddenCount = Math.max(section.results.length - topResults.length, 0);
+          const sectionChessResultsUrl =
+            section.chessResultsUrl || chessResultsUrl;
+
+          return (
+            <div
+              key={`team-${section.sectionId}`}
+              className="overflow-hidden rounded-2xl border border-yellow-400/25 bg-zinc-950 shadow-[0_18px_45px_rgba(0,0,0,0.28)]"
+            >
+              <div className="h-1 bg-gradient-to-r from-yellow-400 via-red-600 to-yellow-400" />
+              <div className="border-b border-yellow-400/20 bg-black/45 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-yellow-200">
+                      Team section
+                    </p>
+                    <h3 className="mt-2 text-lg font-black text-white">
+                      {section.sectionName}
+                    </h3>
+                  </div>
+
+                  {sectionChessResultsUrl && (
+                    <a
+                      href={sectionChessResultsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="shrink-0 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-[11px] font-bold text-white transition hover:border-yellow-300"
+                    >
+                      Full results
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[320px] border-collapse text-left text-[11px] sm:text-xs">
+                  <thead className="bg-black/25 text-[10px] uppercase tracking-[0.14em] text-gray-500">
+                    <tr>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Rk</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Team</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">FED</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">MP</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">BP</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">TB</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {topResults.map((result, index) => {
+                      const position = result.final_position ?? index + 1;
+
+                      return (
+                        <tr
+                          key={result.id}
+                          className="transition hover:bg-white/[0.03]"
+                        >
+                          <td className="border border-white/10 px-2 py-3 font-black text-yellow-200 sm:px-3">
+                            {position}
+                          </td>
+                          <td className="border border-white/10 px-2 py-3 font-bold text-white sm:px-3">
+                            {result.team_name}
+                          </td>
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
+                            {result.federation ?? "-"}
+                          </td>
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
+                            {result.match_points ?? "-"}
+                          </td>
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
+                            {result.board_points ?? "-"}
+                          </td>
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
+                            {result.tie_break ?? "-"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {hiddenCount > 0 && (
+                <div className="border-t border-white/10 bg-black/25 p-4 text-xs text-gray-400">
+                  {hiddenCount} more team{hiddenCount === 1 ? "" : "s"} in
+                  this section.{" "}
+                  {sectionChessResultsUrl ? (
+                    <a
+                      href={sectionChessResultsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-bold text-yellow-200 transition hover:text-yellow-100"
                     >
                       View full list on Chess-Results.
                     </a>
