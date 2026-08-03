@@ -571,6 +571,11 @@ export default function AdminPlayersPage() {
     [displayedPlayers]
   );
 
+  const allInactivePlayers = useMemo(
+    () => playerRows.filter(isInactivePlayer),
+    [playerRows]
+  );
+
   const selectedInactivePlayers = useMemo(
     () =>
       playerRows.filter(
@@ -588,6 +593,10 @@ export default function AdminPlayersPage() {
     );
   }
 
+  function selectAllInactivePlayers() {
+    setSelectedInactiveIds(allInactivePlayers.map((player) => player.id));
+  }
+
   function selectVisibleInactivePlayers() {
     setSelectedInactiveIds((current) =>
       Array.from(
@@ -597,6 +606,15 @@ export default function AdminPlayersPage() {
         ])
       )
     );
+  }
+
+  function showAllInactivePlayers() {
+    setSearch("");
+    setGenderFilter("All");
+    setRatingFilter("All");
+    setActivityFilter("No activity");
+    setHealthFilter("All");
+    setVerificationView("All");
   }
 
   async function deleteSelectedInactivePlayers() {
@@ -888,13 +906,31 @@ export default function AdminPlayersPage() {
                     Bulk inactive cleanup
                   </p>
                   <p className="mt-1 text-xs leading-5 text-red-50/70">
-                    {visibleInactivePlayers.length} inactive record
-                    {visibleInactivePlayers.length === 1 ? "" : "s"} in this
-                    view. {selectedInactivePlayers.length} selected for delete.
+                    {allInactivePlayers.length} inactive record
+                    {allInactivePlayers.length === 1 ? "" : "s"} in the Player
+                    Centre. {visibleInactivePlayers.length} shown after the
+                    current filters. {selectedInactivePlayers.length} selected
+                    for delete.
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={showAllInactivePlayers}
+                    disabled={allInactivePlayers.length === 0 || bulkDeleting}
+                    className="rounded-lg border border-red-300/30 px-4 py-2 text-xs font-black text-red-50 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Show all inactive
+                  </button>
+                  <button
+                    type="button"
+                    onClick={selectAllInactivePlayers}
+                    disabled={allInactivePlayers.length === 0 || bulkDeleting}
+                    className="rounded-lg border border-red-300/30 px-4 py-2 text-xs font-black text-red-50 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Select all inactive
+                  </button>
                   <button
                     type="button"
                     onClick={selectVisibleInactivePlayers}
