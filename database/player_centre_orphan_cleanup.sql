@@ -1276,34 +1276,31 @@ $$;
 grant execute on function public.preview_player_centre_orphan_cleanup_sample(integer)
 to authenticated;
 
--- Preview first. Check the list before deleting.
-select * from public.preview_player_centre_orphan_cleanup();
+-- Install complete. The heavy cleanup preview is intentionally not run here,
+-- because Supabase can time out when the full script ends with a large query.
+select
+  'Player Centre cleanup helpers installed. Run the summary and sample checks separately before deleting.' as status;
 
--- Optional audit: players with no linked player_id result, but a similar name
--- appears in an imported final ranking. These are not protected from cleanup
--- unless the final ranking is linked by player_id.
-select distinct
-  players.id,
-  players.full_name,
-  players.chess_sa_id,
-  players.pcc_id,
-  players.rating,
-  players.club,
-  players.province,
-  results.imported_name as matched_final_ranking_name,
-  results.tournament_id
-from public.players players
-join public.tournament_results results
-  on results.player_id is null
- and results.imported_name is not null
- and public.player_centre_cleanup_name_key(results.imported_name) =
-   public.player_centre_cleanup_name_key(players.full_name)
-where not exists (
-  select 1
-  from public.tournament_results linked_results
-  where linked_results.player_id = players.id
-)
-order by players.full_name;
+-- Safe checks to run separately after installation:
+-- select * from public.preview_player_centre_orphan_cleanup_summary();
+-- select * from public.preview_player_centre_orphan_cleanup_sample(50);
 
--- Delete only after the preview list is correct.
--- select * from public.delete_player_centre_orphan_cleanup();
+-- Create a saved cleanup request from the current Supabase cleanup preview:
+-- select *
+-- from public.create_player_centre_cleanup_request(
+--   array(
+--     select id
+--     from public.preview_player_centre_orphan_cleanup()
+--   )
+-- );
+
+-- Review a saved request before deleting:
+-- select action, count(*) as records
+-- from public.player_centre_cleanup_request_rows
+-- where request_id = 'PASTE_REQUEST_ID_HERE'::uuid
+-- group by action
+-- order by action;
+
+-- Delete only after the summary/sample/request list is correct:
+-- select *
+-- from public.delete_player_centre_cleanup_request_summary('PASTE_REQUEST_ID_HERE'::uuid);
