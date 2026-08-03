@@ -35,10 +35,22 @@ function getCategoryIcon(category: string | null) {
   return "News";
 }
 
+function renderTextWithLineBreaks(text: string) {
+  return text.split("\n").map((line, index) => (
+    <span key={`${line}-${index}`}>
+      {index > 0 && <br />}
+      {line}
+    </span>
+  ));
+}
+
 function renderArticleContent(content: string | null) {
   if (!content) return null;
 
-  const blocks = content.split("\n\n").filter((block) => block.trim());
+  const normalizedContent = content.replace(/\r\n?/g, "\n");
+  const blocks = normalizedContent
+    .split(/\n{2,}/)
+    .filter((block) => block.trim());
 
   return blocks.map((block, index) => {
     const text = block.trim();
@@ -71,7 +83,7 @@ function renderArticleContent(content: string | null) {
           key={index}
           className="my-8 rounded-2xl border-l-4 border-red-500 bg-red-500/10 p-5 text-lg font-semibold leading-8 text-red-100"
         >
-          {text.replace("> ", "")}
+          {renderTextWithLineBreaks(text.replace("> ", ""))}
         </blockquote>
       );
     }
@@ -145,7 +157,7 @@ function renderArticleContent(content: string | null) {
         key={index}
         className="text-base leading-8 text-gray-300 md:text-lg md:leading-9"
       >
-        {text}
+        {renderTextWithLineBreaks(text)}
       </p>
     );
   });

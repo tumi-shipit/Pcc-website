@@ -12,9 +12,12 @@ import { supabase } from "@/lib/supabase";
 type Tournament = {
   id: string;
   tournament_name: string;
+  organiser_name: string | null;
   start_date: string;
   venue: string | null;
   registration_status: string | null;
+  tournament_report: string | null;
+  chess_results_url: string | null;
 };
 
 type Section = {
@@ -57,6 +60,13 @@ type ImportedStanding = {
   matchedRegistrationId: string | null;
   matchedSectionId: string | null;
   matchedSectionName: string | null;
+  roundResults: {
+    roundNumber: number;
+    opponentRank: number;
+    color: string;
+    result: "win" | "loss" | "draw";
+  }[];
+  upsetNotes: string[];
   status: "Ready" | "Imported" | "Failed" | "Unmatched";
   message: string;
 };
@@ -93,8 +103,49 @@ type ImportSummary = {
   status: string;
 };
 
+type ReportResultRow = {
+  id: string;
+  section_id: string | null;
+  final_position: number | null;
+  imported_name: string | null;
+  imported_rating: number | null;
+  points: number | null;
+  award_title: string | null;
+  notes: string | null;
+  players:
+    | { full_name: string | null; rating: number | null }
+    | { full_name: string | null; rating: number | null }[]
+    | null;
+};
+
+type ReportTeamResultRow = {
+  id: string;
+  section_id: string | null;
+  final_position: number | null;
+  team_name: string;
+  match_points: number | null;
+  board_points: number | null;
+  tie_break: string | null;
+};
+
+type ReportOfficialRow = {
+  role: string;
+  full_name: string | null;
+  title: string | null;
+};
+
+type ReportOrganisationRow = {
+  role: string | null;
+  organisation_id: string;
+  representative_member_id: string | null;
+  representative_name: string | null;
+  organisation_name: string | null;
+  representative_full_name: string | null;
+};
+
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+const UPSET_RATING_DIFFERENCE = 200;
 
 function normalizeName(value: string) {
   return value
@@ -209,6 +260,31 @@ function formatDateParts(year: number, month: number, day: number) {
     String(month).padStart(2, "0"),
     String(day).padStart(2, "0"),
   ].join("-");
+}
+
+function formatReportDate(date: string | null) {
+  if (!date) return "the confirmed tournament date";
+
+  return new Intl.DateTimeFormat("en-ZA", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Africa/Johannesburg",
+  }).format(new Date(`${date}T12:00:00+02:00`));
+}
+
+function compactList(values: (string | null | undefined)[]) {
+  return values
+    .map((value) => String(value ?? "").trim())
+    .filter(Boolean);
+}
+
+function sentenceList(values: string[]) {
+  if (values.length === 0) return "";
+  if (values.length === 1) return values[0];
+  if (values.length === 2) return `${values[0]} and ${values[1]}`;
+
+  return `${values.slice(0, -1).join(", ")} and ${values[values.length - 1]}`;
 }
 
 function normalizeImportedDate(value: unknown) {
@@ -435,6 +511,76 @@ function findTieBreakIndex(headers: string[]) {
       normalized === "tb1" ||
       normalized === "tb2"
     );
+  });
+}
+
+function findRoundColumnIndexes(headers: string[]) {
+  return headers
+    .map((header, index) => {
+      const normalized = normalizeHeaderName(header);
+      const roundMatch =
+        normalized.match(/^(\d+)rd$/) ??
+        normalized.match(/^round(\d+)$/) ??
+        normalized.match(/^rd(\d+)$/);
+
+      return roundMatch
+        ? { index, roundNumber: Number(roundMatch[1]) }
+        : null;
+    })
+    .filter(Boolean) as { index: number; roundNumber: number }[];
+}
+
+function parseRoundResult(value: unknown, roundNumber: number) {
+  const text = String(value ?? "").trim().replace(/\s+/g, "");
+  if (!text) return null;
+
+  const match = text.match(/^(\d+)([wb])?([10+\-=½])$/i);
+  if (!match) return null;
+
+  const resultCode = match[3];
+  const result =
+    resultCode === "1" || resultCode === "+"
+      ? "win"
+      : resultCode === "0" || resultCode === "-"
+      ? "loss"
+      : "draw";
+
+  return {
+    roundNumber,
+    opponentRank: Number(match[1]),
+    color: match[2]?.toLowerCase() === "b" ? "Black" : "White",
+    result,
+  };
+}
+
+function withUpsetNotes(rows: ImportedStanding[]) {
+  const rowsByRank = new Map<number, ImportedStanding>();
+
+  rows.forEach((row) => {
+    if (row.rank !== null) rowsByRank.set(row.rank, row);
+  });
+
+  return rows.map((row) => {
+    if (!row.rating || row.rating <= 0) return row;
+
+    const playerRating = row.rating;
+    const upsetNotes = row.upsetNotes.filter(Boolean);
+
+    row.roundResults.forEach((roundResult) => {
+      if (roundResult.result !== "win") return;
+
+      const opponent = rowsByRank.get(roundResult.opponentRank);
+      if (!opponent?.rating || opponent.rating <= 0) return;
+
+      const ratingGap = opponent.rating - playerRating;
+      if (ratingGap < UPSET_RATING_DIFFERENCE) return;
+
+      upsetNotes.push(
+        `Upset: Round ${roundResult.roundNumber}, ${row.name} (${playerRating}) beat ${opponent.name} (${opponent.rating}) as ${roundResult.color}, a ${ratingGap}-point rating gap.`
+      );
+    });
+
+    return { ...row, upsetNotes };
   });
 }
 
@@ -863,6 +1009,7 @@ function parseFinalRankingRows(
   ]);
 
   const tieBreakIndex = findTieBreakIndex(headers);
+  const roundColumnIndexes = findRoundColumnIndexes(headers);
 
   if (rankIndex === -1 || nameIndex === -1 || pointsIndex === -1) {
     throw new Error(
@@ -870,7 +1017,7 @@ function parseFinalRankingRows(
     );
   }
 
-  return rows
+  const parsedRows = rows
     .slice(headerRowIndex + 1)
     .map((row) => {
       const name = String(row[nameIndex] ?? "").trim();
@@ -905,11 +1052,17 @@ function parseFinalRankingRows(
           tieBreakIndex >= 0 && row[tieBreakIndex] !== ""
             ? String(row[tieBreakIndex]).trim()
             : null,
+        roundResults: roundColumnIndexes
+          .map((roundColumn) =>
+            parseRoundResult(row[roundColumn.index], roundColumn.roundNumber)
+          )
+          .filter(Boolean),
         player_id: matchedPlayer?.player_id ?? null,
         matchedPlayerName: matchedPlayer?.full_name ?? null,
         matchedRegistrationId: matchedPlayer?.registration_id ?? null,
         matchedSectionId: matchedPlayer?.section_id ?? null,
         matchedSectionName: matchedPlayer?.section_name ?? null,
+        upsetNotes: [],
         status: matchedPlayer?.player_id ? "Ready" : "Unmatched",
         message:
           matchedPlayer?.reason ??
@@ -917,6 +1070,8 @@ function parseFinalRankingRows(
       } as ImportedStanding;
     })
     .filter(Boolean) as ImportedStanding[];
+
+  return withUpsetNotes(parsedRows);
 }
 
 function parseTeamStandingRows(rows: unknown[][]) {
@@ -1062,6 +1217,240 @@ function parseHeaderlessChessResultsTeamRows(rows: unknown[][]) {
   return parsed;
 }
 
+function reportResultName(result: ReportResultRow) {
+  const player = Array.isArray(result.players)
+    ? result.players[0] ?? null
+    : result.players;
+
+  return player?.full_name ?? result.imported_name ?? "Unnamed player";
+}
+
+function reportResultRating(result: ReportResultRow) {
+  const player = Array.isArray(result.players)
+    ? result.players[0] ?? null
+    : result.players;
+
+  return player?.rating ?? result.imported_rating ?? null;
+}
+
+function sectionNameForReport(sectionId: string | null, sections: Section[]) {
+  return (
+    sections.find((section) => section.id === sectionId)?.section_name ??
+    "Overall"
+  );
+}
+
+function sortReportResults(results: ReportResultRow[]) {
+  return [...results].sort((first, second) => {
+    const firstPosition = first.final_position ?? 999999;
+    const secondPosition = second.final_position ?? 999999;
+
+    if (firstPosition !== secondPosition) return firstPosition - secondPosition;
+    return (second.points ?? 0) - (first.points ?? 0);
+  });
+}
+
+function buildSectionReportLines(
+  results: ReportResultRow[],
+  sections: Section[]
+) {
+  const sectionIds =
+    sections.length > 0
+      ? sections.map((section) => section.id)
+      : Array.from(new Set(results.map((result) => result.section_id ?? "overall")));
+
+  return sectionIds
+    .map((sectionId) => {
+      const sectionResults = sortReportResults(
+        results.filter((result) =>
+          sectionId === "overall"
+            ? result.section_id === null
+            : result.section_id === sectionId
+        )
+      ).slice(0, 3);
+
+      if (sectionResults.length === 0) return null;
+
+      const sectionName = sectionNameForReport(
+        sectionId === "overall" ? null : sectionId,
+        sections
+      );
+      const winner = sectionResults[0];
+      const winnerText = `${reportResultName(winner)}${
+        winner.points !== null ? ` on ${winner.points} points` : ""
+      }`;
+      const podium = sectionResults
+        .slice(1)
+        .map((result, index) => {
+          const place = index === 0 ? "second" : "third";
+          return `${reportResultName(result)} finished ${place}${
+            result.points !== null ? ` with ${result.points} points` : ""
+          }`;
+        })
+        .join(", ");
+
+      return podium
+        ? `In the ${sectionName} section, ${winnerText} took first place, while ${podium}.`
+        : `In the ${sectionName} section, ${winnerText} took first place.`;
+    })
+    .filter(Boolean) as string[];
+}
+
+function buildTeamReportLines(
+  teamResults: ReportTeamResultRow[],
+  sections: Section[]
+) {
+  const sectionIds = Array.from(
+    new Set(teamResults.map((result) => result.section_id ?? "overall"))
+  );
+
+  return sectionIds
+    .map((sectionId) => {
+      const topTeams = [...teamResults]
+        .filter((result) =>
+          sectionId === "overall"
+            ? result.section_id === null
+            : result.section_id === sectionId
+        )
+        .sort((first, second) => {
+          const firstPosition = first.final_position ?? 999999;
+          const secondPosition = second.final_position ?? 999999;
+
+          if (firstPosition !== secondPosition) {
+            return firstPosition - secondPosition;
+          }
+
+          return (second.match_points ?? 0) - (first.match_points ?? 0);
+        })
+        .slice(0, 3);
+
+      if (topTeams.length === 0) return null;
+
+      const sectionName = sectionNameForReport(
+        sectionId === "overall" ? null : sectionId,
+        sections
+      );
+      const topTeam = topTeams[0];
+      const otherTeams = topTeams
+        .slice(1)
+        .map((team) => team.team_name)
+        .join(", ");
+
+      return otherTeams
+        ? `In the team standings for ${sectionName}, ${topTeam.team_name} led the section${
+            topTeam.match_points !== null ? ` with ${topTeam.match_points} points` : ""
+          }, followed by ${otherTeams}.`
+        : `In the team standings for ${sectionName}, ${topTeam.team_name} led the section${
+            topTeam.match_points !== null ? ` with ${topTeam.match_points} points` : ""
+          }.`;
+    })
+    .filter(Boolean) as string[];
+}
+
+function buildOrganisationLine(rows: ReportOrganisationRow[]) {
+  const organisations = compactList(
+    rows.map((row) => {
+      const representativeName =
+        row.representative_full_name ?? row.representative_name ?? null;
+
+      if (!row.organisation_name) return representativeName;
+
+      return representativeName
+        ? `${row.organisation_name}, represented by ${representativeName}`
+        : row.organisation_name;
+    })
+  );
+
+  return organisations.length > 0
+    ? `The event was delivered with support from ${sentenceList(organisations)}.`
+    : "";
+}
+
+function buildOfficialsLine(rows: ReportOfficialRow[]) {
+  const officials = compactList(
+    rows.map((row) => {
+      if (!row.full_name) return null;
+      return `${row.role}: ${row.title ? `${row.title} ` : ""}${row.full_name}`;
+    })
+  ).slice(0, 6);
+
+  return officials.length > 0
+    ? `The tournament team included ${sentenceList(officials)}.`
+    : "";
+}
+
+function buildUpsetLines(results: ReportResultRow[]) {
+  return results
+    .flatMap((result) =>
+      String(result.notes ?? "")
+        .split("\n")
+        .map((note) => note.trim())
+        .filter((note) => note.toLowerCase().includes("upset"))
+    )
+    .slice(0, 5);
+}
+
+function buildTournamentReportDraft({
+  tournament,
+  sections,
+  results,
+  teamResults,
+  officials,
+  organisations,
+  registrationCount,
+}: {
+  tournament: Tournament;
+  sections: Section[];
+  results: ReportResultRow[];
+  teamResults: ReportTeamResultRow[];
+  officials: ReportOfficialRow[];
+  organisations: ReportOrganisationRow[];
+  registrationCount: number | null;
+}) {
+  const playedCount = results.length;
+  const sectionCount = sections.length;
+  const reportDate = formatReportDate(tournament.start_date);
+  const venue = tournament.venue ?? "the confirmed venue";
+  const introParts = [
+    `${tournament.tournament_name} was held on ${reportDate} at ${venue}.`,
+    playedCount > 0
+      ? `The event brought together ${playedCount} player${
+          playedCount === 1 ? "" : "s"
+        } across ${sectionCount || 1} section${sectionCount === 1 ? "" : "s"}.`
+      : `The event report is being prepared from the completed tournament records.`,
+    registrationCount !== null && registrationCount !== playedCount
+      ? `${registrationCount} registration${
+          registrationCount === 1 ? "" : "s"
+        } were recorded on the platform.`
+      : "",
+  ];
+  const sectionLines = buildSectionReportLines(results, sections);
+  const teamLines = buildTeamReportLines(teamResults, sections);
+  const upsetLines = buildUpsetLines(results);
+  const organisationLine = buildOrganisationLine(organisations);
+  const officialsLine = buildOfficialsLine(officials);
+  const chessResultsLine = tournament.chess_results_url
+    ? `The full tournament results are available on Chess-Results: ${tournament.chess_results_url}`
+    : "";
+
+  return [
+    compactList(introParts).join(" "),
+    organisationLine,
+    officialsLine,
+    sectionLines.length > 0 ? sectionLines.join("\n") : "",
+    teamLines.length > 0 ? teamLines.join("\n") : "",
+    upsetLines.length > 0
+      ? `Notable upset highlights included:\n${upsetLines
+          .map((line) => `- ${line.replace(/^Upset:\s*/i, "")}`)
+          .join("\n")}`
+      : "",
+    chessResultsLine,
+    `Polokwane Chess Club thanks all players, parents, coaches, officials and organisers who contributed to the success of the event.`,
+  ]
+    .filter((paragraph) => paragraph.trim())
+    .join("\n\n");
+}
+
 export default function TournamentArchiveContinuationPage() {
   const params = useParams<{ id: string }>();
   const tournamentId = String(params.id ?? "");
@@ -1080,12 +1469,15 @@ export default function TournamentArchiveContinuationPage() {
   const [rankingFileName, setRankingFileName] = useState("");
   const [teamFileName, setTeamFileName] = useState("");
   const [message, setMessage] = useState("");
+  const [reportText, setReportText] = useState("");
   const [lastImportSummary, setLastImportSummary] = useState<ImportSummary | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [importingPlayers, setImportingPlayers] = useState(false);
   const [importingRankings, setImportingRankings] = useState(false);
   const [importingTeamResults, setImportingTeamResults] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [savingReport, setSavingReport] = useState(false);
 
   async function loadArchiveData() {
     setLoading(true);
@@ -1093,7 +1485,7 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
-      .select("id, tournament_name, start_date, venue, registration_status")
+      .select("id, tournament_name, organiser_name, start_date, venue, registration_status, tournament_report, chess_results_url")
       .eq("id", tournamentId)
       .single();
 
@@ -1126,7 +1518,10 @@ export default function TournamentArchiveContinuationPage() {
       (section) => section.id === requestedSectionId
     );
 
-    setTournament(tournamentData as Tournament);
+    const loadedTournament = tournamentData as Tournament;
+
+    setTournament(loadedTournament);
+    setReportText(loadedTournament.tournament_report ?? "");
     setSections(loadedSections);
     setSelectedSectionId((current) =>
       current ||
@@ -1355,11 +1750,17 @@ export default function TournamentArchiveContinuationPage() {
 
       const matched = parsed.filter((row) => row.player_id).length;
       const unmatched = parsed.length - matched;
+      const upsetCount = parsed.reduce(
+        (count, row) => count + row.upsetNotes.length,
+        0
+      );
 
       setMessage(
         `Parsed ${parsed.length} ranking rows from ${file.name}. ${matched} matched from registered tournament players${
           playerRows.length > 0 ? " and the optional player list" : ""
-        }, ${unmatched} need review.`
+        }, ${unmatched} need review. ${upsetCount} automatic upset${
+          upsetCount === 1 ? "" : "s"
+        } detected.`
       );
     } catch (error) {
       setMessage(
@@ -2029,6 +2430,12 @@ export default function TournamentArchiveContinuationPage() {
           playerId
         );
 
+        const importNote = `Imported from section final ranking list: ${
+          rankingFileName || "Swiss Manager file"
+        }`;
+        const resultNotes =
+          row.upsetNotes.length > 0 ? row.upsetNotes.join("\n") : importNote;
+
         const { error } = await supabase.from("tournament_results").insert({
           tournament_id: tournament.id,
           player_id: playerId,
@@ -2047,9 +2454,7 @@ export default function TournamentArchiveContinuationPage() {
               : row.rank === 3
               ? "Third Place"
               : null,
-          notes: `Imported from section final ranking list: ${
-            rankingFileName || "Swiss Manager file"
-          }`,
+          notes: resultNotes,
         });
 
         if (error) throw error;
@@ -2133,6 +2538,7 @@ export default function TournamentArchiveContinuationPage() {
             chess_sa_id: row.chess_sa_id,
             points: row.points,
             tieBreak: row.tieBreak,
+            upset_notes: row.upsetNotes,
             section_id: selectedSectionId,
             matched_registration_id: row.matchedRegistrationId,
             matched_section_id: row.matchedSectionId,
@@ -2312,6 +2718,181 @@ export default function TournamentArchiveContinuationPage() {
     setMessage("Team standings import completed.");
   }
 
+  async function generateReportDraft() {
+    if (!tournament) {
+      setMessage("Completed tournament data not loaded.");
+      return;
+    }
+
+    if (
+      reportText.trim() &&
+      !window.confirm("Replace the current report text with a generated draft?")
+    ) {
+      return;
+    }
+
+    setGeneratingReport(true);
+    setMessage("Generating tournament report draft...");
+
+    try {
+      const [
+        resultResponse,
+        registrationResponse,
+        officialResponse,
+        assignmentResponse,
+        teamResultResponse,
+      ] = await Promise.all([
+        supabase
+          .from("tournament_results")
+          .select(
+            "id, section_id, final_position, imported_name, imported_rating, points, award_title, notes, players(full_name, rating)"
+          )
+          .eq("tournament_id", tournament.id)
+          .order("section_id", { ascending: true, nullsFirst: true })
+          .order("final_position", { ascending: true, nullsFirst: false }),
+        supabase
+          .from("registrations")
+          .select("id", { count: "exact", head: true })
+          .eq("tournament_id", tournament.id),
+        supabase
+          .from("public_tournament_role_profiles")
+          .select("role, full_name, title")
+          .eq("tournament_id", tournament.id)
+          .order("role_group", { ascending: true })
+          .order("role", { ascending: true }),
+        supabase
+          .from("tournament_organisations")
+          .select(
+            "role, organisation_id, representative_member_id, representative_name"
+          )
+          .eq("tournament_id", tournament.id)
+          .order("display_order", { ascending: true, nullsFirst: false }),
+        supabase
+          .from("tournament_team_results")
+          .select(
+            "id, section_id, final_position, team_name, match_points, board_points, tie_break"
+          )
+          .eq("tournament_id", tournament.id)
+          .order("section_id", { ascending: true, nullsFirst: true })
+          .order("final_position", { ascending: true, nullsFirst: false }),
+      ]);
+
+      if (resultResponse.error) throw resultResponse.error;
+      if (assignmentResponse.error) throw assignmentResponse.error;
+
+      const assignments = (assignmentResponse.data ?? []) as {
+        role: string | null;
+        organisation_id: string;
+        representative_member_id: string | null;
+        representative_name: string | null;
+      }[];
+      const organisationIds = Array.from(
+        new Set(assignments.map((assignment) => assignment.organisation_id))
+      );
+      const memberIds = Array.from(
+        new Set(
+          assignments
+            .map((assignment) => assignment.representative_member_id)
+            .filter(Boolean)
+        )
+      ) as string[];
+      const [organisationDataResponse, memberDataResponse] = await Promise.all([
+        organisationIds.length > 0
+          ? supabase
+              .from("organisations")
+              .select("id, name")
+              .in("id", organisationIds)
+          : Promise.resolve({ data: [], error: null }),
+        memberIds.length > 0
+          ? supabase
+              .from("organisation_committee_members")
+              .select("id, full_name")
+              .in("id", memberIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (organisationDataResponse.error) throw organisationDataResponse.error;
+      if (memberDataResponse.error) throw memberDataResponse.error;
+
+      const organisations = (organisationDataResponse.data ?? []) as {
+        id: string;
+        name: string | null;
+      }[];
+      const members = (memberDataResponse.data ?? []) as {
+        id: string;
+        full_name: string | null;
+      }[];
+      const reportOrganisations: ReportOrganisationRow[] = assignments.map(
+        (assignment) => ({
+          ...assignment,
+          organisation_name:
+            organisations.find(
+              (organisation) => organisation.id === assignment.organisation_id
+            )?.name ?? null,
+          representative_full_name:
+            members.find(
+              (member) => member.id === assignment.representative_member_id
+            )?.full_name ?? null,
+        })
+      );
+
+      const draft = buildTournamentReportDraft({
+        tournament,
+        sections,
+        results: (resultResponse.data ?? []) as unknown as ReportResultRow[],
+        teamResults: teamResultResponse.error
+          ? []
+          : ((teamResultResponse.data ?? []) as unknown as ReportTeamResultRow[]),
+        officials: officialResponse.error
+          ? []
+          : ((officialResponse.data ?? []) as unknown as ReportOfficialRow[]),
+        organisations: reportOrganisations,
+        registrationCount: registrationResponse.count ?? null,
+      });
+
+      setReportText(draft);
+      setMessage("Tournament report draft generated. Review and edit it before saving.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? `Could not generate report: ${error.message}`
+          : "Could not generate report."
+      );
+    }
+
+    setGeneratingReport(false);
+  }
+
+  async function saveTournamentReport() {
+    if (!tournament) {
+      setMessage("Completed tournament data not loaded.");
+      return;
+    }
+
+    setSavingReport(true);
+    setMessage("Saving tournament report...");
+
+    const { error } = await supabase
+      .from("tournaments")
+      .update({
+        tournament_report: reportText.trim() || null,
+      })
+      .eq("id", tournament.id);
+
+    if (error) {
+      setMessage(`Could not save tournament report: ${error.message}`);
+      setSavingReport(false);
+      return;
+    }
+
+    setTournament({
+      ...tournament,
+      tournament_report: reportText.trim() || null,
+    });
+    setSavingReport(false);
+    setMessage("Tournament report saved.");
+  }
+
   if (loading) {
     return (
       <AdminGuard>
@@ -2374,6 +2955,55 @@ export default function TournamentArchiveContinuationPage() {
           )}
 
           <AdminImportSummaryPanel summary={lastImportSummary} />
+
+          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                  Tournament report
+                </p>
+                <h2 className="mt-2 text-2xl font-black">Auto draft report</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
+                  Generate an editable report from imported final rankings,
+                  team standings, upsets, organisers and officials. Review the
+                  text before saving it to the public tournament page.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={generateReportDraft}
+                  disabled={generatingReport || savingReport}
+                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500 disabled:opacity-60"
+                >
+                  {generatingReport ? "Generating..." : "Generate Draft"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={saveTournamentReport}
+                  disabled={generatingReport || savingReport}
+                  className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+                >
+                  {savingReport ? "Saving..." : "Save Report"}
+                </button>
+              </div>
+            </div>
+
+            <textarea
+              value={reportText}
+              onChange={(event) => setReportText(event.target.value)}
+              rows={12}
+              className={`${inputClass} mt-6 leading-7`}
+              placeholder="Generate a draft or write the public tournament report here..."
+            />
+
+            <p className="mt-3 text-xs leading-5 text-gray-500">
+              Saving updates the same public tournament report shown on the
+              completed tournament page.
+            </p>
+          </section>
 
           <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
             <div className="grid gap-4 md:grid-cols-[1fr_220px]">
@@ -2722,7 +3352,7 @@ function RankingReviewTable({
 
   return (
     <div className="mt-6 max-h-[520px] overflow-auto rounded-2xl border border-white/10">
-      <table className="w-full min-w-[1150px] text-left text-sm">
+      <table className="w-full min-w-[1350px] text-left text-sm">
         <thead className="sticky top-0 bg-zinc-950 text-xs uppercase tracking-wide text-gray-500">
           <tr>
             <th className="p-3">Rank</th>
@@ -2735,6 +3365,7 @@ function RankingReviewTable({
             <th className="p-3">Registered section</th>
             <th className="p-3">Points</th>
             <th className="p-3">Tie-break</th>
+            <th className="p-3">Auto upsets</th>
             <th className="p-3">Status</th>
             <th className="p-3">Reason</th>
           </tr>
@@ -2776,6 +3407,9 @@ function RankingReviewTable({
               </td>
               <td className="p-3 text-gray-300">{row.points ?? "-"}</td>
               <td className="p-3 text-gray-300">{row.tieBreak ?? "-"}</td>
+              <td className="max-w-[320px] p-3 text-xs text-yellow-200">
+                {row.upsetNotes.length > 0 ? row.upsetNotes.join(" ") : "-"}
+              </td>
               <td className="p-3">
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${
