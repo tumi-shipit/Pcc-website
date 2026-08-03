@@ -200,6 +200,8 @@ export default function AdminPlayersPage() {
   const [activityFilter, setActivityFilter] = useState<ActivityFilter>("All");
   const [healthFilter, setHealthFilter] = useState("All");
   const [verificationView, setVerificationView] = useState("Unverified");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [currentRole, setCurrentRole] = useState<string | null>(null);
@@ -562,9 +564,15 @@ export default function AdminPlayersPage() {
     verificationView,
   ]);
 
-  const displayedPlayers = useMemo(() => filteredPlayers.slice(0, 500), [
-    filteredPlayers,
-  ]);
+  const totalPages = Math.max(1, Math.ceil(filteredPlayers.length / pageSize));
+  const activePage = Math.min(currentPage, totalPages);
+  const pageStart = (activePage - 1) * pageSize;
+  const pageEnd = Math.min(pageStart + pageSize, filteredPlayers.length);
+
+  const displayedPlayers = useMemo(
+    () => filteredPlayers.slice(pageStart, pageEnd),
+    [filteredPlayers, pageEnd, pageStart]
+  );
 
   const visibleInactivePlayers = useMemo(
     () => displayedPlayers.filter(isInactivePlayer),
@@ -615,6 +623,7 @@ export default function AdminPlayersPage() {
     setActivityFilter("No activity");
     setHealthFilter("All");
     setVerificationView("All");
+    setCurrentPage(1);
   }
 
   async function deleteSelectedInactivePlayers() {
@@ -818,7 +827,10 @@ export default function AdminPlayersPage() {
                 <button
                   key={view}
                   type="button"
-                  onClick={() => setVerificationView(view)}
+                  onClick={() => {
+                    setVerificationView(view);
+                    setCurrentPage(1);
+                  }}
                   className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
                     verificationView === view
                       ? "bg-red-600 text-white"
@@ -833,14 +845,20 @@ export default function AdminPlayersPage() {
             <div className="grid gap-3 lg:grid-cols-[1fr_150px_160px_210px_160px]">
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="Search name, ID, tournament, section, club, province, email or phone..."
                 className={inputClass}
               />
 
               <select
                 value={genderFilter}
-                onChange={(event) => setGenderFilter(event.target.value)}
+                onChange={(event) => {
+                  setGenderFilter(event.target.value);
+                  setCurrentPage(1);
+                }}
                 className={inputClass}
               >
                 <option value="All">All genders</option>
@@ -852,7 +870,10 @@ export default function AdminPlayersPage() {
 
               <select
                 value={ratingFilter}
-                onChange={(event) => setRatingFilter(event.target.value)}
+                onChange={(event) => {
+                  setRatingFilter(event.target.value);
+                  setCurrentPage(1);
+                }}
                 className={inputClass}
               >
                 <option value="All">All players</option>
@@ -863,9 +884,10 @@ export default function AdminPlayersPage() {
 
               <select
                 value={activityFilter}
-                onChange={(event) =>
-                  setActivityFilter(event.target.value as ActivityFilter)
-                }
+                onChange={(event) => {
+                  setActivityFilter(event.target.value as ActivityFilter);
+                  setCurrentPage(1);
+                }}
                 className={inputClass}
               >
                 <option value="All">All activity</option>
@@ -879,7 +901,10 @@ export default function AdminPlayersPage() {
 
               <select
                 value={healthFilter}
-                onChange={(event) => setHealthFilter(event.target.value)}
+                onChange={(event) => {
+                  setHealthFilter(event.target.value);
+                  setCurrentPage(1);
+                }}
                 className={inputClass}
               >
                 <option value="All">All statuses</option>
@@ -889,13 +914,33 @@ export default function AdminPlayersPage() {
               </select>
             </div>
 
-            <p className="mt-3 text-xs text-zinc-500">
-              Showing {filteredPlayers.length} of {playerRows.length} player
-              records.
-              {currentRole === "super_admin"
-                ? " Super admin delete is available only for records with no tournament footprint."
-                : ""}
-            </p>
+            <div className="mt-3 flex flex-col gap-3 text-xs text-zinc-500 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Showing {filteredPlayers.length === 0 ? 0 : pageStart + 1}-
+                {pageEnd} of {filteredPlayers.length} filtered records from{" "}
+                {playerRows.length} total.
+                {currentRole === "super_admin"
+                  ? " Super admin delete is available only for records with no tournament footprint."
+                  : ""}
+              </p>
+
+              <label className="flex items-center gap-2 text-zinc-400">
+                Rows per page
+                <select
+                  value={pageSize}
+                  onChange={(event) => {
+                    setPageSize(Number(event.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="rounded-lg border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-white outline-none focus:border-red-500"
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={250}>250</option>
+                </select>
+              </label>
+            </div>
           </section>
 
           {currentRole === "super_admin" && (
@@ -908,9 +953,8 @@ export default function AdminPlayersPage() {
                   <p className="mt-1 text-xs leading-5 text-red-50/70">
                     {allInactivePlayers.length} inactive record
                     {allInactivePlayers.length === 1 ? "" : "s"} in the Player
-                    Centre. {visibleInactivePlayers.length} shown after the
-                    current filters. {selectedInactivePlayers.length} selected
-                    for delete.
+                    Centre. {visibleInactivePlayers.length} inactive on this
+                    page. {selectedInactivePlayers.length} selected for delete.
                   </p>
                 </div>
 
@@ -937,7 +981,7 @@ export default function AdminPlayersPage() {
                     disabled={visibleInactivePlayers.length === 0 || bulkDeleting}
                     className="rounded-lg border border-red-300/30 px-4 py-2 text-xs font-black text-red-50 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Select inactive shown
+                    Select inactive on page
                   </button>
                   <button
                     type="button"
@@ -956,6 +1000,34 @@ export default function AdminPlayersPage() {
                     {bulkDeleting ? "Deleting..." : "Delete selected"}
                   </button>
                 </div>
+              </div>
+            </section>
+          )}
+
+          {!loading && filteredPlayers.length > 0 && (
+            <section className="mt-4 flex flex-col gap-3 rounded-xl border border-white/10 bg-zinc-900 p-4 text-sm text-zinc-300 sm:flex-row sm:items-center sm:justify-between">
+              <p>
+                Page {activePage} of {totalPages}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(Math.max(1, activePage - 1))}
+                  disabled={activePage === 1}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-xs font-black text-white transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCurrentPage(Math.min(totalPages, activePage + 1))
+                  }
+                  disabled={activePage === totalPages}
+                  className="rounded-lg border border-white/10 px-4 py-2 text-xs font-black text-white transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
               </div>
             </section>
           )}
@@ -1174,12 +1246,6 @@ export default function AdminPlayersPage() {
             </>
           )}
 
-          {!loading && filteredPlayers.length > 500 && (
-            <p className="mt-6 rounded-lg border border-white/10 bg-zinc-900 p-4 text-sm text-zinc-400">
-              Showing first 500 matching players. Use search or filters to narrow
-              the list.
-            </p>
-          )}
         </div>
       </main>
     </AdminGuard>
