@@ -33,6 +33,80 @@ as $$
   )
 $$;
 
+do $$
+begin
+  if to_regclass('public.registrations') is not null then
+    execute 'create index if not exists registrations_player_id_cleanup_idx on public.registrations (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.tournament_results') is not null then
+    execute 'create index if not exists tournament_results_player_id_cleanup_idx on public.tournament_results (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.tournament_officials') is not null then
+    execute 'create index if not exists tournament_officials_player_id_cleanup_idx on public.tournament_officials (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.tournament_organiser_access') is not null then
+    execute 'create index if not exists tournament_organiser_access_player_id_cleanup_idx on public.tournament_organiser_access (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.member_memberships') is not null then
+    execute 'create index if not exists member_memberships_player_id_cleanup_idx on public.member_memberships (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.organisation_committee_members') is not null then
+    execute 'create index if not exists organisation_committee_members_player_id_cleanup_idx on public.organisation_committee_members (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.player_achievements') is not null then
+    execute 'create index if not exists player_achievements_player_id_cleanup_idx on public.player_achievements (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.player_news_tags') is not null then
+    execute 'create index if not exists player_news_tags_player_id_cleanup_idx on public.player_news_tags (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.import_session_rows') is not null then
+    execute 'create index if not exists import_session_rows_matched_player_id_cleanup_idx on public.import_session_rows (matched_player_id) where matched_player_id is not null';
+  end if;
+
+  if to_regclass('public.player_rating_history') is not null then
+    execute 'create index if not exists player_rating_history_player_id_cleanup_idx on public.player_rating_history (player_id) where player_id is not null';
+  end if;
+
+  if to_regclass('public.player_duplicate_ignores') is not null then
+    execute 'create index if not exists player_duplicate_ignores_player_a_cleanup_idx on public.player_duplicate_ignores (player_a) where player_a is not null';
+    execute 'create index if not exists player_duplicate_ignores_player_b_cleanup_idx on public.player_duplicate_ignores (player_b) where player_b is not null';
+  end if;
+
+  if to_regclass('public.player_merge_history') is not null then
+    execute 'create index if not exists player_merge_history_primary_player_id_cleanup_idx on public.player_merge_history (primary_player_id) where primary_player_id is not null';
+    execute 'create index if not exists player_merge_history_duplicate_player_id_cleanup_idx on public.player_merge_history (duplicate_player_id) where duplicate_player_id is not null';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tournaments'
+      and column_name = 'arbiter_player_id'
+  ) then
+    execute 'create index if not exists tournaments_arbiter_player_id_cleanup_idx on public.tournaments (arbiter_player_id) where arbiter_player_id is not null';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'tournaments'
+      and column_name = 'organiser_player_id'
+  ) then
+    execute 'create index if not exists tournaments_organiser_player_id_cleanup_idx on public.tournaments (organiser_player_id) where organiser_player_id is not null';
+  end if;
+end;
+$$;
+
 drop function if exists public.preview_player_centre_orphan_cleanup();
 
 create function public.preview_player_centre_orphan_cleanup()
@@ -1136,6 +1210,70 @@ end;
 $$;
 
 grant execute on function public.delete_player_centre_cleanup_request_summary(uuid)
+to authenticated;
+
+drop function if exists public.preview_player_centre_orphan_cleanup_summary();
+
+create function public.preview_player_centre_orphan_cleanup_summary()
+returns table (
+  cleanup_candidates integer,
+  with_chessa_id integer,
+  with_pcc_id integer,
+  oldest_created timestamptz,
+  newest_created timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  return query
+  select
+    count(*)::integer,
+    count(*) filter (where preview.chess_sa_id is not null)::integer,
+    count(*) filter (where preview.pcc_id is not null)::integer,
+    min(preview.created_at),
+    max(preview.created_at)
+  from public.preview_player_centre_orphan_cleanup() preview;
+end;
+$$;
+
+grant execute on function public.preview_player_centre_orphan_cleanup_summary()
+to authenticated;
+
+drop function if exists public.preview_player_centre_orphan_cleanup_sample(integer);
+
+create function public.preview_player_centre_orphan_cleanup_sample(p_limit integer default 100)
+returns table (
+  full_name text,
+  chess_sa_id text,
+  pcc_id text,
+  rating integer,
+  club text,
+  province text,
+  created_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  return query
+  select
+    preview.full_name,
+    preview.chess_sa_id,
+    preview.pcc_id,
+    preview.rating,
+    preview.club,
+    preview.province,
+    preview.created_at
+  from public.preview_player_centre_orphan_cleanup() preview
+  order by preview.created_at desc nulls last, preview.full_name
+  limit greatest(1, least(coalesce(p_limit, 100), 500));
+end;
+$$;
+
+grant execute on function public.preview_player_centre_orphan_cleanup_sample(integer)
 to authenticated;
 
 -- Preview first. Check the list before deleting.
