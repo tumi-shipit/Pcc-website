@@ -5,7 +5,7 @@
 -- super_admin row back into normal Admin access.
 
 with owner as (
-  select lower('tumi.f@gmail.com') as email
+  select lower('tumelommola@icloud.com') as email
 )
 update public.admin_staff_permissions permissions
 set role = case

@@ -95,6 +95,23 @@ type TournamentTeamResult = {
   notes: string | null;
 };
 
+type LiveStandingUpdate = {
+  id: string;
+  tournament_id: string;
+  section_id: string | null;
+  round_number: number;
+  board_number: number | null;
+  previous_board_number: number | null;
+  player_name: string;
+  opponent_name: string | null;
+  result: string | null;
+  points: number | null;
+  notes: string | null;
+  display_order: number | null;
+  is_published: boolean;
+  created_at: string;
+};
+
 type ResultWithPlayer = TournamentResult & {
   player: Player | null;
   section: TournamentSection | null;
@@ -260,6 +277,49 @@ function publicResultFederation(result: ResultWithPlayer) {
   return result.federation?.trim() || "-";
 }
 
+function valueOrDash(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "-";
+  return String(value);
+}
+
+function standingMovement(update: LiveStandingUpdate) {
+  if (!update.previous_board_number || !update.board_number) {
+    return { label: "Tracking", tone: "neutral" as const, symbol: "->" };
+  }
+
+  const movement = update.previous_board_number - update.board_number;
+
+  if (movement > 0) {
+    return {
+      label: `Up ${movement}`,
+      tone: "up" as const,
+      symbol: "↑",
+    };
+  }
+
+  if (movement < 0) {
+    return {
+      label: `Down ${Math.abs(movement)}`,
+      tone: "down" as const,
+      symbol: "↓",
+    };
+  }
+
+  return { label: "Held", tone: "neutral" as const, symbol: "→" };
+}
+
+function standingMovementClass(tone: "up" | "down" | "neutral") {
+  if (tone === "up") {
+    return "border-green-400/40 bg-green-500/15 text-green-200";
+  }
+
+  if (tone === "down") {
+    return "border-red-400/40 bg-red-500/15 text-red-200";
+  }
+
+  return "border-white/10 bg-white/10 text-gray-200";
+}
+
 function sectionRuleLabel(section: TournamentSection) {
   const rules: string[] = [];
 
@@ -393,6 +453,7 @@ export default function TournamentHubPage() {
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
   const [teamResults, setTeamResults] = useState<TournamentTeamResult[]>([]);
+  const [standingUpdates, setStandingUpdates] = useState<LiveStandingUpdate[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<PublicRegistrationRow[]>([]);
   const [arbiter, setArbiter] = useState<Player | null>(null);
   const [officials, setOfficials] = useState<PublicOfficial[]>([]);
@@ -405,6 +466,7 @@ export default function TournamentHubPage() {
 
   const isOpen = tournament?.registration_status === "Open";
   const isCompleted = tournament?.registration_status === "Completed";
+  const isLive = tournament?.registration_status === "Live";
   const isPostponed = tournament?.registration_status === "Postponed";
 
   const isShere = useMemo(() => {
@@ -498,6 +560,22 @@ export default function TournamentHubPage() {
 
       if (!teamResultError) {
         teamResultRows = (teamResultData ?? []) as TournamentTeamResult[];
+      }
+
+      let liveStandingRows: LiveStandingUpdate[] = [];
+      const { data: liveStandingData, error: liveStandingError } = await supabase
+        .from("tournament_live_updates")
+        .select(
+          "id, tournament_id, section_id, round_number, board_number, previous_board_number, player_name, opponent_name, result, points, notes, display_order, is_published, created_at"
+        )
+        .eq("tournament_id", tournamentId)
+        .eq("is_published", true)
+        .order("round_number", { ascending: false })
+        .order("display_order", { ascending: true, nullsFirst: false })
+        .order("board_number", { ascending: true, nullsFirst: false });
+
+      if (!liveStandingError) {
+        liveStandingRows = (liveStandingData ?? []) as unknown as LiveStandingUpdate[];
       }
 
       const { data: registrationListData } = await supabase
@@ -647,6 +725,7 @@ export default function TournamentHubPage() {
       setGallery((galleryData ?? []) as unknown as GalleryImage[]);
       setResults(resultRowsWithPlayers);
       setTeamResults(teamResultRows);
+      setStandingUpdates(liveStandingRows);
       setRegisteredPlayers(
         (registrationListData ?? []) as unknown as PublicRegistrationRow[]
       );
@@ -725,6 +804,8 @@ export default function TournamentHubPage() {
     stats?.total_registrations && stats.total_registrations > 0
       ? stats.total_registrations
       : registeredPlayers.length;
+  const hasPublicStandings =
+    standingUpdates.length > 0 || (isCompleted && results.length > 0);
 
   return (
     <main className="min-h-screen bg-zinc-950 pt-24 text-white">
@@ -808,13 +889,22 @@ export default function TournamentHubPage() {
                 </span>
               )}
 
-              {isCompleted && results.length > 0 && (
+              {hasPublicStandings && (
                 <a
-                  href="#final-ranking"
+                  href="#standings"
                   className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
                 >
-                  View Final Ranking
+                  View Standings
                 </a>
+              )}
+
+              {isLive && (
+                <Link
+                  href={`/tournaments/${tournament.id}/live`}
+                  className="rounded-xl bg-green-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-green-700"
+                >
+                  Standings Screen
+                </Link>
               )}
 
               {tournament.chess_results_url && (
@@ -897,6 +987,17 @@ export default function TournamentHubPage() {
 
         {!isCompleted && <RegisteredPlayersPanel players={registeredPlayers} />}
 
+        {!isCompleted && standingUpdates.length > 0 && (
+          <TournamentStandingsPanel
+            tournamentId={tournament.id}
+            standingUpdates={standingUpdates}
+            results={results}
+            sections={sections}
+            chessResultsUrl={tournament.chess_results_url}
+            isCompleted={false}
+          />
+        )}
+
         {isCompleted && (
           <ArchiveContent
             tournament={tournament}
@@ -904,6 +1005,7 @@ export default function TournamentHubPage() {
             sections={sections}
             results={results}
             teamResults={teamResults}
+            standingUpdates={standingUpdates}
           />
         )}
 
@@ -1613,12 +1715,14 @@ function ArchiveContent({
   sections,
   results,
   teamResults,
+  standingUpdates,
 }: {
   tournament: Tournament;
   isShere: boolean;
   sections: TournamentSection[];
   results: ResultWithPlayer[];
   teamResults: TournamentTeamResult[];
+  standingUpdates: LiveStandingUpdate[];
 }) {
   const upsets = results.filter((result) =>
     `${result.award_title ?? ""} ${result.notes ?? ""}`
@@ -1664,10 +1768,13 @@ function ArchiveContent({
         <PlayerOfTournamentSection result={playerOfTournament} />
       </div>
 
-      <FinalRankingTable
+      <TournamentStandingsPanel
+        tournamentId={tournament.id}
+        standingUpdates={standingUpdates}
         results={results}
         sections={sections}
         chessResultsUrl={tournament.chess_results_url}
+        isCompleted
       />
 
       <TeamRankingTable
@@ -1750,6 +1857,251 @@ function PlayerOfTournamentSection({
   );
 }
 
+function groupStandingsByRoundAndSection(
+  standingUpdates: LiveStandingUpdate[],
+  sections: TournamentSection[]
+) {
+  const sectionsById = new Map(sections.map((section) => [section.id, section]));
+  const rounds = new Map<
+    number,
+    Map<string, { sectionName: string; updates: LiveStandingUpdate[] }>
+  >();
+
+  standingUpdates.forEach((update) => {
+    const roundGroups = rounds.get(update.round_number) ?? new Map();
+    const sectionKey = update.section_id ?? "overall";
+    const section = update.section_id ? sectionsById.get(update.section_id) : null;
+    const sectionGroup =
+      roundGroups.get(sectionKey) ?? {
+        sectionName: section?.section_name ?? "Overall",
+        updates: [],
+      };
+
+    sectionGroup.updates.push(update);
+    roundGroups.set(sectionKey, sectionGroup);
+    rounds.set(update.round_number, roundGroups);
+  });
+
+  return Array.from(rounds.entries())
+    .sort((first, second) => second[0] - first[0])
+    .map(([roundNumber, sectionGroups]) => ({
+      roundNumber,
+      sections: Array.from(sectionGroups.entries())
+        .map(([sectionId, sectionGroup]) => ({
+          sectionId,
+          sectionName: sectionGroup.sectionName,
+          updates: [...sectionGroup.updates].sort((first, second) => {
+            const firstBoard = first.board_number ?? 999999;
+            const secondBoard = second.board_number ?? 999999;
+
+            if (firstBoard !== secondBoard) return firstBoard - secondBoard;
+            return (first.display_order ?? 999999) - (second.display_order ?? 999999);
+          }),
+        }))
+        .sort((first, second) => {
+          const firstSection = sections.find((section) => section.id === first.sectionId);
+          const secondSection = sections.find((section) => section.id === second.sectionId);
+
+          return (
+            (firstSection?.display_order ?? 999999) -
+              (secondSection?.display_order ?? 999999) ||
+            first.sectionName.localeCompare(second.sectionName)
+          );
+        }),
+    }));
+}
+
+function TournamentStandingsPanel({
+  tournamentId,
+  standingUpdates,
+  results,
+  sections,
+  chessResultsUrl,
+  isCompleted,
+}: {
+  tournamentId: string;
+  standingUpdates: LiveStandingUpdate[];
+  results: ResultWithPlayer[];
+  sections: TournamentSection[];
+  chessResultsUrl: string | null;
+  isCompleted: boolean;
+}) {
+  const roundEntries = groupStandingsByRoundAndSection(standingUpdates, sections);
+  const latestRound = roundEntries[0]?.roundNumber ?? null;
+
+  if (roundEntries.length === 0) {
+    return isCompleted ? (
+      <FinalRankingTable
+        results={results}
+        sections={sections}
+        chessResultsUrl={chessResultsUrl}
+      />
+    ) : null;
+  }
+
+  return (
+    <section
+      id="standings"
+      className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8"
+    >
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+            Tournament Standings
+          </p>
+          <h2 className="mt-3 text-2xl font-black md:text-4xl">
+            Round-by-round movement
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-gray-400">
+            Standings are shown as the organiser imports round updates. The final
+            ranking becomes the last standings view once confirmed.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {latestRound && (
+            <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
+              Latest round {latestRound}
+            </span>
+          )}
+          <Link
+            href={`/tournaments/${tournamentId}/live`}
+            className="rounded-full border border-white/10 bg-zinc-950 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
+          >
+            Full standings screen
+          </Link>
+        </div>
+      </div>
+
+      <div className="mt-8 space-y-6">
+        {roundEntries.map((round) => (
+          <div
+            key={round.roundNumber}
+            className="overflow-hidden rounded-2xl border border-red-500/20 bg-zinc-950"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-500/20 bg-black/45 p-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-300">
+                  Standing
+                </p>
+                <h3 className="mt-2 text-xl font-black text-white">
+                  {isCompleted &&
+                  round.sections.some((section) =>
+                    section.updates.some((update) =>
+                      (update.result ?? "").toLowerCase().includes("final")
+                    )
+                  )
+                    ? "Final standings"
+                    : `After round ${round.roundNumber}`}
+                </h3>
+              </div>
+
+              <span className="rounded-full bg-zinc-900 px-4 py-2 text-sm text-gray-400">
+                {round.sections.reduce(
+                  (total, section) => total + section.updates.length,
+                  0
+                )}{" "}
+                player
+                {round.sections.reduce(
+                  (total, section) => total + section.updates.length,
+                  0
+                ) === 1
+                  ? ""
+                  : "s"}
+              </span>
+            </div>
+
+            <div className="grid gap-4 p-4 lg:grid-cols-3">
+              {round.sections.map((section) => {
+                const visibleUpdates = section.updates.slice(0, 10);
+                const hiddenCount = Math.max(
+                  section.updates.length - visibleUpdates.length,
+                  0
+                );
+
+                return (
+                  <div
+                    key={`${round.roundNumber}-${section.sectionId}`}
+                    className="overflow-hidden rounded-xl border border-white/10 bg-black/25"
+                  >
+                    <div className="border-b border-white/10 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">
+                        Section
+                      </p>
+                      <p className="mt-1 font-black text-white">
+                        {section.sectionName}
+                      </p>
+                    </div>
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[360px] border-collapse text-left text-[11px] sm:text-xs">
+                        <thead className="bg-black/30 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                          <tr>
+                            <th className="border border-white/10 px-2 py-2">Rank</th>
+                            <th className="border border-white/10 px-2 py-2">Move</th>
+                            <th className="border border-white/10 px-2 py-2">Player</th>
+                            <th className="border border-white/10 px-2 py-2">Pts</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {visibleUpdates.map((update) => {
+                            const movement = standingMovement(update);
+
+                            return (
+                              <tr
+                                key={update.id}
+                                className="transition hover:bg-white/[0.03]"
+                              >
+                                <td className="border border-white/10 px-2 py-2 font-black text-red-300">
+                                  {valueOrDash(update.board_number)}
+                                </td>
+                                <td className="border border-white/10 px-2 py-2">
+                                  <span
+                                    className={`inline-flex whitespace-nowrap rounded-full border px-2 py-1 text-[10px] font-black ${standingMovementClass(
+                                      movement.tone
+                                    )}`}
+                                  >
+                                    {movement.symbol} {movement.label}
+                                  </span>
+                                </td>
+                                <td className="border border-white/10 px-2 py-2 font-bold text-white">
+                                  <span className="line-clamp-2">
+                                    {update.player_name}
+                                  </span>
+                                  {update.previous_board_number && (
+                                    <span className="mt-1 block text-[10px] font-normal text-gray-500">
+                                      Started {update.previous_board_number}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="border border-white/10 px-2 py-2 text-gray-300">
+                                  {valueOrDash(update.points)}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {hiddenCount > 0 && (
+                      <div className="border-t border-white/10 bg-black/25 p-3 text-xs text-gray-400">
+                        {hiddenCount} more player{hiddenCount === 1 ? "" : "s"} in
+                        this section. Open the full standings screen for the complete
+                        list.
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function sortResults(sectionResults: ResultWithPlayer[]) {
   return [...sectionResults].sort((a, b) => {
       const aPosition = a.final_position ?? 999999;
@@ -1799,7 +2151,7 @@ function FinalRankingTable({
   if (results.length === 0) {
     return (
       <section
-        id="final-ranking"
+        id="standings"
         className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8"
       >
         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -1818,7 +2170,7 @@ function FinalRankingTable({
 
   return (
     <section
-      id="final-ranking"
+      id="standings"
       className="rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-8"
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">

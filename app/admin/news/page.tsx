@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
+import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 
 type NewsPost = {
@@ -274,14 +275,25 @@ export default function AdminNewsPage() {
     setUploadingImage(true);
     setMessage("");
 
-    const safeName = cleanFileName(file.name);
+    let uploadFile = file;
+
+    try {
+      uploadFile = await resizeImageForUpload(file, {
+        maxDimension: 1600,
+        quality: 0.82,
+      });
+    } catch {
+      uploadFile = file;
+    }
+
+    const safeName = cleanFileName(uploadFile.name);
     const filePath = `news/${Date.now()}-${safeName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("news-images")
-      .upload(filePath, file, {
+      .upload(filePath, uploadFile, {
         upsert: false,
-        contentType: file.type || "image/jpeg",
+        contentType: uploadFile.type || "image/jpeg",
       });
 
     if (uploadError) {

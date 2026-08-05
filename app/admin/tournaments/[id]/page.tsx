@@ -11,6 +11,7 @@ import {
   chunkItems,
   getTournamentGalleryStoragePath,
 } from "@/lib/tournamentGallery";
+import { resizeImageForUpload } from "@/lib/imageCompression";
 
 type Tournament = {
   id: string;
@@ -467,6 +468,15 @@ export default function AdminTournamentDashboardPage() {
           failedCount += 1;
           continue;
         }
+      }
+
+      try {
+        file = await resizeImageForUpload(file, {
+          maxDimension: 1600,
+          quality: 0.82,
+        });
+      } catch (error) {
+        console.error("IMAGE COMPRESSION ERROR:", error);
       }
 
       const safeName = cleanFileName(file.name);

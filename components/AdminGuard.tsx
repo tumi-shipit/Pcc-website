@@ -21,6 +21,7 @@ const toolNav = [
   { href: "/admin/search", label: "Search" },
   { href: "/admin/imports", label: "Imports" },
   { href: "/admin/organiser-access", label: "Access" },
+  { href: "/admin/store-preview", label: "Store" },
 ];
 
 export default function AdminGuard({ children }: { children: ReactNode }) {

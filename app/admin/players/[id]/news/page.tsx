@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminPlayerTabs from "@/components/admin/AdminPlayerTabs";
+import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 
 type Player = {
@@ -303,15 +304,26 @@ export default function AdminPlayerNewsPage({
     setUploadingImage(true);
     setMessage("");
 
+    let uploadFile = file;
+
+    try {
+      uploadFile = await resizeImageForUpload(file, {
+        maxDimension: 1600,
+        quality: 0.82,
+      });
+    } catch {
+      uploadFile = file;
+    }
+
     const filePath = `news/players/${playerId}/${Date.now()}-${cleanFileName(
-      file.name
+      uploadFile.name
     )}`;
 
     const { error: uploadError } = await supabase.storage
       .from("news-images")
-      .upload(filePath, file, {
+      .upload(filePath, uploadFile, {
         upsert: false,
-        contentType: file.type || "image/jpeg",
+        contentType: uploadFile.type || "image/jpeg",
       });
 
     if (uploadError) {

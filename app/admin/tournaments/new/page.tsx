@@ -8,6 +8,7 @@ import {
   tournamentRatingOptions,
   type TournamentRatingType,
 } from "@/lib/ratingTypes";
+import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Postponed" | "Completed";
@@ -114,7 +115,7 @@ const quickSectionTemplates: SectionForm[] = [
   { section_name: "U16", minimum_birth_year: "2011", maximum_birth_year: "2012", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
   { section_name: "U18", minimum_birth_year: "2009", maximum_birth_year: "2010", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
   { section_name: "U20", minimum_birth_year: "2007", maximum_birth_year: "2008", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
-  { section_name: "Open", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
+  { section_name: "Open", minimum_birth_year: "1900", maximum_birth_year: "", minimum_rating: "", maximum_rating: "", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
   { section_name: "U1800", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1799", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
   { section_name: "U1600", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1599", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
   { section_name: "U1400", minimum_birth_year: "", maximum_birth_year: "", minimum_rating: "", maximum_rating: "1399", gender_restriction: "All", entry_fee_override: "", maximum_players: "", chess_results_url: "" },
@@ -135,6 +136,26 @@ function cleanOptionalNumber(value: string) {
   if (value.trim() === "") return null;
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function hasSectionRestriction(section: SectionForm) {
+  return Boolean(
+    section.minimum_birth_year.trim() ||
+      section.maximum_birth_year.trim() ||
+      section.minimum_rating.trim() ||
+      section.maximum_rating.trim() ||
+      section.gender_restriction !== "All"
+  );
+}
+
+function getMissingRestrictionMessage(sections: SectionForm[]) {
+  const sectionIndex = sections.findIndex((section) => !hasSectionRestriction(section));
+  if (sectionIndex === -1) return "";
+
+  const section = sections[sectionIndex];
+  return `Section ${sectionIndex + 1}${
+    section.section_name ? ` (${section.section_name})` : ""
+  } needs at least one rule: birth year, rating, or gender.`;
 }
 
 function selectedPostponementReason(value: string) {
@@ -258,12 +279,26 @@ export default function NewTournamentPage() {
     setUploadingPoster(true);
     setMessage("Uploading poster...");
 
-    const safeName = cleanFileName(file.name);
+    let uploadFile = file;
+
+    try {
+      uploadFile = await resizeImageForUpload(file, {
+        maxDimension: 1800,
+        quality: 0.84,
+      });
+    } catch {
+      uploadFile = file;
+    }
+
+    const safeName = cleanFileName(uploadFile.name);
     const filePath = `posters/${Date.now()}-${safeName}`;
 
     const { error } = await supabase.storage
       .from("tournament-posters")
-      .upload(filePath, file, { upsert: false });
+      .upload(filePath, uploadFile, {
+        upsert: false,
+        contentType: uploadFile.type || "image/jpeg",
+      });
 
     if (error) {
       setMessage(`Poster upload failed: ${error.message}`);
@@ -301,6 +336,13 @@ export default function NewTournamentPage() {
 
     if (cleanedSections.length === 0) {
       setMessage("Add at least one tournament section.");
+      setSaving(false);
+      return;
+    }
+
+    const missingRestrictionMessage = getMissingRestrictionMessage(cleanedSections);
+    if (missingRestrictionMessage) {
+      setMessage(missingRestrictionMessage);
       setSaving(false);
       return;
     }
@@ -800,11 +842,14 @@ export default function NewTournamentPage() {
 
                       <div className="rounded-xl border border-white/10 bg-zinc-950 p-3 md:col-span-2">
                         <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
-                          Age / junior eligibility
+                          Allowed birth years
                         </p>
                         <label className="mb-2 block text-sm font-semibold">
                           Born from
                         </label>
+                        <p className="mb-2 text-xs leading-5 text-gray-500">
+                          Example: born from 1969 and born until 2026 means players born in 1969 up to 2026 can enter.
+                        </p>
                         <input
                           type="number"
                           min="1900"
@@ -843,11 +888,14 @@ export default function NewTournamentPage() {
 
                       <div className="rounded-xl border border-white/10 bg-zinc-950 p-3 md:col-span-2">
                         <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
-                          Age / junior eligibility
+                          Allowed birth years
                         </p>
                         <label className="mb-2 block text-sm font-semibold">
                           Born until
                         </label>
+                        <p className="mb-2 text-xs leading-5 text-gray-500">
+                          Leave blank when there is no oldest or youngest birth-year limit.
+                        </p>
                         <input
                           type="number"
                           min="1900"
@@ -865,10 +913,16 @@ export default function NewTournamentPage() {
                         />
                       </div>
 
-                      <div>
+                      <div className="rounded-xl border border-white/10 bg-zinc-950 p-3">
+                        <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
+                          Allowed rating
+                        </p>
                         <label className="mb-2 block text-sm font-semibold">
-                          Minimum rating
+                          Rated from
                         </label>
+                        <p className="mb-2 text-xs leading-5 text-gray-500">
+                          Example: rated from 1300 and rated until 1500 means only rated players from 1300 to 1500 are allowed.
+                        </p>
                         <input
                           type="number"
                           min="0"
@@ -881,10 +935,16 @@ export default function NewTournamentPage() {
                         />
                       </div>
 
-                      <div>
+                      <div className="rounded-xl border border-white/10 bg-zinc-950 p-3">
+                        <p className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-red-300">
+                          Allowed rating
+                        </p>
                         <label className="mb-2 block text-sm font-semibold">
-                          Maximum rating
+                          Rated until
                         </label>
+                        <p className="mb-2 text-xs leading-5 text-gray-500">
+                          Players not found in the rating file can still register as new or unrated players.
+                        </p>
                         <input
                           type="number"
                           min="0"

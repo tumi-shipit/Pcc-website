@@ -132,10 +132,100 @@ $$;
 grant execute on function public.player_centre_cleanup_has_activity_identity(uuid)
 to authenticated;
 
+create or replace function public.player_centre_cleanup_prepare_activity_players()
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  create temp table if not exists pcc_cleanup_activity_players (
+    id uuid primary key,
+    chess_sa_key text,
+    name_key text,
+    date_of_birth date,
+    email_key text,
+    phone_key text
+  ) on commit drop;
+
+  truncate table pcc_cleanup_activity_players;
+
+  if to_regclass('public.registrations') is not null then
+    insert into pcc_cleanup_activity_players (
+      id,
+      chess_sa_key,
+      name_key,
+      date_of_birth,
+      email_key,
+      phone_key
+    )
+    select distinct
+      players.id,
+      public.player_centre_cleanup_digits(players.chess_sa_id),
+      public.player_centre_cleanup_name_key(players.full_name),
+      players.date_of_birth,
+      lower(nullif(trim(coalesce(players.email, '')), '')),
+      public.player_centre_cleanup_digits(players.phone)
+    from public.registrations registrations
+    join public.players players on players.id = registrations.player_id
+    where registrations.player_id is not null
+      and coalesce(registrations.registration_status::text, 'Pending') not in ('Rejected', 'Withdrawn')
+    on conflict (id) do nothing;
+  end if;
+
+  if to_regclass('public.tournament_results') is not null then
+    insert into pcc_cleanup_activity_players (
+      id,
+      chess_sa_key,
+      name_key,
+      date_of_birth,
+      email_key,
+      phone_key
+    )
+    select distinct
+      players.id,
+      public.player_centre_cleanup_digits(players.chess_sa_id),
+      public.player_centre_cleanup_name_key(players.full_name),
+      players.date_of_birth,
+      lower(nullif(trim(coalesce(players.email, '')), '')),
+      public.player_centre_cleanup_digits(players.phone)
+    from public.tournament_results results
+    join public.players players on players.id = results.player_id
+    where results.player_id is not null
+    on conflict (id) do nothing;
+  end if;
+
+  create index if not exists pcc_cleanup_activity_players_chess_idx
+  on pcc_cleanup_activity_players (chess_sa_key)
+  where chess_sa_key is not null;
+
+  create index if not exists pcc_cleanup_activity_players_name_idx
+  on pcc_cleanup_activity_players (name_key)
+  where name_key <> '';
+
+  create index if not exists pcc_cleanup_activity_players_name_dob_idx
+  on pcc_cleanup_activity_players (name_key, date_of_birth)
+  where name_key <> '' and date_of_birth is not null;
+
+  create index if not exists pcc_cleanup_activity_players_name_email_idx
+  on pcc_cleanup_activity_players (name_key, email_key)
+  where name_key <> '' and email_key is not null;
+
+  create index if not exists pcc_cleanup_activity_players_name_phone_idx
+  on pcc_cleanup_activity_players (name_key, phone_key)
+  where name_key <> '' and phone_key is not null;
+end;
+$$;
+
+grant execute on function public.player_centre_cleanup_prepare_activity_players()
+to authenticated;
+
 do $$
 begin
   execute 'create index if not exists players_chess_sa_id_cleanup_idx on public.players (chess_sa_id) where chess_sa_id is not null';
   execute 'create index if not exists players_chess_sa_digits_cleanup_idx on public.players (public.player_centre_cleanup_digits(chess_sa_id)) where chess_sa_id is not null';
+  execute 'create index if not exists players_name_key_cleanup_idx on public.players (public.player_centre_cleanup_name_key(full_name)) where full_name is not null';
+  execute 'create index if not exists players_name_dob_cleanup_idx on public.players (public.player_centre_cleanup_name_key(full_name), date_of_birth) where full_name is not null and date_of_birth is not null';
   execute 'create index if not exists players_email_cleanup_idx on public.players (lower(email)) where email is not null';
   execute 'create index if not exists players_phone_digits_cleanup_idx on public.players (public.player_centre_cleanup_digits(phone)) where phone is not null';
 
@@ -256,6 +346,8 @@ begin
   select players.id
   from public.players players;
 
+  perform public.player_centre_cleanup_prepare_activity_players();
+
   if to_regclass('public.registrations') is not null then
     execute '
       delete from pcc_orphan_player_candidates candidates
@@ -273,7 +365,46 @@ begin
   end if;
 
   delete from pcc_orphan_player_candidates candidates
-  where public.player_centre_cleanup_has_activity_identity(candidates.id);
+  using pcc_cleanup_activity_players activity
+  where activity.id = candidates.id;
+
+  delete from pcc_orphan_player_candidates candidates
+  using public.players players, pcc_cleanup_activity_players activity
+  where players.id = candidates.id
+    and activity.id <> players.id
+    and public.player_centre_cleanup_digits(players.chess_sa_id) is not null
+    and public.player_centre_cleanup_digits(players.chess_sa_id) = activity.chess_sa_key;
+
+  delete from pcc_orphan_player_candidates candidates
+  using public.players players, pcc_cleanup_activity_players activity
+  where players.id = candidates.id
+    and activity.id <> players.id
+    and public.player_centre_cleanup_name_key(players.full_name) <> ''
+    and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key;
+
+  delete from pcc_orphan_player_candidates candidates
+  using public.players players, pcc_cleanup_activity_players activity
+  where players.id = candidates.id
+    and activity.id <> players.id
+    and players.date_of_birth is not null
+    and players.date_of_birth = activity.date_of_birth
+    and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key;
+
+  delete from pcc_orphan_player_candidates candidates
+  using public.players players, pcc_cleanup_activity_players activity
+  where players.id = candidates.id
+    and activity.id <> players.id
+    and lower(nullif(trim(coalesce(players.email, '')), '')) is not null
+    and lower(nullif(trim(coalesce(players.email, '')), '')) = activity.email_key
+    and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key;
+
+  delete from pcc_orphan_player_candidates candidates
+  using public.players players, pcc_cleanup_activity_players activity
+  where players.id = candidates.id
+    and activity.id <> players.id
+    and public.player_centre_cleanup_digits(players.phone) is not null
+    and public.player_centre_cleanup_digits(players.phone) = activity.phone_key
+    and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key;
 
   if to_regclass('public.tournament_officials') is not null then
     execute '
@@ -552,6 +683,8 @@ begin
     where players.id = requested.id
   );
 
+  perform public.player_centre_cleanup_prepare_activity_players();
+
   if to_regclass('public.registrations') is not null then
     execute '
       update pcc_selected_player_cleanup_status status
@@ -578,8 +711,40 @@ begin
   update pcc_selected_player_cleanup_status status
   set action = 'protected',
       reason = 'Matching Player Centre identity has tournament activity'
+  from public.players players, pcc_cleanup_activity_players activity
   where status.action = 'delete'
-    and public.player_centre_cleanup_has_activity_identity(status.id);
+    and players.id = status.id
+    and (
+      activity.id = players.id
+      or (
+        activity.id <> players.id
+        and public.player_centre_cleanup_digits(players.chess_sa_id) is not null
+        and public.player_centre_cleanup_digits(players.chess_sa_id) = activity.chess_sa_key
+      )
+      or (
+        activity.id <> players.id
+        and public.player_centre_cleanup_name_key(players.full_name) <> ''
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+      or (
+        activity.id <> players.id
+        and players.date_of_birth is not null
+        and players.date_of_birth = activity.date_of_birth
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+      or (
+        activity.id <> players.id
+        and lower(nullif(trim(coalesce(players.email, '')), '')) is not null
+        and lower(nullif(trim(coalesce(players.email, '')), '')) = activity.email_key
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+      or (
+        activity.id <> players.id
+        and public.player_centre_cleanup_digits(players.phone) is not null
+        and public.player_centre_cleanup_digits(players.phone) = activity.phone_key
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+    );
 
   if to_regclass('public.tournament_officials') is not null then
     execute '
@@ -1003,6 +1168,8 @@ begin
       where players.id = rows.player_id
     );
 
+  perform public.player_centre_cleanup_prepare_activity_players();
+
   if to_regclass('public.registrations') is not null then
     execute '
       update public.player_centre_cleanup_request_rows rows
@@ -1034,9 +1201,41 @@ begin
   set action = 'protected',
       reason = 'Matching Player Centre identity has tournament activity',
       updated_at = now()
+  from public.players players, pcc_cleanup_activity_players activity
   where rows.request_id = p_request_id
     and rows.action = 'delete'
-    and public.player_centre_cleanup_has_activity_identity(rows.player_id);
+    and players.id = rows.player_id
+    and (
+      activity.id = players.id
+      or (
+        activity.id <> players.id
+        and public.player_centre_cleanup_digits(players.chess_sa_id) is not null
+        and public.player_centre_cleanup_digits(players.chess_sa_id) = activity.chess_sa_key
+      )
+      or (
+        activity.id <> players.id
+        and public.player_centre_cleanup_name_key(players.full_name) <> ''
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+      or (
+        activity.id <> players.id
+        and players.date_of_birth is not null
+        and players.date_of_birth = activity.date_of_birth
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+      or (
+        activity.id <> players.id
+        and lower(nullif(trim(coalesce(players.email, '')), '')) is not null
+        and lower(nullif(trim(coalesce(players.email, '')), '')) = activity.email_key
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+      or (
+        activity.id <> players.id
+        and public.player_centre_cleanup_digits(players.phone) is not null
+        and public.player_centre_cleanup_digits(players.phone) = activity.phone_key
+        and public.player_centre_cleanup_name_key(players.full_name) = activity.name_key
+      )
+    );
 
   if to_regclass('public.tournament_officials') is not null then
     execute '

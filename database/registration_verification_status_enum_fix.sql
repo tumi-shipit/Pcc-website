@@ -91,15 +91,7 @@ begin
     );
   end if;
 
-  if section_record.minimum_rating is not null
-    or section_record.maximum_rating is not null then
-    if p_rating is null then
-      return format(
-        '%s requires a Chess SA rating before choosing this section.',
-        section_record.section_name
-      );
-    end if;
-
+  if p_rating is not null then
     if section_record.minimum_rating is not null
       and p_rating < section_record.minimum_rating then
       return format(

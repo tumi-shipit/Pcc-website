@@ -2378,6 +2378,84 @@ export default function TournamentArchiveContinuationPage() {
     );
   }
 
+  async function publishFinalRankingStandings(rows: ImportedStanding[]) {
+    if (!tournament || !selectedSectionId) return false;
+
+    const importedRows = rows.filter(
+      (row) => row.status === "Imported" && row.name.trim()
+    );
+
+    if (importedRows.length === 0) return false;
+
+    const highestRoundInFile = importedRows.reduce((highest, row) => {
+      const rowHighestRound = row.roundResults.reduce(
+        (rowHighest, roundResult) =>
+          Math.max(rowHighest, roundResult.roundNumber),
+        0
+      );
+
+      return Math.max(highest, rowHighestRound);
+    }, 0);
+
+    let finalRound = highestRoundInFile;
+
+    if (!finalRound) {
+      const { data: latestLiveRound } = await supabase
+        .from("tournament_live_updates")
+        .select("round_number")
+        .eq("tournament_id", tournament.id)
+        .order("round_number", { ascending: false })
+        .limit(1);
+
+      finalRound =
+        Number(latestLiveRound?.[0]?.round_number ?? 0) > 0
+          ? Number(latestLiveRound?.[0]?.round_number) + 1
+          : 1;
+    }
+
+    const { error: deleteError } = await supabase
+      .from("tournament_live_updates")
+      .delete()
+      .eq("tournament_id", tournament.id)
+      .eq("section_id", selectedSectionId)
+      .eq("round_number", finalRound);
+
+    if (deleteError) throw deleteError;
+
+    const rowsToInsert = importedRows.map((row, index) => {
+      const details = [
+        "Official final ranking",
+        row.rating !== null ? `Rating ${row.rating}` : null,
+        row.federation,
+        row.tieBreak ? `Tie-break ${row.tieBreak}` : null,
+      ].filter(Boolean);
+
+      return {
+        tournament_id: tournament.id,
+        section_id: selectedSectionId,
+        round_number: finalRound,
+        previous_board_number: row.starting_number,
+        board_number: row.rank,
+        player_name: row.name,
+        opponent_name: null,
+        result: "Final standings",
+        points: row.points,
+        notes: details.length > 0 ? details.join(" - ") : null,
+        display_order: index + 1,
+        is_published: true,
+        updated_at: new Date().toISOString(),
+      };
+    });
+
+    const { error: insertError } = await supabase
+      .from("tournament_live_updates")
+      .insert(rowsToInsert);
+
+    if (insertError) throw insertError;
+
+    return true;
+  }
+
   async function importRankingsForSection() {
     if (!tournament) {
       setMessage("Completed tournament data not loaded.");
@@ -2497,6 +2575,13 @@ export default function TournamentArchiveContinuationPage() {
     const lateRegistrationCount = updatedRows.filter((row) =>
       row.message.toLowerCase().includes("late registration created")
     ).length;
+    let finalStandingsPublished = false;
+
+    try {
+      finalStandingsPublished = await publishFinalRankingStandings(updatedRows);
+    } catch (standingError) {
+      console.error(standingError);
+    }
 
     try {
       const importSession = await createImportSession({
@@ -2565,12 +2650,16 @@ export default function TournamentArchiveContinuationPage() {
     setImportingRankings(false);
     await loadSectionPlayers(selectedSectionId);
     await loadTournamentPlayers();
+    const finalStandingsMessage = finalStandingsPublished
+      ? " Final standings were also published on the standings screen."
+      : "";
+
     setMessage(
       lateRegistrationCount > 0
         ? `Section final ranking import completed. ${lateRegistrationCount} late registration${
             lateRegistrationCount === 1 ? "" : "s"
-          } created from the final ranking.`
-        : "Section final ranking import completed."
+          } created from the final ranking.${finalStandingsMessage}`
+        : `Section final ranking import completed.${finalStandingsMessage}`
     );
   }
 

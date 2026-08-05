@@ -10,6 +10,7 @@ import {
   chunkItems,
   getTournamentGalleryStoragePath,
 } from "@/lib/tournamentGallery";
+import { resizeImageForUpload } from "@/lib/imageCompression";
 
 type Tournament = {
   id: string;
@@ -134,7 +135,17 @@ export default function TournamentGalleryPage({
     let failed = 0;
 
     for (let index = 0; index < imageFiles.length; index += 1) {
-      const file = imageFiles[index];
+      let file = imageFiles[index];
+
+      try {
+        file = await resizeImageForUpload(file, {
+          maxDimension: 1600,
+          quality: 0.82,
+        });
+      } catch {
+        file = imageFiles[index];
+      }
+
       const safeName = cleanFileName(file.name);
       const filePath = `gallery/${tournamentId}/${Date.now()}-${index}-${safeName}`;
 

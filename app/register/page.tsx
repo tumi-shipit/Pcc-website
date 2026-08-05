@@ -123,9 +123,17 @@ function normalizeGender(gender: string | null) {
   const value = gender.trim().toLowerCase();
 
   if (value === "m" || value === "male") return "Male";
-  if (value === "f" || value === "female") return "Female";
+  if (
+    value === "f" ||
+    value === "female" ||
+    value === "w" ||
+    value === "woman" ||
+    value === "women" ||
+    value === "girl"
+  ) return "Female";
+  if (value === "other") return "Other";
 
-  return gender;
+  return "";
 }
 
 function formatMoney(amount: number) {
@@ -181,16 +189,11 @@ function getSectionEligibilityMessage(
   section: TournamentSection,
   playerDateOfBirth: string | null,
   playerGender: string | null,
-  playerRating: number | null,
-  ratingLabel = "Chess SA"
+  playerRating: number | null
 ) {
   const hasAgeRule =
     section.minimum_birth_year !== null ||
     section.maximum_birth_year !== null;
-  const hasRatingRule =
-    section.minimum_rating !== null ||
-    section.maximum_rating !== null;
-
   if (hasAgeRule && !playerDateOfBirth) {
     return "Date of birth is required before choosing a section.";
   }
@@ -235,10 +238,6 @@ function getSectionEligibilityMessage(
     return `${section.section_name} is restricted to ${section.gender_restriction} players.`;
   }
 
-  if (hasRatingRule && playerRating === null) {
-    return `${section.section_name} requires a ${ratingLabel} rating before choosing this section.`;
-  }
-
   if (
     playerRating !== null &&
     section.minimum_rating !== null &&
@@ -278,8 +277,7 @@ function getEligibleSections(
   sections: TournamentSection[],
   playerDateOfBirth: string | null,
   playerGender: string | null,
-  playerRating: number | null,
-  ratingLabel: string
+  playerRating: number | null
 ) {
   return sections.filter(
     (section) =>
@@ -287,8 +285,7 @@ function getEligibleSections(
         section,
         playerDateOfBirth,
         playerGender,
-        playerRating,
-        ratingLabel
+        playerRating
       )
   );
 }
@@ -375,6 +372,7 @@ export default function RegisterPage() {
   const [matches, setMatches] = useState<ChessSaPlayer[]>([]);
   const [selectedChessSaPlayer, setSelectedChessSaPlayer] =
     useState<ChessSaPlayer | null>(null);
+  const [selectedPlayerGender, setSelectedPlayerGender] = useState("");
   const [newPlayerMode, setNewPlayerMode] = useState(false);
   const [newPlayer, setNewPlayer] = useState<NewPlayerForm>(emptyNewPlayer);
 
@@ -425,7 +423,11 @@ export default function RegisterPage() {
     (newPlayerMode ? newPlayer.date_of_birth : null);
 
   const playerGender =
-    selectedChessSaPlayer?.gender ?? (newPlayerMode ? newPlayer.gender : null);
+    selectedChessSaPlayer
+      ? normalizeGender(selectedChessSaPlayer.gender) || selectedPlayerGender || null
+      : newPlayerMode
+        ? newPlayer.gender
+        : null;
 
   const selectedPlayerAge = calculateAge(playerDateOfBirth);
   const selectedPlayerRating =
@@ -440,8 +442,7 @@ export default function RegisterPage() {
         selectedSection,
         playerDateOfBirth,
         playerGender,
-        selectedPlayerRating,
-        selectedTournamentRatingLabel
+        selectedPlayerRating
       )
     : "";
 
@@ -454,15 +455,13 @@ export default function RegisterPage() {
         sections,
         playerDateOfBirth,
         playerGender,
-        selectedPlayerRating,
-        selectedTournamentRatingLabel
+        selectedPlayerRating
       ),
     [
       sections,
       playerDateOfBirth,
       playerGender,
       selectedPlayerRating,
-      selectedTournamentRatingLabel,
     ]
   );
 
@@ -696,8 +695,7 @@ export default function RegisterPage() {
           section,
           playerDateOfBirth,
           playerGender,
-          selectedPlayerRating,
-          selectedTournamentRatingLabel
+          selectedPlayerRating
         )
     );
 
@@ -718,7 +716,6 @@ export default function RegisterPage() {
     playerDateOfBirth,
     playerGender,
     selectedPlayerRating,
-    selectedTournamentRatingLabel,
   ]);
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
@@ -729,6 +726,7 @@ export default function RegisterPage() {
     setRegistrationMessage("");
     setMatches([]);
     setSelectedChessSaPlayer(null);
+    setSelectedPlayerGender("");
     setNewPlayerMode(false);
 
     const lookupResults: ChessSaPlayer[] = [];
@@ -856,6 +854,7 @@ export default function RegisterPage() {
 
     if (results.length === 1) {
       setSelectedChessSaPlayer(results[0]);
+      setSelectedPlayerGender(normalizeGender(results[0].gender));
       const filledDetails = await fillContactDetailsFromPlayerCentre(results[0]);
       setSearchMessage(
         searchMethod === "surname"
@@ -945,6 +944,7 @@ export default function RegisterPage() {
 
   async function choosePlayer(player: ChessSaPlayer) {
     setSelectedChessSaPlayer(player);
+    setSelectedPlayerGender(normalizeGender(player.gender));
     setNewPlayerMode(false);
     setRegistrationSubmitted(false);
     const filledDetails = await fillContactDetailsFromPlayerCentre(player);
@@ -958,6 +958,7 @@ export default function RegisterPage() {
   function startNewPlayerRegistration() {
     setMatches([]);
     setSelectedChessSaPlayer(null);
+    setSelectedPlayerGender("");
     setNewPlayerMode(true);
     setRegistrationSubmitted(false);
     setSearchMessage(
@@ -1089,6 +1090,7 @@ export default function RegisterPage() {
       if (existingProfiles.length > 0) {
         setMatches(existingProfiles);
         setSelectedChessSaPlayer(null);
+        setSelectedPlayerGender("");
         setNewPlayerMode(false);
         setSearchMessage(
           "A Chess SA profile may already exist for this player. Please select the correct profile below instead of registering as a new player."
@@ -1160,7 +1162,7 @@ export default function RegisterPage() {
           ? selectedChessSaPlayer.date_of_birth
           : newPlayer.date_of_birth,
         p_gender: selectedChessSaPlayer
-          ? selectedChessSaPlayer.gender
+          ? playerGender
           : newPlayer.gender,
         p_rating: tournamentRating,
         p_email: email.trim(),
@@ -1662,7 +1664,7 @@ export default function RegisterPage() {
 
               <p>
                 <span className="font-semibold text-white">Gender:</span>{" "}
-                {selectedChessSaPlayer.gender ?? "Not supplied"}
+                {playerGender ?? "Not supplied"}
               </p>
 
               <p>
@@ -1695,6 +1697,29 @@ export default function RegisterPage() {
                 {selectedChessSaPlayer.federation ?? "Not supplied"}
               </p>
             </div>
+
+            {!normalizeGender(selectedChessSaPlayer.gender) && (
+              <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <label className="mb-2 block text-sm font-semibold text-amber-100">
+                  Confirm gender
+                </label>
+                <p className="mb-3 text-sm leading-6 text-amber-100/80">
+                  This profile does not have gender recorded. Confirm it here
+                  so gender-restricted sections such as Ladies can be checked
+                  correctly.
+                </p>
+                <select
+                  value={selectedPlayerGender}
+                  onChange={(event) => setSelectedPlayerGender(event.target.value)}
+                  className="w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2.5 text-white outline-none transition focus:border-red-500"
+                >
+                  <option value="">Select gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            )}
           </div>
         )}
 
@@ -1909,8 +1934,7 @@ export default function RegisterPage() {
                         section,
                         playerDateOfBirth,
                         playerGender,
-                        selectedPlayerRating,
-                        selectedTournamentRatingLabel
+                        selectedPlayerRating
                       );
 
                       return (
@@ -1953,8 +1977,7 @@ export default function RegisterPage() {
                           section,
                           playerDateOfBirth,
                           playerGender,
-                          selectedPlayerRating,
-                          selectedTournamentRatingLabel
+                          selectedPlayerRating
                         );
                         const isSelected = selectedSectionId === section.id;
 
