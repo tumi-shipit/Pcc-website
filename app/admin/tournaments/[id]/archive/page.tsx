@@ -30,6 +30,14 @@ type Section = {
   maximum_rating: number | null;
 };
 
+type SectionCombination = {
+  id: string;
+  tournament_id: string;
+  combined_section_id: string;
+  source_section_id: string;
+  notes: string | null;
+};
+
 type ImportedPlayer = {
   starting_number: number | null;
   name: string;
@@ -1458,6 +1466,11 @@ export default function TournamentArchiveContinuationPage() {
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [sections, setSections] = useState<Section[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState("");
+  const [sectionCombinations, setSectionCombinations] = useState<SectionCombination[]>([]);
+  const [selectedCombinedSourceIds, setSelectedCombinedSourceIds] = useState<Set<string>>(
+    () => new Set()
+  );
+  const [combinationNotes, setCombinationNotes] = useState("");
 
   const [sectionPlayers, setSectionPlayers] = useState<SectionPlayer[]>([]);
   const [tournamentPlayers, setTournamentPlayers] = useState<SectionPlayer[]>([]);
@@ -1478,6 +1491,7 @@ export default function TournamentArchiveContinuationPage() {
   const [importingTeamResults, setImportingTeamResults] = useState(false);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [savingReport, setSavingReport] = useState(false);
+  const [savingCombinations, setSavingCombinations] = useState(false);
 
   async function loadArchiveData() {
     setLoading(true);
@@ -1510,6 +1524,11 @@ export default function TournamentArchiveContinuationPage() {
 
     const loadedSections = (sectionData ?? []) as Section[];
 
+    const { data: combinationData, error: combinationError } = await supabase
+      .from("tournament_section_combinations")
+      .select("id, tournament_id, combined_section_id, source_section_id, notes")
+      .eq("tournament_id", tournamentId);
+
     const requestedSectionId =
       typeof window !== "undefined"
         ? new URLSearchParams(window.location.search).get("section")
@@ -1523,12 +1542,20 @@ export default function TournamentArchiveContinuationPage() {
     setTournament(loadedTournament);
     setReportText(loadedTournament.tournament_report ?? "");
     setSections(loadedSections);
+    setSectionCombinations(
+      combinationError ? [] : ((combinationData ?? []) as SectionCombination[])
+    );
     setSelectedSectionId((current) =>
       current ||
       (validRequestedSection ? requestedSectionId ?? "" : "") ||
       loadedSections[0]?.id ||
       ""
     );
+    if (combinationError) {
+      setMessage(
+        "Combined sections could not be loaded. Run database/tournament_section_combinations_setup.sql if this is the first time using it."
+      );
+    }
     setLoading(false);
   }
 
@@ -1653,6 +1680,17 @@ export default function TournamentArchiveContinuationPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSectionId]);
+
+  useEffect(() => {
+    const activeRows = sectionCombinations.filter(
+      (combination) => combination.combined_section_id === selectedSectionId
+    );
+
+    setSelectedCombinedSourceIds(
+      new Set(activeRows.map((combination) => combination.source_section_id))
+    );
+    setCombinationNotes(activeRows.find((combination) => combination.notes)?.notes ?? "");
+  }, [sectionCombinations, selectedSectionId]);
 
   const playerStats = useMemo(() => {
     return {
@@ -2982,6 +3020,83 @@ export default function TournamentArchiveContinuationPage() {
     setMessage("Tournament report saved.");
   }
 
+  function toggleCombinedSource(sectionId: string) {
+    setSelectedCombinedSourceIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(sectionId)) {
+        next.delete(sectionId);
+      } else {
+        next.add(sectionId);
+      }
+
+      return next;
+    });
+  }
+
+  async function saveSectionCombination() {
+    if (!selectedSectionId) {
+      setMessage("Choose the played/final ranking section first.");
+      return;
+    }
+
+    const sourceSectionIds = Array.from(selectedCombinedSourceIds).filter(
+      (sectionId) => sectionId !== selectedSectionId
+    );
+
+    setSavingCombinations(true);
+    setMessage("Saving combined section setup...");
+
+    const { error: deleteError } = await supabase
+      .from("tournament_section_combinations")
+      .delete()
+      .eq("tournament_id", tournamentId)
+      .eq("combined_section_id", selectedSectionId);
+
+    if (deleteError) {
+      setSavingCombinations(false);
+      setMessage(
+        `Could not save combined sections: ${deleteError.message}. Run database/tournament_section_combinations_setup.sql if needed.`
+      );
+      return;
+    }
+
+    if (sourceSectionIds.length > 0) {
+      const { error: insertError } = await supabase
+        .from("tournament_section_combinations")
+        .insert(
+          sourceSectionIds.map((sourceSectionId) => ({
+            tournament_id: tournamentId,
+            combined_section_id: selectedSectionId,
+            source_section_id: sourceSectionId,
+            notes: combinationNotes.trim() || null,
+          }))
+        );
+
+      if (insertError) {
+        setSavingCombinations(false);
+        setMessage(`Could not save combined sections: ${insertError.message}`);
+        return;
+      }
+    }
+
+    const { data: combinationData, error: reloadError } = await supabase
+      .from("tournament_section_combinations")
+      .select("id, tournament_id, combined_section_id, source_section_id, notes")
+      .eq("tournament_id", tournamentId);
+
+    if (!reloadError) {
+      setSectionCombinations((combinationData ?? []) as SectionCombination[]);
+    }
+
+    setSavingCombinations(false);
+    setMessage(
+      sourceSectionIds.length > 0
+        ? "Combined section setup saved."
+        : "Combined section setup cleared for this section."
+    );
+  }
+
   if (loading) {
     return (
       <AdminGuard>
@@ -3133,6 +3248,77 @@ export default function TournamentArchiveContinuationPage() {
               >
                 Refresh Section
               </button>
+            </div>
+          </section>
+
+          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
+                  Combined Sections
+                </p>
+                <h2 className="mt-2 text-2xl font-black">
+                  Sections played together
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
+                  Use this when players registered in separate sections but were
+                  paired and ranked together. The selected section above is the
+                  played/final ranking section.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={saveSectionCombination}
+                disabled={!selectedSectionId || savingCombinations}
+                className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
+              >
+                {savingCombinations ? "Saving..." : "Save Combination"}
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-4">
+              <p className="text-sm font-bold text-white">
+                Played/final ranking section:{" "}
+                {sections.find((section) => section.id === selectedSectionId)
+                  ?.section_name ?? "Choose section"}
+              </p>
+
+              <div className="mt-4 grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                {sections
+                  .filter((section) => section.id !== selectedSectionId)
+                  .map((section) => (
+                    <label
+                      key={section.id}
+                      className="flex items-center gap-3 rounded-lg border border-white/10 bg-black/25 px-3 py-2 text-sm text-gray-200"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedCombinedSourceIds.has(section.id)}
+                        onChange={() => toggleCombinedSource(section.id)}
+                        className="h-4 w-4 accent-red-600"
+                      />
+                      <span>{section.section_name}</span>
+                    </label>
+                  ))}
+              </div>
+
+              {sections.length <= 1 && (
+                <p className="mt-3 text-sm text-gray-500">
+                  Add more sections before using combined section notes.
+                </p>
+              )}
+
+              <label className="mt-5 block text-sm font-semibold text-gray-200">
+                Public note
+              </label>
+              <input
+                type="text"
+                value={combinationNotes}
+                onChange={(event) => setCombinationNotes(event.target.value)}
+                className={`${inputClass} mt-2`}
+                placeholder="Example: U8 and U10 played together for pairing, prizes remain by section."
+              />
             </div>
           </section>
 

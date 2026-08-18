@@ -41,6 +41,14 @@ type TournamentSection = {
   display_order: number | null;
 };
 
+type SectionCombination = {
+  id: string;
+  tournament_id: string;
+  combined_section_id: string;
+  source_section_id: string;
+  notes: string | null;
+};
+
 type TournamentStats = {
   tournament_id: string;
   total_registrations: number;
@@ -451,6 +459,7 @@ export default function TournamentHubPage() {
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [sections, setSections] = useState<TournamentSection[]>([]);
+  const [sectionCombinations, setSectionCombinations] = useState<SectionCombination[]>([]);
   const [stats, setStats] = useState<TournamentStats | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
@@ -526,6 +535,18 @@ export default function TournamentHubPage() {
         .order("section_name", { ascending: true });
 
       const loadedSections = (sectionData ?? []) as TournamentSection[];
+
+      let loadedSectionCombinations: SectionCombination[] = [];
+      const { data: sectionCombinationData, error: sectionCombinationError } =
+        await supabase
+          .from("tournament_section_combinations")
+          .select("id, tournament_id, combined_section_id, source_section_id, notes")
+          .eq("tournament_id", tournamentId);
+
+      if (!sectionCombinationError) {
+        loadedSectionCombinations =
+          (sectionCombinationData ?? []) as SectionCombination[];
+      }
 
       const { data: statsData } = await supabase
         .from("tournament_public_stats")
@@ -728,6 +749,7 @@ export default function TournamentHubPage() {
 
       setTournament(loadedTournament);
       setSections(loadedSections);
+      setSectionCombinations(loadedSectionCombinations);
       setStats((statsData ?? null) as TournamentStats | null);
       setGallery((galleryData ?? []) as unknown as GalleryImage[]);
       setResults(resultRowsWithPlayers);
@@ -999,6 +1021,7 @@ export default function TournamentHubPage() {
             standingUpdates={standingUpdates}
             results={results}
             sections={sections}
+            sectionCombinations={sectionCombinations}
             chessResultsUrl={tournament.chess_results_url}
             isCompleted={false}
           />
@@ -1009,6 +1032,7 @@ export default function TournamentHubPage() {
             tournament={tournament}
             isShere={isShere}
             sections={sections}
+            sectionCombinations={sectionCombinations}
             results={results}
             teamResults={teamResults}
             standingUpdates={standingUpdates}
@@ -1739,6 +1763,7 @@ function ArchiveContent({
   tournament,
   isShere,
   sections,
+  sectionCombinations,
   results,
   teamResults,
   standingUpdates,
@@ -1746,6 +1771,7 @@ function ArchiveContent({
   tournament: Tournament;
   isShere: boolean;
   sections: TournamentSection[];
+  sectionCombinations: SectionCombination[];
   results: ResultWithPlayer[];
   teamResults: TournamentTeamResult[];
   standingUpdates: LiveStandingUpdate[];
@@ -1799,6 +1825,7 @@ function ArchiveContent({
         standingUpdates={standingUpdates}
         results={results}
         sections={sections}
+        sectionCombinations={sectionCombinations}
         chessResultsUrl={tournament.chess_results_url}
         isCompleted
       />
@@ -1806,6 +1833,7 @@ function ArchiveContent({
       <TeamRankingTable
         teamResults={teamResults}
         sections={sections}
+        sectionCombinations={sectionCombinations}
         chessResultsUrl={tournament.chess_results_url}
       />
     </div>
@@ -1942,6 +1970,7 @@ function TournamentStandingsPanel({
   standingUpdates,
   results,
   sections,
+  sectionCombinations,
   chessResultsUrl,
   isCompleted,
 }: {
@@ -1949,6 +1978,7 @@ function TournamentStandingsPanel({
   standingUpdates: LiveStandingUpdate[];
   results: ResultWithPlayer[];
   sections: TournamentSection[];
+  sectionCombinations: SectionCombination[];
   chessResultsUrl: string | null;
   isCompleted: boolean;
 }) {
@@ -1960,6 +1990,7 @@ function TournamentStandingsPanel({
       <FinalRankingTable
         results={results}
         sections={sections}
+        sectionCombinations={sectionCombinations}
         chessResultsUrl={chessResultsUrl}
       />
     ) : null;
@@ -2163,13 +2194,44 @@ function groupResultsBySection(
   ];
 }
 
+function getSectionCombinationInfo(
+  sectionId: string,
+  sections: TournamentSection[],
+  sectionCombinations: SectionCombination[]
+) {
+  if (sectionId === "overall") return null;
+
+  const rows = sectionCombinations.filter(
+    (combination) => combination.combined_section_id === sectionId
+  );
+
+  if (rows.length === 0) return null;
+
+  const sourceNames = rows
+    .map(
+      (combination) =>
+        sections.find((section) => section.id === combination.source_section_id)
+          ?.section_name
+    )
+    .filter(Boolean) as string[];
+
+  if (sourceNames.length === 0) return null;
+
+  return {
+    sourceNames,
+    note: rows.find((combination) => combination.notes?.trim())?.notes?.trim() ?? null,
+  };
+}
+
 function FinalRankingTable({
   results,
   sections,
+  sectionCombinations,
   chessResultsUrl,
 }: {
   results: ResultWithPlayer[];
   sections: TournamentSection[];
+  sectionCombinations: SectionCombination[];
   chessResultsUrl: string | null;
 }) {
   const sectionEntries = groupResultsBySection(results, sections);
@@ -2236,6 +2298,11 @@ function FinalRankingTable({
           const hiddenCount = Math.max(section.results.length - topResults.length, 0);
           const sectionChessResultsUrl =
             section.chessResultsUrl || chessResultsUrl;
+          const combinedInfo = getSectionCombinationInfo(
+            section.sectionId,
+            sections,
+            sectionCombinations
+          );
 
           return (
             <div
@@ -2265,6 +2332,14 @@ function FinalRankingTable({
                     </a>
                   )}
                 </div>
+
+                {combinedInfo && (
+                  <p className="mt-3 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-100">
+                    Combined section: {combinedInfo.sourceNames.join(", ")} played
+                    together as {section.sectionName}
+                    {combinedInfo.note ? `. ${combinedInfo.note}` : "."}
+                  </p>
+                )}
               </div>
 
               <div className="overflow-x-auto">
@@ -2391,10 +2466,12 @@ function groupTeamResultsBySection(
 function TeamRankingTable({
   teamResults,
   sections,
+  sectionCombinations,
   chessResultsUrl,
 }: {
   teamResults: TournamentTeamResult[];
   sections: TournamentSection[];
+  sectionCombinations: SectionCombination[];
   chessResultsUrl: string | null;
 }) {
   const sectionEntries = groupTeamResultsBySection(teamResults, sections);
@@ -2430,6 +2507,11 @@ function TeamRankingTable({
           const hiddenCount = Math.max(section.results.length - topResults.length, 0);
           const sectionChessResultsUrl =
             section.chessResultsUrl || chessResultsUrl;
+          const combinedInfo = getSectionCombinationInfo(
+            section.sectionId,
+            sections,
+            sectionCombinations
+          );
 
           return (
             <div
@@ -2459,6 +2541,14 @@ function TeamRankingTable({
                     </a>
                   )}
                 </div>
+
+                {combinedInfo && (
+                  <p className="mt-3 rounded-lg border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-xs leading-5 text-yellow-50">
+                    Combined section: {combinedInfo.sourceNames.join(", ")} played
+                    together as {section.sectionName}
+                    {combinedInfo.note ? `. ${combinedInfo.note}` : "."}
+                  </p>
+                )}
               </div>
 
               <div className="overflow-x-auto">
