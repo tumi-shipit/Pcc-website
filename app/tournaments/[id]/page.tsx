@@ -83,6 +83,7 @@ type TournamentResult = {
   player_id: string | null;
   section_id: string | null;
   final_position: number | null;
+  starting_number: number | null;
   imported_name: string | null;
   imported_rating: number | null;
   federation: string | null;
@@ -566,7 +567,7 @@ export default function TournamentHubPage() {
       const { data: resultData } = await supabase
         .from("tournament_results")
         .select(
-          "id, tournament_id, player_id, section_id, final_position, imported_name, imported_rating, federation, points, tie_break, award_title, notes"
+          "id, tournament_id, player_id, section_id, final_position, starting_number, imported_name, imported_rating, federation, points, tie_break, award_title, notes"
         )
         .eq("tournament_id", tournamentId)
         .order("section_id", { ascending: true, nullsFirst: true })
@@ -1911,58 +1912,68 @@ function PlayerOfTournamentSection({
   );
 }
 
-function groupStandingsByRoundAndSection(
+function latestStandingsBySection(
   standingUpdates: LiveStandingUpdate[],
   sections: TournamentSection[]
 ) {
   const sectionsById = new Map(sections.map((section) => [section.id, section]));
-  const rounds = new Map<
-    number,
-    Map<string, { sectionName: string; updates: LiveStandingUpdate[] }>
+  const sectionGroups = new Map<
+    string,
+    { sectionName: string; roundNumber: number; updates: LiveStandingUpdate[] }
   >();
 
   standingUpdates.forEach((update) => {
-    const roundGroups = rounds.get(update.round_number) ?? new Map();
     const sectionKey = update.section_id ?? "overall";
     const section = update.section_id ? sectionsById.get(update.section_id) : null;
-    const sectionGroup =
-      roundGroups.get(sectionKey) ?? {
-        sectionName: section?.section_name ?? "Overall",
-        updates: [],
-      };
+    const existing = sectionGroups.get(sectionKey);
 
-    sectionGroup.updates.push(update);
-    roundGroups.set(sectionKey, sectionGroup);
-    rounds.set(update.round_number, roundGroups);
+    if (!existing || update.round_number > existing.roundNumber) {
+      sectionGroups.set(sectionKey, {
+        sectionName: section?.section_name ?? "Overall",
+        roundNumber: update.round_number,
+        updates: [update],
+      });
+      return;
+    }
+
+    if (update.round_number === existing.roundNumber) {
+      existing.updates.push(update);
+    }
   });
 
-  return Array.from(rounds.entries())
-    .sort((first, second) => second[0] - first[0])
-    .map(([roundNumber, sectionGroups]) => ({
-      roundNumber,
-      sections: Array.from(sectionGroups.entries())
-        .map(([sectionId, sectionGroup]) => ({
-          sectionId,
-          sectionName: sectionGroup.sectionName,
-          updates: [...sectionGroup.updates].sort((first, second) => {
-            const firstBoard = first.board_number ?? 999999;
-            const secondBoard = second.board_number ?? 999999;
+  const standingSections = Array.from(sectionGroups.entries())
+    .map(([sectionId, sectionGroup]) => ({
+      sectionId,
+      sectionName: sectionGroup.sectionName,
+      roundNumber: sectionGroup.roundNumber,
+      updates: [...sectionGroup.updates].sort((first, second) => {
+        const firstBoard = first.board_number ?? 999999;
+        const secondBoard = second.board_number ?? 999999;
 
-            if (firstBoard !== secondBoard) return firstBoard - secondBoard;
-            return (first.display_order ?? 999999) - (second.display_order ?? 999999);
-          }),
-        }))
-        .sort((first, second) => {
-          const firstSection = sections.find((section) => section.id === first.sectionId);
-          const secondSection = sections.find((section) => section.id === second.sectionId);
+        if (firstBoard !== secondBoard) return firstBoard - secondBoard;
+        return (first.display_order ?? 999999) - (second.display_order ?? 999999);
+      }),
+    }))
+    .sort((first, second) => {
+      const firstSection = sections.find((section) => section.id === first.sectionId);
+      const secondSection = sections.find((section) => section.id === second.sectionId);
 
-          return (
-            (firstSection?.display_order ?? 999999) -
-              (secondSection?.display_order ?? 999999) ||
-            first.sectionName.localeCompare(second.sectionName)
-          );
-        }),
-    }));
+      return (
+        (firstSection?.display_order ?? 999999) -
+          (secondSection?.display_order ?? 999999) ||
+        first.sectionName.localeCompare(second.sectionName)
+      );
+    });
+
+  const latestRound = standingSections.reduce(
+    (highest, section) => Math.max(highest, section.roundNumber),
+    0
+  );
+
+  return {
+    roundNumber: latestRound || null,
+    sections: standingSections,
+  };
 }
 
 function TournamentStandingsPanel({
@@ -1982,10 +1993,17 @@ function TournamentStandingsPanel({
   chessResultsUrl: string | null;
   isCompleted: boolean;
 }) {
-  const roundEntries = groupStandingsByRoundAndSection(standingUpdates, sections);
-  const latestRound = roundEntries[0]?.roundNumber ?? null;
+  const currentStanding = latestStandingsBySection(standingUpdates, sections);
+  const latestRound = currentStanding.roundNumber;
+  const latestRoundIsFinal =
+    isCompleted &&
+    currentStanding.sections.some((section) =>
+      section.updates.some((update) =>
+        (update.result ?? "").toLowerCase().includes("final")
+      )
+    );
 
-  if (roundEntries.length === 0) {
+  if (currentStanding.sections.length === 0) {
     return isCompleted ? (
       <FinalRankingTable
         results={results}
@@ -2004,21 +2022,22 @@ function TournamentStandingsPanel({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-            Tournament Standings
+            {latestRoundIsFinal ? "Final Ranking" : "Tournament Standings"}
           </p>
           <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            Round-by-round movement
+            {latestRoundIsFinal ? "Official final standings" : "Latest movement"}
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Standings are shown as the organiser imports round updates. The final
-            ranking becomes the last standings view once confirmed.
+            {latestRoundIsFinal
+              ? "The final ranking replaces the live standings and keeps the original start position where available."
+              : "The latest imported standings are shown here. Each new standing replaces the previous public snapshot."}
           </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
           {latestRound && (
             <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
-              Latest round {latestRound}
+              {latestRoundIsFinal ? "Final standing" : `Latest round ${latestRound}`}
             </span>
           )}
           <Link
@@ -2031,9 +2050,9 @@ function TournamentStandingsPanel({
       </div>
 
       <div className="mt-8 space-y-6">
-        {roundEntries.map((round) => (
+        {[currentStanding].map((round) => (
           <div
-            key={round.roundNumber}
+            key={round.roundNumber ?? "current-standing"}
             className="overflow-hidden rounded-2xl border border-red-500/20 bg-zinc-950"
           >
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-red-500/20 bg-black/45 p-4">
@@ -2042,14 +2061,9 @@ function TournamentStandingsPanel({
                   Standing
                 </p>
                 <h3 className="mt-2 text-xl font-black text-white">
-                  {isCompleted &&
-                  round.sections.some((section) =>
-                    section.updates.some((update) =>
-                      (update.result ?? "").toLowerCase().includes("final")
-                    )
-                  )
+                  {latestRoundIsFinal
                     ? "Final standings"
-                    : `After round ${round.roundNumber}`}
+                    : "Latest standings"}
                 </h3>
               </div>
 
@@ -2348,6 +2362,7 @@ function FinalRankingTable({
                     <tr>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">Rk</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">Name</th>
+                      <th className="border border-white/10 px-2 py-3 sm:px-3">Start</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">Rtg</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">FED</th>
                       <th className="border border-white/10 px-2 py-3 sm:px-3">Pts</th>
@@ -2383,6 +2398,9 @@ function FinalRankingTable({
                                 {publicResultName(result)}
                               </span>
                             )}
+                          </td>
+                          <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
+                            {result.starting_number ?? "-"}
                           </td>
                           <td className="border border-white/10 px-2 py-3 text-gray-300 sm:px-3">
                             {publicResultRating(result) ?? "-"}

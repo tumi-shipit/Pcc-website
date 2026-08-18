@@ -2416,7 +2416,43 @@ export default function TournamentArchiveContinuationPage() {
     );
   }
 
-  async function publishFinalRankingStandings(rows: ImportedStanding[]) {
+  function startNumberForStanding(
+    row: ImportedStanding,
+    standingStartNumbers: Map<string, number>
+  ) {
+    return row.starting_number ?? standingStartNumbers.get(normalizeName(row.name)) ?? null;
+  }
+
+  async function loadStandingStartNumbers() {
+    if (!tournament || !selectedSectionId) return new Map<string, number>();
+
+    const { data, error } = await supabase
+      .from("tournament_live_updates")
+      .select("player_name, previous_board_number")
+      .eq("tournament_id", tournament.id)
+      .eq("section_id", selectedSectionId)
+      .not("previous_board_number", "is", null);
+
+    if (error) return new Map<string, number>();
+
+    const startNumbers = new Map<string, number>();
+
+    (data ?? []).forEach((row) => {
+      const key = normalizeName(String(row.player_name ?? ""));
+      const startNumber = Number(row.previous_board_number);
+
+      if (key && Number.isFinite(startNumber) && !startNumbers.has(key)) {
+        startNumbers.set(key, startNumber);
+      }
+    });
+
+    return startNumbers;
+  }
+
+  async function publishFinalRankingStandings(
+    rows: ImportedStanding[],
+    standingStartNumbers: Map<string, number>
+  ) {
     if (!tournament || !selectedSectionId) return false;
 
     const importedRows = rows.filter(
@@ -2455,8 +2491,7 @@ export default function TournamentArchiveContinuationPage() {
       .from("tournament_live_updates")
       .delete()
       .eq("tournament_id", tournament.id)
-      .eq("section_id", selectedSectionId)
-      .eq("round_number", finalRound);
+      .eq("section_id", selectedSectionId);
 
     if (deleteError) throw deleteError;
 
@@ -2472,7 +2507,7 @@ export default function TournamentArchiveContinuationPage() {
         tournament_id: tournament.id,
         section_id: selectedSectionId,
         round_number: finalRound,
-        previous_board_number: row.starting_number,
+        previous_board_number: startNumberForStanding(row, standingStartNumbers),
         board_number: row.rank,
         player_name: row.name,
         opponent_name: null,
@@ -2536,6 +2571,7 @@ export default function TournamentArchiveContinuationPage() {
     }
 
     const updatedRows: ImportedStanding[] = [];
+    const standingStartNumbers = await loadStandingStartNumbers();
 
     for (const row of rankingRows) {
       try {
@@ -2557,6 +2593,7 @@ export default function TournamentArchiveContinuationPage() {
           player_id: playerId,
           section_id: selectedSectionId,
           final_position: row.rank,
+          starting_number: startNumberForStanding(row, standingStartNumbers),
           imported_name: row.name,
           imported_rating: row.rating,
           federation: row.federation,
@@ -2616,7 +2653,10 @@ export default function TournamentArchiveContinuationPage() {
     let finalStandingsPublished = false;
 
     try {
-      finalStandingsPublished = await publishFinalRankingStandings(updatedRows);
+      finalStandingsPublished = await publishFinalRankingStandings(
+        updatedRows,
+        standingStartNumbers
+      );
     } catch (standingError) {
       console.error(standingError);
     }
