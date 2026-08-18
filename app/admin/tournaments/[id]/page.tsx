@@ -852,6 +852,13 @@ export default function AdminTournamentDashboardPage() {
               </Link>
 
               <Link
+                href={`/admin/tournaments/${tournamentId}/gallery`}
+                className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-center text-sm font-bold text-red-100 transition hover:bg-red-500/20"
+              >
+                Gallery / Photo Album
+              </Link>
+
+              <Link
                 href="/admin/registrations"
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >
