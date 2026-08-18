@@ -18,6 +18,8 @@ type Tournament = {
   start_date: string;
   venue: string | null;
   registration_status: string | null;
+  external_gallery_url?: string | null;
+  external_gallery_label?: string | null;
 };
 
 type GalleryImage = {
@@ -31,6 +33,7 @@ type GalleryImage = {
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
+const maxFeaturedGalleryImages = 4;
 
 function formatDate(value: string | null) {
   if (!value) return "TBA";
@@ -56,6 +59,8 @@ export default function TournamentGalleryPage({
   const [tournament, setTournament] = useState<Tournament | null>(null);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [caption, setCaption] = useState("");
+  const [externalGalleryUrl, setExternalGalleryUrl] = useState("");
+  const [externalGalleryLabel, setExternalGalleryLabel] = useState("");
   const [selectedImage, setSelectedImage] = useState<GalleryImage | null>(null);
   const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(
     () => new Set()
@@ -92,17 +97,37 @@ export default function TournamentGalleryPage({
 
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
-      .select("id, tournament_name, start_date, venue, registration_status")
+      .select("id, tournament_name, start_date, venue, registration_status, external_gallery_url, external_gallery_label")
       .eq("id", tournamentId)
       .single();
 
     if (tournamentError || !tournamentData) {
-      setMessage("Tournament could not be loaded.");
+      const fallback = await supabase
+        .from("tournaments")
+        .select("id, tournament_name, start_date, venue, registration_status")
+        .eq("id", tournamentId)
+        .single();
+
+      if (fallback.error || !fallback.data) {
+        setMessage("Tournament could not be loaded.");
+        setLoading(false);
+        return;
+      }
+
+      setTournament(fallback.data as Tournament);
+      setExternalGalleryUrl("");
+      setExternalGalleryLabel("");
+      setMessage(
+        "External gallery fields are not installed yet. Run database/tournament_external_gallery_setup.sql in Supabase."
+      );
+      await loadGallery();
       setLoading(false);
       return;
     }
 
     setTournament(tournamentData as Tournament);
+    setExternalGalleryUrl(tournamentData.external_gallery_url ?? "");
+    setExternalGalleryLabel(tournamentData.external_gallery_label ?? "");
     await loadGallery();
     setLoading(false);
   }
@@ -116,11 +141,22 @@ export default function TournamentGalleryPage({
       total: gallery.length,
       captioned: gallery.filter((image) => image.caption).length,
       uncaptained: gallery.filter((image) => !image.caption).length,
+      remaining: Math.max(maxFeaturedGalleryImages - gallery.length, 0),
     };
   }, [gallery]);
 
   async function uploadFiles(files: File[]) {
-    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const remainingSlots = Math.max(maxFeaturedGalleryImages - gallery.length, 0);
+
+    if (remainingSlots <= 0) {
+      setMessage(
+        `This tournament already has the maximum ${maxFeaturedGalleryImages} featured photos. Delete one before uploading another.`
+      );
+      return;
+    }
+
+    const selectedImageFiles = files.filter((file) => file.type.startsWith("image/"));
+    const imageFiles = selectedImageFiles.slice(0, remainingSlots);
 
     if (imageFiles.length === 0) {
       setMessage("No image files selected.");
@@ -130,6 +166,11 @@ export default function TournamentGalleryPage({
     setUploading(true);
     setMessage("");
     setUploadProgress(`Preparing ${imageFiles.length} image(s)...`);
+    if (selectedImageFiles.length > imageFiles.length) {
+      setMessage(
+        `Only ${imageFiles.length} image(s) will be uploaded because featured photos are limited to ${maxFeaturedGalleryImages}.`
+      );
+    }
 
     let uploaded = 0;
     let failed = 0;
@@ -200,6 +241,26 @@ export default function TournamentGalleryPage({
     const files = Array.from(event.target.files ?? []);
     await uploadFiles(files);
     event.target.value = "";
+  }
+
+  async function saveExternalGallery() {
+    const { error } = await supabase
+      .from("tournaments")
+      .update({
+        external_gallery_url: externalGalleryUrl.trim() || null,
+        external_gallery_label: externalGalleryLabel.trim() || null,
+      })
+      .eq("id", tournamentId);
+
+    if (error) {
+      setMessage(
+        `Could not save external gallery link: ${error.message}. Run database/tournament_external_gallery_setup.sql in Supabase first.`
+      );
+      return;
+    }
+
+    setMessage("External gallery link saved.");
+    await loadPage();
   }
 
   async function updateCaption(image: GalleryImage, newCaption: string) {
@@ -388,8 +449,8 @@ export default function TournamentGalleryPage({
             </h1>
 
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
-              Upload and manage tournament photos. These images appear on the
-              public completed tournament page when the event is completed.
+              Link the full tournament album from external storage. Supabase
+              uploads can still be used for a few featured photos only.
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -418,13 +479,85 @@ export default function TournamentGalleryPage({
           )}
 
           <section className="mt-8 grid gap-4 md:grid-cols-3">
-            <StatCard label="Photos" value={stats.total} />
+            <StatCard label="Featured photos" value={`${stats.total}/${maxFeaturedGalleryImages}`} />
             <StatCard label="Captioned" value={stats.captioned} tone="green" />
-            <StatCard label="No Caption" value={stats.uncaptained} tone="yellow" />
+            <StatCard label="Slots left" value={stats.remaining} tone="yellow" />
           </section>
 
           <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-6">
-            <div className="grid gap-4 md:grid-cols-[1fr_320px]">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[0.24em] text-red-300">
+                  External Album
+                </p>
+                <h2 className="mt-2 text-2xl font-black">Photo storage link</h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
+                  Use Google Drive, Google Photos, MEGA, iCloud or another
+                  album link for the full tournament gallery.
+                </p>
+              </div>
+
+              {externalGalleryUrl.trim() && (
+                <a
+                  href={externalGalleryUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+                >
+                  Test link
+                </a>
+              )}
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-[1fr_260px_160px]">
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  External gallery link
+                </label>
+                <input
+                  type="url"
+                  value={externalGalleryUrl}
+                  onChange={(event) => setExternalGalleryUrl(event.target.value)}
+                  placeholder="https://drive.google.com/... or https://photos.app.goo.gl/..."
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Button label
+                </label>
+                <input
+                  value={externalGalleryLabel}
+                  onChange={(event) => setExternalGalleryLabel(event.target.value)}
+                  placeholder="View more photos"
+                  className={inputClass}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={saveExternalGallery}
+                className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                Save link
+              </button>
+            </div>
+          </section>
+
+          <section className="mt-8 rounded-3xl border border-white/10 bg-zinc-900 p-6">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.24em] text-red-300">
+                Optional Featured Photos
+              </p>
+              <h2 className="mt-2 text-2xl font-black">Supabase photos</h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
+                Keep this strict: maximum 4 highlights. Store full albums
+                externally to protect Supabase storage.
+              </p>
+            </div>
+
+            <div className="mt-5 grid gap-4 md:grid-cols-[1fr_320px]">
               <div>
                 <label className="mb-2 block text-sm font-semibold">
                   Caption for uploaded photos
@@ -446,9 +579,16 @@ export default function TournamentGalleryPage({
                   multiple
                   accept="image/*"
                   onChange={handleUpload}
-                  disabled={uploading}
+                  disabled={uploading || stats.remaining <= 0}
                   className="block w-full rounded-xl border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-red-600 file:px-4 file:py-2 file:font-semibold file:text-white disabled:opacity-60"
                 />
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  {stats.remaining > 0
+                    ? `${stats.remaining} featured photo slot${
+                        stats.remaining === 1 ? "" : "s"
+                      } left.`
+                    : "Featured photo limit reached."}
+                </p>
               </div>
             </div>
           </section>

@@ -23,6 +23,8 @@ type Tournament = {
   poster_image_url: string | null;
   payment_details: string | null;
   chess_results_url: string | null;
+  external_gallery_url?: string | null;
+  external_gallery_label?: string | null;
   arbiter_player_id: string | null;
 };
 
@@ -458,7 +460,6 @@ export default function TournamentHubPage() {
   const [arbiter, setArbiter] = useState<Player | null>(null);
   const [officials, setOfficials] = useState<PublicOfficial[]>([]);
   const [organisations, setOrganisations] = useState<PublicTournamentOrganisation[]>([]);
-  const [showAllGallery, setShowAllGallery] = useState(false);
   const [selectedGalleryImage, setSelectedGalleryImage] =
     useState<GalleryImage | null>(null);
   const [loading, setLoading] = useState(true);
@@ -481,13 +482,14 @@ export default function TournamentHubPage() {
       let { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, tournament_report, postponement_reason, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
+          "id, tournament_name, description, tournament_report, postponement_reason, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, external_gallery_url, external_gallery_label, arbiter_player_id"
         )
         .eq("id", tournamentId)
         .single();
 
       if (
-        tournamentError?.message.toLowerCase().includes("postponement_reason")
+        tournamentError?.message.toLowerCase().includes("postponement_reason") ||
+        tournamentError?.message.toLowerCase().includes("external_gallery")
       ) {
         const fallback = await supabase
           .from("tournaments")
@@ -498,7 +500,12 @@ export default function TournamentHubPage() {
           .single();
 
         tournamentData = fallback.data
-          ? { ...fallback.data, postponement_reason: null }
+          ? {
+              ...fallback.data,
+              postponement_reason: null,
+              external_gallery_url: null,
+              external_gallery_label: null,
+            }
           : null;
         tournamentError = fallback.error;
       }
@@ -765,7 +772,6 @@ export default function TournamentHubPage() {
           })(),
         }))
       );
-      setShowAllGallery(false);
       setLoading(false);
     }
 
@@ -799,7 +805,7 @@ export default function TournamentHubPage() {
     );
   }
 
-  const visibleGallery = showAllGallery ? gallery : gallery.slice(0, 4);
+  const visibleGallery = gallery.slice(0, 4);
   const registeredCount =
     stats?.total_registrations && stats.total_registrations > 0
       ? stats.total_registrations
@@ -1096,22 +1102,53 @@ export default function TournamentHubPage() {
               </div>
 
               <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
-                {gallery.length} photo{gallery.length === 1 ? "" : "s"}
+                {Math.min(gallery.length, 4)} featured photo
+                {Math.min(gallery.length, 4) === 1 ? "" : "s"}
               </span>
             </div>
 
+            {tournament.external_gallery_url && (
+              <div className="mt-6 rounded-2xl border border-red-500/25 bg-red-500/10 p-5">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-200">
+                      Full Photo Album
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-red-50/85">
+                      Open the organiser's external gallery for the full
+                      tournament photo collection.
+                    </p>
+                  </div>
+
+                  <a
+                    href={tournament.external_gallery_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-xl bg-red-600 px-5 py-3 text-center text-sm font-black text-white transition hover:bg-red-700"
+                  >
+                    {tournament.external_gallery_label?.trim() ||
+                      "View more photos"}
+                  </a>
+                </div>
+              </div>
+            )}
+
             {gallery.length === 0 ? (
               <p className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
-                Gallery coming soon.
+                {tournament.external_gallery_url
+                  ? "Featured photos will appear here when added."
+                  : "Gallery coming soon."}
               </p>
             ) : (
-              <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-                {visibleGallery.map((image) => (
+              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {visibleGallery.map((image, index) => (
                   <button
                     key={image.id}
                     type="button"
                     onClick={() => setSelectedGalleryImage(image)}
-                    className="group overflow-hidden rounded-xl border border-white/10 bg-zinc-950 text-left transition hover:border-red-500"
+                    className={`group overflow-hidden rounded-xl border border-white/10 bg-zinc-950 text-left transition hover:border-red-500 ${
+                      index === 3 ? "hidden lg:block" : ""
+                    }`}
                   >
                     <div className="relative aspect-square">
                       <Image
@@ -1133,17 +1170,6 @@ export default function TournamentHubPage() {
               </div>
             )}
 
-            {gallery.length > 4 && (
-              <div className="mt-6 flex justify-center">
-                <button
-                  type="button"
-                  onClick={() => setShowAllGallery((current) => !current)}
-                  className="rounded-xl border border-white/10 px-5 py-3 text-sm font-bold text-white transition hover:border-red-500"
-                >
-                  {showAllGallery ? "Show fewer photos" : "View all photos"}
-                </button>
-              </div>
-            )}
           </section>
         )}
       </section>
