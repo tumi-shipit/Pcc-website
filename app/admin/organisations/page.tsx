@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
+import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 
 type Organisation = {
@@ -55,6 +56,16 @@ const emptyCommitteeForm: CommitteeForm = {
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
 
+function cleanFileName(name: string) {
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  return cleaned || "organisation-logo.jpg";
+}
+
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
@@ -68,6 +79,7 @@ export default function AdminOrganisationsPage() {
   const [memberForm, setMemberForm] = useState<CommitteeForm>(emptyCommitteeForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const [message, setMessage] = useState("");
 
   const selectedOrganisation = useMemo(
@@ -192,6 +204,81 @@ export default function AdminOrganisationsPage() {
     }
 
     setSaving(false);
+    await loadData();
+  }
+
+  async function uploadOrganisationLogo(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+
+    if (!file) return;
+
+    if (!selectedOrganisationId) {
+      setMessage("Create or select the organisation before uploading a logo.");
+      event.target.value = "";
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setMessage("Please upload an image file for the organisation logo.");
+      event.target.value = "";
+      return;
+    }
+
+    setUploadingLogo(true);
+    setMessage("Uploading organisation logo...");
+
+    let uploadFile = file;
+
+    try {
+      uploadFile = await resizeImageForUpload(file, {
+        maxDimension: 900,
+        quality: 0.84,
+      });
+    } catch {
+      uploadFile = file;
+    }
+
+    const filePath = `${selectedOrganisationId}/${Date.now()}-${cleanFileName(
+      uploadFile.name
+    )}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("organisation-logos")
+      .upload(filePath, uploadFile, {
+        upsert: false,
+        contentType: uploadFile.type || "image/jpeg",
+      });
+
+    if (uploadError) {
+      setMessage(`Logo upload failed: ${uploadError.message}`);
+      setUploadingLogo(false);
+      event.target.value = "";
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("organisation-logos")
+      .getPublicUrl(filePath);
+
+    const { error: updateError } = await supabase
+      .from("organisations")
+      .update({
+        logo_url: data.publicUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", selectedOrganisationId);
+
+    if (updateError) {
+      setMessage(`Logo uploaded but organisation update failed: ${updateError.message}`);
+      setUploadingLogo(false);
+      event.target.value = "";
+      return;
+    }
+
+    setForm((current) => ({ ...current, logo_url: data.publicUrl }));
+    setMessage("Organisation logo uploaded.");
+    setUploadingLogo(false);
+    event.target.value = "";
     await loadData();
   }
 
@@ -340,9 +427,57 @@ export default function AdminOrganisationsPage() {
                   <input
                     value={form.logo_url}
                     onChange={(event) => updateForm("logo_url", event.target.value)}
-                    placeholder="Logo URL"
+                    placeholder="Logo URL or uploaded logo path"
                     className={inputClass}
                   />
+                  <div className="rounded-xl border border-white/10 bg-zinc-950 p-4">
+                    <div className="flex items-center gap-4">
+                      {form.logo_url ? (
+                        <img
+                          src={form.logo_url}
+                          alt="Organisation logo preview"
+                          className="h-16 w-16 rounded-xl border border-white/10 bg-zinc-900 object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-xs font-bold text-zinc-500">
+                          Logo
+                        </div>
+                      )}
+
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-white">
+                          Upload logo/profile image
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          Use this when the organisation has no public website or
+                          reliable logo URL.
+                        </p>
+                      </div>
+                    </div>
+
+                    <label
+                      className={`mt-4 inline-flex cursor-pointer rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500 ${
+                        !selectedOrganisationId || uploadingLogo
+                          ? "pointer-events-none opacity-60"
+                          : ""
+                      }`}
+                    >
+                      {uploadingLogo ? "Uploading..." : "Choose logo"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={uploadOrganisationLogo}
+                        disabled={!selectedOrganisationId || uploadingLogo}
+                        className="sr-only"
+                      />
+                    </label>
+
+                    {!selectedOrganisationId && (
+                      <p className="mt-3 text-xs text-zinc-500">
+                        Save the organisation first, then upload its logo.
+                      </p>
+                    )}
+                  </div>
                   <input
                     value={form.website_url}
                     onChange={(event) => updateForm("website_url", event.target.value)}
