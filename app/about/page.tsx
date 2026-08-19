@@ -1,6 +1,10 @@
+import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { verifiedRecords } from "@/lib/verifiedRecords";
 
 export default function AboutPage() {
+  const developmentRecord = verifiedRecords[0];
+
   return (
     <main className="min-h-screen bg-black text-white pt-24">
       <Navbar />
@@ -14,6 +18,24 @@ export default function AboutPage() {
           competitive chess, youth development and new players across the city,
           district and province.
         </p>
+
+        <div className="mt-10 rounded-2xl border border-white/10 bg-zinc-950 p-6">
+          <p className="text-sm font-semibold uppercase tracking-[0.22em] text-red-400">
+            Verified Development Record
+          </p>
+          <h2 className="mt-3 text-2xl font-black">
+            {developmentRecord.title}
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-gray-400">
+            {developmentRecord.summary}
+          </p>
+          <Link
+            href={`/verified-records/${developmentRecord.slug}`}
+            className="mt-5 inline-flex rounded-lg border border-white/10 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500 hover:bg-red-500/10"
+          >
+            Open PCC record
+          </Link>
+        </div>
       </section>
     </main>
   );

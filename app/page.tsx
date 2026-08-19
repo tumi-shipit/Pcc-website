@@ -6,6 +6,7 @@ import Achievements from "../components/Achievements";
 import Tournaments from "../components/Tournaments";
 import Leadership from "../components/Leadership";
 import TrustDetails from "../components/TrustDetails";
+import VerifiedRecords from "../components/VerifiedRecords";
 import Footer from "../components/footer";
 
 export default function Home() {
@@ -19,6 +20,7 @@ export default function Home() {
 
       <About />
       <TrustDetails />
+      <VerifiedRecords />
       <Achievements />
       <Tournaments />
       <Leadership />
