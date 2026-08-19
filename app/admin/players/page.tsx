@@ -274,16 +274,20 @@ function isInactivePlayer(player: PlayerWithStats) {
 }
 
 function profileHealth(player: Player): PlayerWithStats["profile_health"] {
-  if (!player.chess_sa_id && !player.fide_id) return "Missing IDs";
+  if (!player.full_name?.trim() || (!player.pcc_id && !player.chess_sa_id && !player.fide_id)) {
+    return "Missing IDs";
+  }
+
   if (
-    player.verification_status !== "Verified" ||
-    !player.gender ||
-    !player.date_of_birth ||
-    !player.club ||
-    !player.province
+    player.verification_status === "Duplicate" ||
+    player.verification_status === "Review" ||
+    player.verification_status === "Needs Review" ||
+    ((player.chess_sa_id || player.fide_id) &&
+      player.verification_status !== "Verified")
   ) {
     return "Review";
   }
+
   return "Ready";
 }
 

@@ -74,6 +74,7 @@ type Tournament = {
   registration_status?: string | null;
   rating_type?: TournamentRatingType | null;
   rating_import_id?: string | null;
+  fee_summary_label?: string;
 };
 
 type TournamentSection = {
@@ -87,6 +88,11 @@ type TournamentSection = {
   entry_fee_override: number | null;
   maximum_players: number | null;
   display_order: number | null;
+};
+
+type TournamentSectionFee = {
+  tournament_id: string;
+  entry_fee_override: number | null;
 };
 
 function calculateAge(dateOfBirth: string | null) {
@@ -137,9 +143,12 @@ function normalizeGender(gender: string | null) {
 }
 
 function formatMoney(amount: number) {
+  if (amount === 0) return "Free";
+
   return new Intl.NumberFormat("en-ZA", {
     style: "currency",
     currency: "ZAR",
+    maximumFractionDigits: 0,
   }).format(amount);
 }
 
@@ -183,6 +192,30 @@ function getSectionLabel(section: TournamentSection) {
   return labels.length > 0
     ? `${section.section_name} (${labels.join(", ")})`
     : section.section_name;
+}
+
+function sectionEntryFee(
+  section: TournamentSection,
+  tournament: Tournament | null | undefined
+) {
+  return section.entry_fee_override ?? tournament?.entry_fee ?? 0;
+}
+
+function tournamentFeeSummary(
+  tournament: Tournament,
+  sectionsOrFees: Array<TournamentSection | TournamentSectionFee>
+) {
+  const amounts =
+    sectionsOrFees.length > 0
+      ? sectionsOrFees.map(
+          (section) => section.entry_fee_override ?? tournament.entry_fee
+        )
+      : [tournament.entry_fee];
+  const uniqueAmounts = Array.from(new Set(amounts));
+
+  if (uniqueAmounts.length > 1) return "Fees vary by section";
+
+  return formatMoney(uniqueAmounts[0] ?? tournament.entry_fee);
 }
 
 function getSectionEligibilityMessage(
@@ -448,6 +481,17 @@ export default function RegisterPage() {
 
   const entryFee =
     selectedSection?.entry_fee_override ?? selectedTournament?.entry_fee ?? 0;
+  const selectedFeeText = selectedSection
+    ? formatMoney(entryFee)
+    : selectedTournament
+      ? sections.length > 0 &&
+        tournamentFeeSummary(selectedTournament, sections) === "Fees vary by section"
+        ? "Choose a section to see the amount"
+        : sections.length > 0
+          ? tournamentFeeSummary(selectedTournament, sections)
+          : selectedTournament.fee_summary_label ??
+            formatMoney(selectedTournament.entry_fee)
+      : "Choose a tournament and section";
 
   const eligibleSections = useMemo(
     () =>
@@ -535,6 +579,10 @@ export default function RegisterPage() {
             .from("tournaments")
             .select("id, rating_type, rating_import_id")
             .in("id", tournamentIds);
+          const { data: sectionFeeData } = await supabase
+            .from("tournament_sections")
+            .select("tournament_id, entry_fee_override")
+            .in("tournament_id", tournamentIds);
           const ratingTypeByTournament = new Map(
             ((ratingTypeData ?? []) as Array<{
               id: string;
@@ -548,6 +596,13 @@ export default function RegisterPage() {
               },
             ])
           );
+          const sectionFeesByTournament = new Map<string, TournamentSectionFee[]>();
+
+          ((sectionFeeData ?? []) as TournamentSectionFee[]).forEach((section) => {
+            const current = sectionFeesByTournament.get(section.tournament_id) ?? [];
+            current.push(section);
+            sectionFeesByTournament.set(section.tournament_id, current);
+          });
 
           openTournaments = openTournaments.map((tournament) => ({
             ...tournament,
@@ -556,6 +611,10 @@ export default function RegisterPage() {
               normalizeTournamentRatingType(tournament.rating_type),
             rating_import_id:
               ratingTypeByTournament.get(tournament.id)?.ratingImportId ?? null,
+            fee_summary_label: tournamentFeeSummary(
+              tournament,
+              sectionFeesByTournament.get(tournament.id) ?? []
+            ),
           }));
         }
 
@@ -1218,23 +1277,21 @@ export default function RegisterPage() {
         <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
           <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-xl md:p-8">
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-              Registration Platform
+              Tournament Entry
             </p>
 
             <h1 className="mt-3 text-xl font-bold md:text-2xl leading-tight md:text-5xl">
-              Find and enter chess tournaments
+              Enter a chess tournament
             </h1>
 
             <p className="mt-4 max-w-4xl text-sm leading-6 text-gray-300 md:text-base md:leading-7">
-              Use this platform to find chess tournaments around the province
-              from verified organisers and organisations, then enter the event
-              you want to play in.
+              Find tournaments listed by PCC and approved organisers, choose the
+              right section, and send your entry from one place.
             </p>
 
             <p className="mt-3 hidden max-w-4xl text-sm leading-6 text-gray-400 md:block md:text-base md:leading-7">
-              Wherever you are in the province, open tournaments can be listed
-              here so players, families, schools, clubs and coaches can register
-              from one trusted place.
+              Players, parents, schools and coaches can use this page to enter
+              events without sending names through scattered messages.
             </p>
 
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
@@ -1243,7 +1300,7 @@ export default function RegisterPage() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-300">
-                Provincial Tournament Hub
+                Limpopo Tournament List
               </span>
 
               <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300">
@@ -1264,8 +1321,8 @@ export default function RegisterPage() {
             {[
               [
                 "1",
-                "Find profile",
-                "Use Chess SA ID, surname + date of birth, or surname only.",
+                "Find the player",
+                "Search first so we do not create duplicate player records.",
               ],
               [
                 "2",
@@ -1274,7 +1331,7 @@ export default function RegisterPage() {
               ],
               [
                 "3",
-                "Send entry",
+                "Send the entry",
                 "Add contact details, choose payment option and submit.",
               ],
             ].map(([number, title, description]) => (
@@ -1332,8 +1389,8 @@ export default function RegisterPage() {
           </h2>
 
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Use these three options to find your chess profile before creating
-            a new player record.
+            Search before adding a new player. This helps us keep Chess SA IDs,
+            PCC IDs and tournament history on the correct profile.
           </p>
 
           <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
@@ -1872,7 +1929,9 @@ export default function RegisterPage() {
                               <p>Date: {formatDate(tournament.start_date)}</p>
                               <p>Venue: {tournament.venue}</p>
                               <p className="font-semibold text-red-300">
-                                Entry fee: {formatMoney(tournament.entry_fee)}
+                                Fee:{" "}
+                                {tournament.fee_summary_label ??
+                                  formatMoney(tournament.entry_fee)}
                               </p>
                               <p>
                                 Rating list:{" "}
@@ -1944,6 +2003,9 @@ export default function RegisterPage() {
                           disabled={Boolean(sectionError)}
                         >
                           {getSectionLabel(section)}
+                          {` - ${formatMoney(
+                            sectionEntryFee(section, selectedTournament)
+                          )}`}
                           {sectionError ? "  -  Not eligible" : ""}
                         </option>
                       );
@@ -1999,6 +2061,9 @@ export default function RegisterPage() {
                               <span className="font-semibold text-white">
                                 {getSectionLabel(section)}
                               </span>
+                              <span className="rounded-full border border-white/10 bg-black/30 px-2.5 py-1 text-[11px] font-bold text-red-200">
+                                {formatMoney(sectionEntryFee(section, selectedTournament))}
+                              </span>
                               <span
                                 className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider ${
                                   sectionError
@@ -2033,7 +2098,7 @@ export default function RegisterPage() {
                           Entry fee:
                         </span>{" "}
                         <span className="font-bold text-red-300">
-                          {formatMoney(entryFee)}
+                          {selectedFeeText}
                         </span>
                       </p>
 
@@ -2136,7 +2201,7 @@ export default function RegisterPage() {
                   <p>
                     <span className="font-semibold text-white">Entry fee:</span>{" "}
                     <span className="font-bold text-red-300">
-                      {formatMoney(entryFee)}
+                      {selectedFeeText}
                     </span>
                   </p>
                   <p>

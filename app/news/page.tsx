@@ -66,8 +66,8 @@ export default function NewsPage() {
         </h1>
 
         <p className="mt-5 max-w-3xl text-gray-400 md:text-lg">
-          Follow tournament reports, platform updates, club news and stories
-          from the chess community.
+          Read tournament reports, club notices and stories from the chess
+          community.
         </p>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

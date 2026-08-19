@@ -6,13 +6,13 @@ const whatsappJoinLink =
 const quickLinks = [
   {
     href: "/#tournaments",
-    title: "Tournament Centre",
-    text: "Upcoming events, entries and archives",
+    title: "Tournaments",
+    text: "See what is open, live or completed",
   },
   {
     href: "/players",
-    title: "Player Centre",
-    text: "Verified profiles, records and history",
+    title: "Players",
+    text: "Profiles, IDs, ratings and tournament history",
   },
   {
     href: "/players/rankings",
@@ -27,20 +27,20 @@ const quickLinks = [
   {
     href: "/members",
     title: "Members",
-    text: "Membership and member centre",
+    text: "Membership details and club records",
   },
   {
     href: "/organisers",
     title: "Organisers",
-    text: "Tournament access and services",
+    text: "Run events without chasing spreadsheets",
   },
   { href: "/hall-of-fame", title: "Hall of Fame", text: "PCC legacy" },
 ];
 
 const proofPoints = [
   { label: "Established", value: "1958", text: "Serving Limpopo chess for generations" },
-  { label: "Home Base", value: "Polokwane", text: "A public hub for local chess" },
-  { label: "Records", value: "Verified", text: "Profiles linked to club and event data" },
+  { label: "Home Base", value: "Polokwane", text: "Built around real local chess" },
+  { label: "Records", value: "Kept", text: "Entries, results and player history in one place" },
 ];
 
 export default function Hero() {
@@ -69,8 +69,8 @@ export default function Hero() {
           </h1>
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-gray-200 md:text-xl md:leading-9">
-            The public home for PCC tournaments, verified player records,
-            member services and the living archive of chess in Polokwane.
+            Find tournaments, enter online, follow standings and look back at
+            the results without hunting through old messages.
           </p>
 
           <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">

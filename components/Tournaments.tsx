@@ -29,6 +29,11 @@ type Tournament = {
   poster_image_url: string | null;
 };
 
+type TournamentSectionFee = {
+  tournament_id: string;
+  entry_fee_override: number | null;
+};
+
 const TOURNAMENT_COLUMNS =
   "id,tournament_name,organiser_name,description,start_date,end_date,venue,province,registration_status,entry_fee,poster_image_url";
 
@@ -40,7 +45,11 @@ async function fetchPublicTournaments() {
 
   if (!supabaseUrl || !supabaseKey) {
     console.error("Missing Supabase public environment variables.");
-    return { tournaments: [] as Tournament[], error: true };
+    return {
+      tournaments: [] as Tournament[],
+      sectionFees: [] as TournamentSectionFee[],
+      error: true,
+    };
   }
 
   const baseUrl = `${supabaseUrl}/rest/v1/tournaments?select=${encodeURIComponent(
@@ -71,17 +80,39 @@ async function fetchPublicTournaments() {
         status: response.status,
         body: await response.text(),
       });
-      return { tournaments: [] as Tournament[], error: true };
+      return {
+        tournaments: [] as Tournament[],
+        sectionFees: [] as TournamentSectionFee[],
+        error: true,
+      };
     }
 
     const tournaments = ((await response.json()) as Tournament[]).filter(
       (tournament) => tournament.registration_status !== "Draft"
     );
 
-    return { tournaments, error: false };
+    const tournamentIds = tournaments.map((tournament) => tournament.id);
+    let sectionFees: TournamentSectionFee[] = [];
+
+    if (tournamentIds.length > 0) {
+      const sectionFeeUrl = `${supabaseUrl}/rest/v1/tournament_sections?select=${encodeURIComponent(
+        "tournament_id,entry_fee_override"
+      )}&tournament_id=in.(${tournamentIds.join(",")})`;
+      const sectionFeeResponse = await request(sectionFeeUrl);
+
+      if (sectionFeeResponse.ok) {
+        sectionFees = (await sectionFeeResponse.json()) as TournamentSectionFee[];
+      }
+    }
+
+    return { tournaments, sectionFees, error: false };
   } catch (error) {
     console.error("Tournament loading error:", error);
-    return { tournaments: [] as Tournament[], error: true };
+    return {
+      tournaments: [] as Tournament[],
+      sectionFees: [] as TournamentSectionFee[],
+      error: true,
+    };
   }
 }
 
@@ -101,6 +132,26 @@ function formatMoney(amount: number) {
     currency: "ZAR",
     maximumFractionDigits: 0,
   }).format(amount);
+}
+
+function tournamentFeeText(
+  tournament: Tournament,
+  sectionFees: TournamentSectionFee[]
+) {
+  const matchingSections = sectionFees.filter(
+    (section) => section.tournament_id === tournament.id
+  );
+  const amounts =
+    matchingSections.length > 0
+      ? matchingSections.map(
+          (section) => section.entry_fee_override ?? tournament.entry_fee
+        )
+      : [tournament.entry_fee];
+  const uniqueAmounts = Array.from(new Set(amounts));
+
+  if (uniqueAmounts.length > 1) return "Fees vary by section";
+
+  return formatMoney(uniqueAmounts[0] ?? tournament.entry_fee);
 }
 
 function isFutureDatedTournament(tournament: Tournament) {
@@ -143,9 +194,11 @@ function PostponedPosterStamp() {
 
 function TournamentCard({
   tournament,
+  sectionFees,
   archive = false,
 }: {
   tournament: Tournament;
+  sectionFees: TournamentSectionFee[];
   archive?: boolean;
 }) {
   const isOpen = tournament.registration_status === "Open";
@@ -203,7 +256,9 @@ function TournamentCard({
         </p>
 
         <p className="mt-1 text-xs font-semibold text-gray-300">
-          {archive ? "Results and gallery" : `Entry fee: ${formatMoney(tournament.entry_fee)}`}
+          {archive
+            ? "Results and report"
+            : `Fee: ${tournamentFeeText(tournament, sectionFees)}`}
         </p>
 
         <div className="mt-4 grid gap-2">
@@ -211,7 +266,7 @@ function TournamentCard({
             href={`/tournaments/${tournament.id}`}
             className="block rounded-lg border border-white/10 px-3 py-2 text-center text-xs font-semibold text-white transition hover:border-red-500"
           >
-            {archive ? "View Completed Event" : "View Tournament"}
+            {archive ? "Open Results" : "View Details"}
           </Link>
 
           {!archive &&
@@ -238,7 +293,7 @@ export default async function Tournaments({
 }: {
   fullPage?: boolean;
 }) {
-  const { tournaments, error } = await fetchPublicTournaments();
+  const { tournaments, sectionFees, error } = await fetchPublicTournaments();
 
   const upcomingTournaments = tournaments
     .filter(isActiveTournament)
@@ -275,18 +330,17 @@ export default async function Tournaments({
         <div className="mb-8 flex flex-col gap-4 md:mb-12 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-            Tournament Centre
+            Tournaments
           </p>
 
           <h2 className="text-3xl font-bold md:text-5xl">
-            Play, follow and revisit PCC events
+            Find your next tournament
           </h2>
 
           <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-            Find upcoming events, open entries and completed events from one
-            public hub. Players, families, coaches and organisers can check
-            dates, venue, sections, fees, results and event material where
-            available.
+            Check the date, venue, sections and entry fee before you register.
+            When an event is running or completed, this is also where standings,
+            results and reports will be posted.
           </p>
           </div>
 
@@ -308,7 +362,11 @@ export default async function Tournaments({
             {upcomingTournaments.length > 0 ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {visibleUpcomingTournaments.map((tournament) => (
-                  <TournamentCard key={tournament.id} tournament={tournament} />
+                  <TournamentCard
+                    key={tournament.id}
+                    tournament={tournament}
+                    sectionFees={sectionFees}
+                  />
                 ))}
               </div>
             ) : (
@@ -330,8 +388,8 @@ export default async function Tournaments({
                     </h2>
 
                     <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
-                      Revisit completed events, tournament reports, photos and
-                      results.
+                      Read reports, check final standings and open the photo
+                      album when the organiser has shared one.
                     </p>
                   </div>
 
@@ -350,6 +408,7 @@ export default async function Tournaments({
                     <TournamentCard
                       key={tournament.id}
                       tournament={tournament}
+                      sectionFees={sectionFees}
                       archive
                     />
                   ))}

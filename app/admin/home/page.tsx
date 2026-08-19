@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminSearchBar from "@/components/admin/AdminSearchBar";
+import { buildDuplicateMatches, makePairKey } from "@/lib/identityResolver";
 import type { NewsPost, TournamentLite, TournamentStats } from "@/lib/pccTypes";
 import { formatDate } from "@/lib/supabaseHelpers";
 import { supabase } from "@/lib/supabase";
@@ -20,12 +21,23 @@ type DashboardNewsPost = Pick<
 
 type PlayerHealthRow = {
   id: string;
+  full_name: string;
   verification_status: string | null;
+  pcc_id: string | null;
   chess_sa_id: string | null;
+  fide_id: string | null;
   date_of_birth: string | null;
   gender: string | null;
   club: string | null;
   province: string | null;
+  rating: number | null;
+  email: string | null;
+  phone: string | null;
+};
+
+type IgnoreRow = {
+  player_a: string;
+  player_b: string;
 };
 
 type ImportRow = {
@@ -127,6 +139,7 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<TournamentStats[]>([]);
   const [newsPosts, setNewsPosts] = useState<DashboardNewsPost[]>([]);
   const [players, setPlayers] = useState<PlayerHealthRow[]>([]);
+  const [ignoredPairs, setIgnoredPairs] = useState<IgnoreRow[]>([]);
   const [imports, setImports] = useState<ImportRow[]>([]);
   const [organiserAccess, setOrganiserAccess] = useState<OrganiserAccessRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,8 +170,13 @@ export default function AdminDashboardPage() {
     const { data: playerData, error: playerError } = await supabase
       .from("players")
       .select(
-        "id, verification_status, chess_sa_id, date_of_birth, gender, club, province"
+        "id, full_name, verification_status, pcc_id, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone"
       )
+      .limit(20000);
+
+    const { data: ignoredPairData } = await supabase
+      .from("player_duplicate_ignores")
+      .select("player_a, player_b")
       .limit(20000);
 
     const { data: importData, error: importError } = await supabase
@@ -195,6 +213,7 @@ export default function AdminDashboardPage() {
       setMessage((current) => current || `Could not load player health: ${playerError.message}`);
     } else {
       setPlayers((playerData ?? []) as unknown as PlayerHealthRow[]);
+      setIgnoredPairs((ignoredPairData ?? []) as unknown as IgnoreRow[]);
     }
 
     if (importError) {
@@ -235,14 +254,16 @@ export default function AdminDashboardPage() {
     const verifiedPlayers = players.filter(
       (player) => player.verification_status === "Verified"
     ).length;
-    const incompletePlayers = players.filter(
-      (player) =>
-        player.verification_status !== "Verified" ||
-        !player.chess_sa_id ||
-        !player.date_of_birth ||
-        !player.gender ||
-        !player.club ||
-        !player.province
+    const ignoredPairSet = new Set(
+      ignoredPairs.map((row) => makePairKey(row.player_a, row.player_b))
+    );
+    const highConfidenceDuplicates = buildDuplicateMatches(
+      players,
+      ignoredPairSet,
+      90
+    ).length;
+    const brokenIdentityRecords = players.filter(
+      (player) => !player.full_name?.trim() || (!player.pcc_id && !player.chess_sa_id && !player.fide_id)
     ).length;
     const draftNews = newsPosts.filter((post) => !post.published).length;
     const failedImports = imports.filter((item) => item.failed_rows > 0).length;
@@ -258,13 +279,19 @@ export default function AdminDashboardPage() {
       totalRegistrations,
       paidRegistrations,
       verifiedPlayers,
-      incompletePlayers,
+      highConfidenceDuplicates,
+      brokenIdentityRecords,
+      identityAlerts:
+        highConfidenceDuplicates +
+        brokenIdentityRecords +
+        failedImports +
+        unlinkedOrganiserAccess,
       draftNews,
       failedImports,
       activeOrganiserAccess,
       unlinkedOrganiserAccess,
     };
-  }, [imports, newsPosts, organiserAccess, players, stats, tournaments]);
+  }, [ignoredPairs, imports, newsPosts, organiserAccess, players, stats, tournaments]);
 
   const activeTournaments = tournaments.filter((item) =>
     ["Open", "Live", "Closed"].includes(item.registration_status ?? "")
@@ -295,7 +322,7 @@ export default function AdminDashboardPage() {
                 <CommandStat label="Registrations" value={commandStats.totalRegistrations} />
                 <CommandStat label="Verified players" value={commandStats.verifiedPlayers} />
                 <CommandStat label="Organisers" value={commandStats.activeOrganiserAccess} />
-                <CommandStat label="Requires attention" value={commandStats.incompletePlayers} tone="warn" />
+                <CommandStat label="Identity alerts" value={commandStats.identityAlerts} tone="warn" />
               </div>
             </div>
           </section>
@@ -314,8 +341,8 @@ export default function AdminDashboardPage() {
             <WorkflowLink
               href="/admin/players"
               title="Clean Player Centre"
-              metric={`${commandStats.incompletePlayers} need attention`}
-              description="Verify players, repair missing IDs and review Chess SA sync results."
+              metric={`${commandStats.highConfidenceDuplicates} strong duplicate checks`}
+              description="Merge clear duplicates and keep public player identities clean."
               primary
             />
             <WorkflowLink

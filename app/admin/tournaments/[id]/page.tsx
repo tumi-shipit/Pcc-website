@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -11,7 +11,6 @@ import {
   chunkItems,
   getTournamentGalleryStoragePath,
 } from "@/lib/tournamentGallery";
-import { resizeImageForUpload } from "@/lib/imageCompression";
 
 type Tournament = {
   id: string;
@@ -98,41 +97,6 @@ function formatDate(date: string | null) {
   });
 }
 
-function cleanFileName(name: string) {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "-").toLowerCase();
-}
-
-function isImageFile(file: File) {
-  return /\.(jpg|jpeg|png|webp|heic|heif)$/i.test(file.name);
-}
-
-function isHeicFile(file: File) {
-  return /\.(heic|heif)$/i.test(file.name);
-}
-
-function jpgFileName(name: string) {
-  return name.replace(/\.(heic|heif)$/i, ".jpg");
-}
-
-async function convertHeicToJpeg(file: File) {
-  const heic2any = (await import("heic2any")).default;
-
-  const convertedBlob = await heic2any({
-    blob: file,
-    toType: "image/jpeg",
-    quality: 0.88,
-  });
-
-  const jpegBlob = Array.isArray(convertedBlob)
-    ? convertedBlob[0]
-    : convertedBlob;
-
-  return new File([jpegBlob], jpgFileName(file.name), {
-    type: "image/jpeg",
-    lastModified: Date.now(),
-  });
-}
-
 export default function AdminTournamentDashboardPage() {
   const params = useParams();
   const tournamentId = String(params.id);
@@ -147,13 +111,10 @@ export default function AdminTournamentDashboardPage() {
   >([]);
   const [gallery, setGallery] = useState<GalleryImage[]>([]);
   const [results, setResults] = useState<ResultRow[]>([]);
-  const [galleryCaption, setGalleryCaption] = useState("");
-  const [uploadingGallery, setUploadingGallery] = useState(false);
   const [deletingGallery, setDeletingGallery] = useState(false);
   const [selectedGalleryIds, setSelectedGalleryIds] = useState<Set<string>>(
     () => new Set()
   );
-  const [uploadProgress, setUploadProgress] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -431,136 +392,6 @@ export default function AdminTournamentDashboardPage() {
     if (tournamentId) loadTournamentDashboard();
   }, [tournamentId]);
 
-  async function uploadGalleryFiles(files: File[]) {
-    console.log("Upload function started:", files.length);
-
-    const imageFiles = files.filter(isImageFile);
-
-    console.log("Image files after filter:", imageFiles.length);
-    setMessage(`Found ${imageFiles.length} image file(s). Uploading...`);
-
-    if (imageFiles.length === 0) {
-      setMessage("No image files were found in the selected folder.");
-      return;
-    }
-
-    setUploadingGallery(true);
-    setMessage("");
-    setUploadProgress(`Preparing ${imageFiles.length} image(s)...`);
-
-    let uploadedCount = 0;
-    let failedCount = 0;
-
-    for (let index = 0; index < imageFiles.length; index += 1) {
-      const originalFile = imageFiles[index];
-
-      let file = originalFile;
-
-      if (isHeicFile(originalFile)) {
-        setUploadProgress(
-          `Converting ${index + 1} of ${imageFiles.length}: ${originalFile.name}`
-        );
-
-        try {
-          file = await convertHeicToJpeg(originalFile);
-        } catch (error) {
-          console.error("HEIC CONVERSION ERROR:", error);
-          failedCount += 1;
-          continue;
-        }
-      }
-
-      try {
-        file = await resizeImageForUpload(file, {
-          maxDimension: 1600,
-          quality: 0.82,
-        });
-      } catch (error) {
-        console.error("IMAGE COMPRESSION ERROR:", error);
-      }
-
-      const safeName = cleanFileName(file.name);
-      const relativePath =
-        (originalFile as File & { webkitRelativePath?: string })
-          .webkitRelativePath ?? originalFile.name;
-
-      const folderPart = relativePath
-        .split("/")
-        .slice(0, -1)
-        .map(cleanFileName)
-        .join("/");
-
-      const filePath = folderPart
-        ? `gallery/${tournamentId}/${folderPart}/${Date.now()}-${safeName}`
-        : `gallery/${tournamentId}/${Date.now()}-${safeName}`;
-
-      setUploadProgress(
-        `Uploading ${index + 1} of ${imageFiles.length}: ${file.name}`
-      );
-
-      const { error: uploadError } = await supabase.storage
-        .from("tournament-gallery")
-        .upload(filePath, file, {
-          upsert: false,
-          contentType: file.type || "image/jpeg",
-        });
-
-      if (uploadError) {
-        console.error("UPLOAD ERROR:", uploadError);
-        setMessage(`Upload error: ${uploadError.message}`);
-        failedCount += 1;
-        continue;
-      }
-
-      const { data } = supabase.storage
-        .from("tournament-gallery")
-        .getPublicUrl(filePath);
-
-      const { error: insertError } = await supabase
-        .from("tournament_gallery")
-        .insert({
-          tournament_id: tournamentId,
-          image_url: data.publicUrl,
-          caption: galleryCaption.trim() || null,
-          display_order: gallery.length + uploadedCount + 1,
-        });
-
-      if (insertError) {
-        console.error("DATABASE ERROR:", insertError);
-        setMessage(`Database error: ${insertError.message}`);
-        failedCount += 1;
-        continue;
-      }
-
-      uploadedCount += 1;
-    }
-
-    await loadGallery();
-    setGalleryCaption("");
-    setUploadingGallery(false);
-    setUploadProgress("");
-
-    if (failedCount > 0) {
-      setMessage(
-        `Uploaded ${uploadedCount} image(s). ${failedCount} image(s) failed.`
-      );
-    } else {
-      setMessage(`Uploaded ${uploadedCount} image(s) successfully.`);
-    }
-  }
-
-  async function handleGalleryUpload(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-
-    console.log("Files selected:", files.length);
-
-    setMessage(`Selected ${files.length} file(s). Starting upload...`);
-
-    await uploadGalleryFiles(files);
-
-    event.target.value = "";
-  }
-
   function toggleGallerySelection(imageId: string) {
     setSelectedGalleryIds((current) => {
       const next = new Set(current);
@@ -827,7 +658,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/archive`}
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >
-                Results Results Centre
+                Results Centre
               </Link>
 
               <Link
@@ -855,7 +686,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/gallery`}
                 className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-center text-sm font-bold text-red-100 transition hover:bg-red-500/20"
               >
-                Gallery / Photo Album
+                Photo Album Link
               </Link>
 
               <Link
@@ -949,12 +780,6 @@ export default function AdminTournamentDashboardPage() {
         {message && (
           <p className="mt-6 rounded-lg border border-white/10 bg-zinc-900 p-4 text-sm text-gray-300">
             {message}
-          </p>
-        )}
-
-        {uploadProgress && (
-          <p className="mt-6 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-100">
-            {uploadProgress}
           </p>
         )}
 
@@ -1202,7 +1027,7 @@ export default function AdminTournamentDashboardPage() {
                 href={`/admin/tournaments/${tournamentId}/archive`}
                 className="block rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm font-semibold text-red-100 transition hover:bg-red-500/20"
               >
-                Results Results Centre
+                Results Centre
               </Link>
 
               <Link
@@ -1240,75 +1065,33 @@ export default function AdminTournamentDashboardPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                Completed Gallery
+                Photo Album
               </p>
 
-              <h2 className="mt-2 text-2xl font-bold">Tournament Photos</h2>
+              <h2 className="mt-2 text-2xl font-bold">Use an external album</h2>
 
               <p className="mt-2 text-sm text-gray-400">
-                Upload individual photos or a full folder at once. Photos appear
-                on the public completed tournament page.
+                Keep tournament photos in Google Photos, Drive, iCloud, MEGA or
+                another album service. Add the link on the Gallery page so the
+                public tournament page can send people there.
               </p>
             </div>
 
             <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
-              {gallery.length} photo{gallery.length === 1 ? "" : "s"}
+              {gallery.length} old site photo{gallery.length === 1 ? "" : "s"}
             </span>
           </div>
 
-          <div className="mt-6 grid gap-4 md:grid-cols-[1fr_260px_260px]">
-            <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Caption for uploaded photo(s)
-              </label>
-
-              <input
-                value={galleryCaption}
-                onChange={(event) => setGalleryCaption(event.target.value)}
-                placeholder="Prize-giving, round 1 action, winners, etc."
-                className="w-full rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Upload photo(s)
-              </label>
-
-              <input
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp"
-                multiple
-                onChange={handleGalleryUpload}
-                disabled={uploadingGallery}
-                className="block w-full rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-red-600 file:px-4 file:py-2 file:font-semibold file:text-white disabled:opacity-60"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm font-semibold">
-                Upload folder
-              </label>
-
-              <input
-                type="file"
-                accept=".jpg,.jpeg,.png,.webp"
-                multiple
-                disabled={uploadingGallery}
-                onChange={(event) => {
-                  console.log("Folder files:", event.target.files);
-                  handleGalleryUpload(event);
-                }}
-                className="block w-full rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-red-600 file:px-4 file:py-2 file:font-semibold file:text-white disabled:opacity-60"
-                // @ts-expect-error folder upload support
-                webkitdirectory=""
-              />
-            </div>
-          </div>
+          <Link
+            href={`/admin/tournaments/${tournamentId}/gallery`}
+            className="mt-6 inline-flex rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+          >
+            Add or update album link
+          </Link>
 
           {gallery.length === 0 ? (
             <p className="mt-6 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
-              No gallery photos have been uploaded yet.
+              No old website photos are stored for this tournament.
             </p>
           ) : (
             <>

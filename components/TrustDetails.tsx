@@ -3,7 +3,7 @@ import Link from "next/link";
 const trustItems = [
   {
     title: "Player Data",
-    text: "Public profiles are built from PCC records, tournament archives and verified Chess SA details where available.",
+    text: "Player pages are built from PCC records, tournament results and Chess SA details when we have them.",
   },
   {
     title: "Rankings Source",

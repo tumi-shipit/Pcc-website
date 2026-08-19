@@ -294,8 +294,8 @@ export default function PublicPlayerProfilePage({
                   )}
                 </div>
                 <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-400">
-                  Public profile built from PCC tournament records, player
-                  updates and verified Chess SA details where available.
+                  This profile is built from PCC tournament records, player
+                  updates and Chess SA details when we have them.
                 </p>
               </div>
             </div>

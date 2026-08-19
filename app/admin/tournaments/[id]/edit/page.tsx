@@ -32,6 +32,8 @@ type TournamentForm = {
   rating_type: TournamentRatingType;
   entry_fee: string;
   poster_image_url: string;
+  competition_document_url: string;
+  competition_document_label: string;
   payment_details: string;
 };
 
@@ -72,6 +74,8 @@ const emptyForm: TournamentForm = {
   rating_type: "standard",
   entry_fee: "0",
   poster_image_url: "",
+  competition_document_url: "",
+  competition_document_label: "",
   payment_details: "",
 };
 
@@ -201,6 +205,8 @@ export default function EditTournamentPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPoster, setUploadingPoster] = useState(false);
+  const [uploadingCompetitionDocument, setUploadingCompetitionDocument] =
+    useState(false);
   const [message, setMessage] = useState("");
   const [lockedRatingImportId, setLockedRatingImportId] = useState<string | null>(null);
   const [lockedRatingImport, setLockedRatingImport] =
@@ -316,6 +322,52 @@ export default function EditTournamentPage() {
     setUploadingPoster(false);
   }
 
+  async function handleCompetitionDocumentUpload(
+    event: ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+      setMessage("Please upload a PDF file for the competition document.");
+      return;
+    }
+
+    setUploadingCompetitionDocument(true);
+    setMessage("Uploading competition document...");
+
+    const safeName = cleanFileName(file.name);
+    const filePath = `documents/${tournamentId}/${Date.now()}-${safeName}`;
+
+    const { error } = await supabase.storage
+      .from("competition-documents")
+      .upload(filePath, file, {
+        upsert: false,
+        contentType: "application/pdf",
+      });
+
+    if (error) {
+      setMessage(
+        error.message.toLowerCase().includes("bucket")
+          ? "Competition document storage is not installed yet. Run database/tournament_competition_document_setup.sql, then upload again."
+          : `Competition document upload failed: ${error.message}`
+      );
+      setUploadingCompetitionDocument(false);
+      return;
+    }
+
+    const { data } = supabase.storage
+      .from("competition-documents")
+      .getPublicUrl(filePath);
+
+    updateField("competition_document_url", data.publicUrl);
+    if (!form.competition_document_label.trim()) {
+      updateField("competition_document_label", "Competition document");
+    }
+    setMessage("Competition document uploaded successfully. Click Save Changes to update the tournament.");
+    setUploadingCompetitionDocument(false);
+  }
+
   useEffect(() => {
     async function loadTournament() {
       setLoading(true);
@@ -324,7 +376,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -361,6 +413,8 @@ export default function EditTournamentPage() {
           rating_type: "standard",
           entry_fee: String(fallback.data.entry_fee ?? 0),
           poster_image_url: fallback.data.poster_image_url ?? "",
+          competition_document_url: "",
+          competition_document_label: "",
           payment_details: fallback.data.payment_details ?? "",
         });
         setLockedRatingImportId(null);
@@ -386,6 +440,8 @@ export default function EditTournamentPage() {
           rating_type: normalizeTournamentRatingType(data.rating_type),
           entry_fee: String(data.entry_fee ?? 0),
           poster_image_url: data.poster_image_url ?? "",
+          competition_document_url: data.competition_document_url ?? "",
+          competition_document_label: data.competition_document_label ?? "",
           payment_details: data.payment_details ?? "",
         });
         setLockedRatingImportId(ratingImportId);
@@ -547,6 +603,8 @@ export default function EditTournamentPage() {
       rating_list_locked_at: nextRatingLockedAt,
       entry_fee: cleanMoney(form.entry_fee),
       poster_image_url: form.poster_image_url.trim() || null,
+      competition_document_url: form.competition_document_url.trim() || null,
+      competition_document_label: form.competition_document_label.trim() || null,
       payment_details: form.payment_details.trim() || null,
     };
 
@@ -560,13 +618,16 @@ export default function EditTournamentPage() {
       (error.message.toLowerCase().includes("rating_type") ||
         error.message.toLowerCase().includes("rating_import_id") ||
         error.message.toLowerCase().includes("rating_list_locked_at") ||
-        error.message.toLowerCase().includes("postponement_reason"))
+        error.message.toLowerCase().includes("postponement_reason") ||
+        error.message.toLowerCase().includes("competition_document"))
     ) {
       const {
         rating_type: _ratingType,
         rating_import_id: _ratingImportId,
         rating_list_locked_at: _ratingListLockedAt,
         postponement_reason: _postponementReason,
+        competition_document_url: _competitionDocumentUrl,
+        competition_document_label: _competitionDocumentLabel,
         ...legacyPayload
       } = tournamentPayload;
       const retry = await supabase
@@ -578,7 +639,11 @@ export default function EditTournamentPage() {
     }
 
     if (error) {
-      setMessage(`Could not update tournament: ${error.message}`);
+      setMessage(
+        error.message.toLowerCase().includes("competition_document")
+          ? "Competition document fields are not installed yet. Run database/tournament_competition_document_setup.sql, then save again."
+          : `Could not update tournament: ${error.message}`
+      );
       setSaving(false);
       return;
     }
@@ -865,7 +930,12 @@ export default function EditTournamentPage() {
               </div>
 
               <div>
-                <label className="mb-2 block text-sm font-semibold">Entry fee</label>
+                <label className="mb-2 block text-sm font-semibold">
+                  Default entry fee
+                </label>
+                <p className="mb-2 text-xs leading-5 text-gray-500">
+                  Used when a section does not have its own fee.
+                </p>
                 <input
                   type="number"
                   min="0"
@@ -913,6 +983,56 @@ export default function EditTournamentPage() {
                     updateField("chess_results_url", event.target.value)
                   }
                   placeholder="https://chess-results.com/..."
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
+                  Competition document link
+                </label>
+                <p className="mb-2 text-xs leading-5 text-gray-500">
+                  Paste a PDF, Google Drive file, prospectus, rules pack or
+                  invitation link shown in the tournament hero.
+                </p>
+                <input
+                  type="url"
+                  value={form.competition_document_url}
+                  onChange={(event) =>
+                    updateField("competition_document_url", event.target.value)
+                  }
+                  placeholder="https://..."
+                  className={inputClass}
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
+                  Upload competition PDF
+                </label>
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={handleCompetitionDocumentUpload}
+                  disabled={uploadingCompetitionDocument}
+                  className="block w-full rounded-lg border border-white/10 bg-zinc-950 p-3 text-sm text-gray-300 file:mr-4 file:rounded file:border-0 file:bg-white file:px-4 file:py-2 file:font-semibold file:text-zinc-950 disabled:opacity-60"
+                />
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Uploading a PDF fills the document link automatically. Click
+                  Save Changes after upload.
+                </p>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-sm font-semibold">
+                  Competition document button text
+                </label>
+                <input
+                  value={form.competition_document_label}
+                  onChange={(event) =>
+                    updateField("competition_document_label", event.target.value)
+                  }
+                  placeholder="Competition document"
                   className={inputClass}
                 />
               </div>
@@ -1226,7 +1346,7 @@ export default function EditTournamentPage() {
 
                       <div>
                         <label className="mb-2 block text-sm font-semibold">
-                          Entry fee override
+                          Section entry fee
                         </label>
                         <input
                           type="number"
@@ -1239,7 +1359,7 @@ export default function EditTournamentPage() {
                               event.target.value
                             )
                           }
-                          placeholder="Leave blank to use tournament fee"
+                          placeholder="Leave blank to use the default fee"
                           className={inputClass}
                         />
                       </div>
