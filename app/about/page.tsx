@@ -1,9 +1,28 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import Navbar from "@/components/Navbar";
-import { verifiedRecords } from "@/lib/verifiedRecords";
+import { publicSupabase } from "@/lib/publicSupabase";
+import {
+  applyVerifiedRecordOverride,
+  verifiedRecords,
+  type VerifiedRecordOverride,
+} from "@/lib/verifiedRecords";
 
-export default function AboutPage() {
-  const developmentRecord = verifiedRecords[0];
+export default async function AboutPage() {
+  await connection();
+
+  const baseRecord = verifiedRecords[0];
+  const { data: override } = await publicSupabase
+    .from("verified_record_overrides")
+    .select(
+      "title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+    )
+    .eq("slug", baseRecord.slug)
+    .maybeSingle();
+  const developmentRecord = applyVerifiedRecordOverride(
+    baseRecord,
+    override as VerifiedRecordOverride | null
+  );
 
   return (
     <main className="min-h-screen bg-black text-white pt-24">

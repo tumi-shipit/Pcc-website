@@ -184,15 +184,25 @@ export default function AdminVerifiedRecordPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
+    const { data: savedRecord, error } = await supabase
       .from("verified_record_overrides")
-      .upsert(payload, { onConflict: "slug" });
+      .upsert(payload, { onConflict: "slug" })
+      .select("slug")
+      .single();
 
     if (error) {
       setMessage(
         error.message.toLowerCase().includes("verified_record_overrides")
           ? "Verified record editing is not installed yet. Run database/verified_record_overrides_setup.sql, then save again."
           : `Could not save verified record: ${error.message}`
+      );
+      setSaving(false);
+      return;
+    }
+
+    if (!savedRecord?.slug) {
+      setMessage(
+        "Supabase accepted the request but did not return the saved record. Please run database/verified_record_overrides_setup.sql again, then save once more."
       );
       setSaving(false);
       return;

@@ -21,6 +21,9 @@ add column if not exists album_label text;
 
 alter table public.verified_record_overrides enable row level security;
 
+grant select on public.verified_record_overrides to anon, authenticated;
+grant insert, update on public.verified_record_overrides to authenticated;
+
 drop policy if exists "Public can read verified record overrides"
 on public.verified_record_overrides;
 

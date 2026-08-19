@@ -1,7 +1,29 @@
 import Link from "next/link";
-import { verifiedRecords } from "@/lib/verifiedRecords";
+import { connection } from "next/server";
+import { publicSupabase } from "@/lib/publicSupabase";
+import {
+  applyVerifiedRecordOverride,
+  verifiedRecords,
+  type VerifiedRecordOverride,
+} from "@/lib/verifiedRecords";
 
-export default function VerifiedRecords() {
+export default async function VerifiedRecords() {
+  await connection();
+
+  const { data: overrides } = await publicSupabase
+    .from("verified_record_overrides")
+    .select(
+      "slug, title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+    );
+  const records = verifiedRecords.map((record) =>
+    applyVerifiedRecordOverride(
+      record,
+      ((overrides ?? []) as Array<VerifiedRecordOverride & { slug?: string | null }>).find(
+        (override) => override.slug === record.slug
+      )
+    )
+  );
+
   return (
     <section id="verified-records" className="bg-black py-14 text-white md:py-20">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
@@ -20,7 +42,7 @@ export default function VerifiedRecords() {
           </div>
 
           <div className="grid gap-4">
-            {verifiedRecords.map((record) => (
+            {records.map((record) => (
               <article
                 key={record.slug}
                 className="rounded-2xl border border-white/10 bg-zinc-900 p-5 shadow-2xl shadow-black/20 md:p-6"

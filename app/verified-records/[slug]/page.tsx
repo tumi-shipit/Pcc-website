@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import Navbar from "@/components/Navbar";
 import { publicSupabase } from "@/lib/publicSupabase";
 import {
@@ -16,15 +17,32 @@ export function generateStaticParams() {
   return verifiedRecords.map((record) => ({ slug: record.slug }));
 }
 
+async function getVerifiedRecordOverride(slug: string) {
+  const { data } = await publicSupabase
+    .from("verified_record_overrides")
+    .select(
+      "title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+    )
+    .eq("slug", slug)
+    .maybeSingle();
+
+  return data as VerifiedRecordOverride | null;
+}
+
 export async function generateMetadata({ params }: VerifiedRecordPageProps) {
   const { slug } = await params;
-  const record = verifiedRecords.find((item) => item.slug === slug);
+  const baseRecord = verifiedRecords.find((item) => item.slug === slug);
 
-  if (!record) {
+  if (!baseRecord) {
     return {
       title: "Verified Record | Polokwane Chess Club",
     };
   }
+
+  const record = applyVerifiedRecordOverride(
+    baseRecord,
+    await getVerifiedRecordOverride(slug)
+  );
 
   return {
     title: `${record.title} | Polokwane Chess Club`,
@@ -35,21 +53,16 @@ export async function generateMetadata({ params }: VerifiedRecordPageProps) {
 export default async function VerifiedRecordPage({
   params,
 }: VerifiedRecordPageProps) {
+  await connection();
+
   const { slug } = await params;
   const baseRecord = verifiedRecords.find((item) => item.slug === slug);
 
   if (!baseRecord) notFound();
 
-  const { data: override } = await publicSupabase
-    .from("verified_record_overrides")
-    .select(
-      "title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
-    )
-    .eq("slug", slug)
-    .maybeSingle();
   const record = applyVerifiedRecordOverride(
     baseRecord,
-    override as VerifiedRecordOverride | null
+    await getVerifiedRecordOverride(slug)
   );
 
   return (
