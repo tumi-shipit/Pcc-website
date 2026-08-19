@@ -4,7 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
-import { verifiedRecordNewsItems } from "@/lib/verifiedRecords";
+import {
+  buildVerifiedRecordNewsItems,
+  type VerifiedRecordOverride,
+} from "@/lib/verifiedRecords";
 
 type NewsPost = {
   id: string;
@@ -55,12 +58,20 @@ export default function LatestNews() {
         .neq("category", "Tournament Report")
         .order("published_at", { ascending: false })
         .limit(8);
+      const { data: overrideData } = await supabase
+        .from("verified_record_overrides")
+        .select(
+          "slug, title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+        );
+      const protectedItems = buildVerifiedRecordNewsItems(
+        (overrideData ?? []) as Array<VerifiedRecordOverride & { slug?: string | null }>
+      );
 
       if (error) {
         console.error("Latest news error:", error);
-          setPosts(verifiedRecordNewsItems);
+        setPosts(protectedItems);
       } else {
-        setPosts([...verifiedRecordNewsItems, ...((data ?? []) as NewsPost[])]);
+        setPosts([...protectedItems, ...((data ?? []) as NewsPost[])]);
       }
 
       setLoading(false);

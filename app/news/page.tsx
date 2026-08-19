@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
-import { verifiedRecordNewsItems } from "@/lib/verifiedRecords";
+import {
+  buildVerifiedRecordNewsItems,
+  type VerifiedRecordOverride,
+} from "@/lib/verifiedRecords";
 
 type NewsPost = {
   id: string;
@@ -51,9 +54,17 @@ export default function NewsPage() {
         .select("id, title, excerpt, image_url, category, published_at")
         .eq("published", true)
         .order("published_at", { ascending: false });
+      const { data: overrideData } = await supabase
+        .from("verified_record_overrides")
+        .select(
+          "slug, title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+        );
+      const protectedItems = buildVerifiedRecordNewsItems(
+        (overrideData ?? []) as Array<VerifiedRecordOverride & { slug?: string | null }>
+      );
 
       setPosts([
-        ...verifiedRecordNewsItems,
+        ...protectedItems,
         ...((data ?? []) as unknown as NewsPost[]),
       ]);
       setLoading(false);

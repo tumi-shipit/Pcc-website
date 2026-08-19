@@ -6,7 +6,10 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
-import { verifiedRecordNewsItems } from "@/lib/verifiedRecords";
+import {
+  buildVerifiedRecordNewsItems,
+  type VerifiedRecordOverride,
+} from "@/lib/verifiedRecords";
 
 type NewsPost = {
   id: string;
@@ -260,13 +263,23 @@ export default function AdminNewsPage() {
       .order("full_name", { ascending: true })
       .limit(800);
 
+    const { data: verifiedOverrideData } = await supabase
+      .from("verified_record_overrides")
+      .select(
+        "slug, title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+      );
+
     const { data: roleData } = await supabase.rpc("current_admin_role");
     setCurrentRole(typeof roleData === "string" ? roleData : null);
 
     if (error) {
       setMessage(`Could not load news posts: ${error.message}`);
     } else {
-      const protectedPosts = verifiedRecordNewsItems.map((item) => ({
+      const protectedPosts = buildVerifiedRecordNewsItems(
+        (verifiedOverrideData ?? []) as Array<
+          VerifiedRecordOverride & { slug?: string | null }
+        >
+      ).map((item) => ({
         id: item.id,
         title: item.title,
         excerpt: item.excerpt,
@@ -969,8 +982,10 @@ export default function AdminNewsPage() {
                             Organisations involved
                           </p>
                           <p className="mt-1 text-xs leading-5 text-gray-500">
-                            These show on the public article like tournament
-                            organising organisations.
+                            Click Add, choose an existing organisation, write
+                            its role for this article, then save the article.
+                            Add new organisations from Admin - Organisations
+                            first.
                           </p>
                         </div>
                         <button
@@ -1388,14 +1403,30 @@ export default function AdminNewsPage() {
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                              <button
-                                type="button"
-                                onClick={() => editPost(post)}
-                                disabled={!isSuperAdmin || post.protected}
-                                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-45"
-                              >
-                                {post.protected ? "Protected" : "Edit"}
-                              </button>
+                              {post.protected ? (
+                                <Link
+                                  href={`/admin/verified-records/${post.id.replace(
+                                    /^verified-/,
+                                    ""
+                                  )}`}
+                                  className={`rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500 ${
+                                    isSuperAdmin
+                                      ? ""
+                                      : "pointer-events-none opacity-45"
+                                  }`}
+                                >
+                                  Edit record
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => editPost(post)}
+                                  disabled={!isSuperAdmin}
+                                  className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  Edit
+                                </button>
+                              )}
 
                               <button
                                 type="button"

@@ -1,7 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Navbar from "@/components/Navbar";
-import { verifiedRecords } from "@/lib/verifiedRecords";
+import { publicSupabase } from "@/lib/publicSupabase";
+import {
+  applyVerifiedRecordOverride,
+  verifiedRecords,
+  type VerifiedRecordOverride,
+} from "@/lib/verifiedRecords";
 
 type VerifiedRecordPageProps = {
   params: Promise<{ slug: string }>;
@@ -31,9 +36,21 @@ export default async function VerifiedRecordPage({
   params,
 }: VerifiedRecordPageProps) {
   const { slug } = await params;
-  const record = verifiedRecords.find((item) => item.slug === slug);
+  const baseRecord = verifiedRecords.find((item) => item.slug === slug);
 
-  if (!record) notFound();
+  if (!baseRecord) notFound();
+
+  const { data: override } = await publicSupabase
+    .from("verified_record_overrides")
+    .select(
+      "title, summary, content, image_url, album_url, album_label, date_label, organisations, facilitators"
+    )
+    .eq("slug", slug)
+    .maybeSingle();
+  const record = applyVerifiedRecordOverride(
+    baseRecord,
+    override as VerifiedRecordOverride | null
+  );
 
   return (
     <main className="min-h-screen bg-black pt-24 text-white">
@@ -64,6 +81,16 @@ export default async function VerifiedRecordPage({
         </div>
 
         <article className="mt-10 rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/30 md:p-8">
+          {record.image_url && (
+            <div className="mb-8 overflow-hidden rounded-2xl border border-white/10 bg-black">
+              <img
+                src={record.image_url}
+                alt={record.title}
+                className="max-h-[560px] w-full object-cover"
+              />
+            </div>
+          )}
+
           <p className="text-lg leading-8 text-gray-200">{record.summary}</p>
 
           <div className="mt-8 grid gap-5 lg:grid-cols-2">
@@ -96,6 +123,16 @@ export default async function VerifiedRecordPage({
             >
               {record.sourceLabel}
             </a>
+            {record.album_url && (
+              <a
+                href={record.album_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ml-0 mt-3 inline-flex rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 sm:ml-3 sm:mt-5"
+              >
+                {record.album_label || "More pictures"}
+              </a>
+            )}
           </div>
         </article>
       </section>
