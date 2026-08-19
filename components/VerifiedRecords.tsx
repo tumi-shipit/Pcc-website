@@ -28,7 +28,7 @@ export default function VerifiedRecords() {
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-300">
-                      {record.label}
+                      {record.label} - {record.dateLabel}
                     </p>
                     <h3 className="mt-3 text-2xl font-black text-white">
                       {record.title}
@@ -36,6 +36,16 @@ export default function VerifiedRecords() {
                     <p className="mt-3 text-sm leading-7 text-gray-400">
                       {record.summary}
                     </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {record.organisations.slice(0, 3).map((organisation) => (
+                        <span
+                          key={organisation.name}
+                          className="rounded-full border border-white/10 bg-black px-3 py-1 text-xs font-bold text-gray-300"
+                        >
+                          {organisation.name}
+                        </span>
+                      ))}
+                    </div>
                   </div>
 
                   <Link

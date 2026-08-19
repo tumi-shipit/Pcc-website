@@ -6,6 +6,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
+import { verifiedRecordNewsItems } from "@/lib/verifiedRecords";
 
 type NewsPost = {
   id: string;
@@ -18,6 +19,9 @@ type NewsPost = {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  href?: string;
+  display_date?: string | null;
+  protected?: boolean;
 };
 
 type Tournament = {
@@ -27,6 +31,22 @@ type Tournament = {
   registration_status: string;
 };
 
+type Organisation = {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  website_url: string | null;
+  representative_name: string | null;
+};
+
+type PlayerOption = {
+  id: string;
+  full_name: string;
+  chess_sa_id: string | null;
+  profile_photo_url: string | null;
+  title: string | null;
+};
+
 type NewsForm = {
   title: string;
   excerpt: string;
@@ -34,6 +54,20 @@ type NewsForm = {
   image_url: string;
   category: string;
   published: boolean;
+};
+
+type NewsOrganisationForm = {
+  id?: string;
+  organisation_id: string;
+  role: string;
+  representative_name: string;
+};
+
+type NewsOfficialForm = {
+  id?: string;
+  player_id: string;
+  role: string;
+  notes: string;
 };
 
 const emptyForm: NewsForm = {
@@ -55,6 +89,8 @@ const categories = [
   "Achievement",
   "Player Spotlight",
   "Club News",
+  "Development",
+  "Verified Record",
   "Platform Update",
 ];
 
@@ -91,6 +127,9 @@ const quickTemplates = [
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
 
+const verifiedRecordDeletePhrase =
+  "delete a verified record that exist on chessa website";
+
 function formatDate(value: string | null) {
   if (!value) return "Not published";
 
@@ -121,6 +160,7 @@ function getCategoryStyle(category: string | null) {
   if (category === "Achievement") return "bg-yellow-500/10 text-yellow-200";
   if (category === "Results") return "bg-orange-500/10 text-orange-200";
   if (category === "Pairings") return "bg-cyan-500/10 text-cyan-200";
+  if (category === "Verified Record") return "bg-emerald-500/10 text-emerald-200";
   return "bg-zinc-800 text-zinc-300";
 }
 
@@ -131,7 +171,13 @@ function cleanFileName(name: string) {
 export default function AdminNewsPage() {
   const [posts, setPosts] = useState<NewsPost[]>([]);
   const [tournaments, setTournaments] = useState<Tournament[]>([]);
+  const [organisations, setOrganisations] = useState<Organisation[]>([]);
+  const [players, setPlayers] = useState<PlayerOption[]>([]);
   const [form, setForm] = useState<NewsForm>(emptyForm);
+  const [newsOrganisations, setNewsOrganisations] = useState<
+    NewsOrganisationForm[]
+  >([]);
+  const [newsOfficials, setNewsOfficials] = useState<NewsOfficialForm[]>([]);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectedStatus, setSelectedStatus] = useState("All");
@@ -141,6 +187,9 @@ export default function AdminNewsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+
+  const isSuperAdmin = currentRole === "super_admin";
 
   const editingPost = useMemo(() => {
     return posts.find((post) => post.id === editingPostId) ?? null;
@@ -200,11 +249,46 @@ export default function AdminNewsPage() {
       .order("start_date", { ascending: false })
       .limit(20);
 
+    const { data: organisationData } = await supabase
+      .from("organisations")
+      .select("id, name, logo_url, website_url, representative_name")
+      .order("name", { ascending: true });
+
+    const { data: playerData } = await supabase
+      .from("players")
+      .select("id, full_name, chess_sa_id, profile_photo_url, title")
+      .order("full_name", { ascending: true })
+      .limit(800);
+
+    const { data: roleData } = await supabase.rpc("current_admin_role");
+    setCurrentRole(typeof roleData === "string" ? roleData : null);
+
     if (error) {
       setMessage(`Could not load news posts: ${error.message}`);
     } else {
-      setPosts((data ?? []) as unknown as NewsPost[]);
+      const protectedPosts = verifiedRecordNewsItems.map((item) => ({
+        id: item.id,
+        title: item.title,
+        excerpt: item.excerpt,
+        content: null,
+        image_url: item.image_url,
+        category: item.category,
+        published: true,
+        published_at: null,
+        created_at: item.display_date ?? "",
+        updated_at: item.display_date ?? "",
+        href: item.href,
+        display_date: item.display_date,
+        protected: true,
+      }));
+
+      setPosts([
+        ...protectedPosts,
+        ...((data ?? []) as unknown as NewsPost[]),
+      ]);
       setTournaments((tournamentData ?? []) as unknown as Tournament[]);
+      setOrganisations((organisationData ?? []) as unknown as Organisation[]);
+      setPlayers((playerData ?? []) as unknown as PlayerOption[]);
     }
 
     setLoading(false);
@@ -218,14 +302,196 @@ export default function AdminNewsPage() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function addNewsOrganisation() {
+    const firstOrganisation = organisations[0];
+    if (!firstOrganisation) {
+      setMessage("Add an organisation first before linking it to news.");
+      return;
+    }
+
+    setNewsOrganisations((current) => [
+      ...current,
+      {
+        organisation_id: firstOrganisation.id,
+        role: "Organisation involved",
+        representative_name: "",
+      },
+    ]);
+  }
+
+  function updateNewsOrganisation(
+    index: number,
+    field: keyof NewsOrganisationForm,
+    value: string
+  ) {
+    setNewsOrganisations((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
+  }
+
+  function removeNewsOrganisation(index: number) {
+    setNewsOrganisations((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index)
+    );
+  }
+
+  function addNewsOfficial() {
+    const firstPlayer = players[0];
+    if (!firstPlayer) {
+      setMessage("Add the person in Player Centre first before linking them to news.");
+      return;
+    }
+
+    setNewsOfficials((current) => [
+      ...current,
+      {
+        player_id: firstPlayer.id,
+        role: "Facilitator",
+        notes: "",
+      },
+    ]);
+  }
+
+  function updateNewsOfficial(
+    index: number,
+    field: keyof NewsOfficialForm,
+    value: string
+  ) {
+    setNewsOfficials((current) =>
+      current.map((item, itemIndex) =>
+        itemIndex === index ? { ...item, [field]: value } : item
+      )
+    );
+  }
+
+  function removeNewsOfficial(index: number) {
+    setNewsOfficials((current) =>
+      current.filter((_, itemIndex) => itemIndex !== index)
+    );
+  }
+
   function resetForm() {
     setForm(emptyForm);
     setEditingPostId(null);
+    setNewsOrganisations([]);
+    setNewsOfficials([]);
     setMessage("");
     setActivePanel("compose");
   }
 
-  function editPost(post: NewsPost) {
+  async function loadNewsCredits(postId: string) {
+    const [organisationResult, officialResult] = await Promise.all([
+      supabase
+        .from("news_organisations")
+        .select("id, organisation_id, role, representative_name, display_order")
+        .eq("news_post_id", postId)
+        .order("display_order", { ascending: true }),
+      supabase
+        .from("news_officials")
+        .select("id, player_id, role, notes, display_order")
+        .eq("news_post_id", postId)
+        .order("display_order", { ascending: true }),
+    ]);
+
+    if (!organisationResult.error) {
+      setNewsOrganisations(
+        (organisationResult.data ?? []).map((item) => ({
+          id: item.id,
+          organisation_id: item.organisation_id,
+          role: item.role ?? "Organisation involved",
+          representative_name: item.representative_name ?? "",
+        }))
+      );
+    } else {
+      setNewsOrganisations([]);
+    }
+
+    if (!officialResult.error) {
+      setNewsOfficials(
+        (officialResult.data ?? []).map((item) => ({
+          id: item.id,
+          player_id: item.player_id,
+          role: item.role ?? "Facilitator",
+          notes: item.notes ?? "",
+        }))
+      );
+    } else {
+      setNewsOfficials([]);
+    }
+  }
+
+  async function saveNewsCredits(postId: string) {
+    const hasCredits = newsOrganisations.length > 0 || newsOfficials.length > 0;
+
+    const deleteOrganisations = await supabase
+      .from("news_organisations")
+      .delete()
+      .eq("news_post_id", postId);
+    const deleteOfficials = await supabase
+      .from("news_officials")
+      .delete()
+      .eq("news_post_id", postId);
+
+    const relationMissing =
+      deleteOrganisations.error?.message.toLowerCase().includes("news_organisations") ||
+      deleteOfficials.error?.message.toLowerCase().includes("news_officials");
+
+    if (relationMissing) {
+      if (hasCredits) {
+        throw new Error(
+          "News organisations and officials are not installed yet. Run database/news_credits_setup.sql, then save again."
+        );
+      }
+      return;
+    }
+
+    if (deleteOrganisations.error) throw deleteOrganisations.error;
+    if (deleteOfficials.error) throw deleteOfficials.error;
+
+    const organisationRows = newsOrganisations
+      .filter((item) => item.organisation_id)
+      .map((item, index) => ({
+        news_post_id: postId,
+        organisation_id: item.organisation_id,
+        role: item.role.trim() || "Organisation involved",
+        representative_name: item.representative_name.trim() || null,
+        display_order: index + 1,
+      }));
+
+    if (organisationRows.length > 0) {
+      const { error } = await supabase.from("news_organisations").insert(organisationRows);
+      if (error) throw error;
+    }
+
+    const officialRows = newsOfficials
+      .filter((item) => item.player_id)
+      .map((item, index) => ({
+        news_post_id: postId,
+        player_id: item.player_id,
+        role: item.role.trim() || "Facilitator",
+        notes: item.notes.trim() || null,
+        display_order: index + 1,
+      }));
+
+    if (officialRows.length > 0) {
+      const { error } = await supabase.from("news_officials").insert(officialRows);
+      if (error) throw error;
+    }
+  }
+
+  async function editPost(post: NewsPost) {
+    if (post.protected) {
+      setMessage("This is a protected PCC verified record. Edit it from the retained record source, not the ordinary newsroom editor.");
+      return;
+    }
+
+    if (!isSuperAdmin) {
+      setMessage("Only a Super Admin can edit published news records.");
+      return;
+    }
+
     setEditingPostId(post.id);
     setForm({
       title: post.title ?? "",
@@ -237,6 +503,7 @@ export default function AdminNewsPage() {
     });
 
     setActivePanel("compose");
+    await loadNewsCredits(post.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -250,6 +517,8 @@ export default function AdminNewsPage() {
       published: false,
     });
     setEditingPostId(null);
+    setNewsOrganisations([]);
+    setNewsOfficials([]);
     setActivePanel("compose");
   }
 
@@ -356,12 +625,40 @@ export default function AdminNewsPage() {
         return;
       }
 
+      try {
+        await saveNewsCredits(editingPostId);
+      } catch (creditError) {
+        setMessage(
+          `Article saved, but news credits could not be saved: ${
+            creditError instanceof Error ? creditError.message : "Unknown error"
+          }`
+        );
+        setSaving(false);
+        return;
+      }
+
       setMessage("Article updated successfully.");
     } else {
-      const { error } = await supabase.from("news_posts").insert(payload);
+      const { data, error } = await supabase
+        .from("news_posts")
+        .insert(payload)
+        .select("id")
+        .single();
 
-      if (error) {
-        setMessage(`Could not create article: ${error.message}`);
+      if (error || !data) {
+        setMessage(`Could not create article: ${error?.message ?? "Unknown error"}`);
+        setSaving(false);
+        return;
+      }
+
+      try {
+        await saveNewsCredits(data.id);
+      } catch (creditError) {
+        setMessage(
+          `Article created, but news credits could not be saved: ${
+            creditError instanceof Error ? creditError.message : "Unknown error"
+          }`
+        );
         setSaving(false);
         return;
       }
@@ -375,6 +672,16 @@ export default function AdminNewsPage() {
   }
 
   async function togglePublished(post: NewsPost) {
+    if (post.protected) {
+      setMessage("Protected verified records cannot be unpublished from the newsroom.");
+      return;
+    }
+
+    if (!isSuperAdmin) {
+      setMessage("Only a Super Admin can publish or unpublish news records.");
+      return;
+    }
+
     setMessage("");
 
     const nextPublished = !post.published;
@@ -399,11 +706,33 @@ export default function AdminNewsPage() {
   }
 
   async function deletePost(post: NewsPost) {
-    const confirmed = window.confirm(
-      `Delete "${post.title}"? This cannot be undone.`
+    if (!isSuperAdmin) {
+      setMessage("Only a Super Admin can delete news records.");
+      return;
+    }
+
+    if (post.protected) {
+      const typed = window.prompt(
+        `This is a protected PCC verified record.\n\nTo continue, type exactly:\n${verifiedRecordDeletePhrase}`
+      );
+
+      if (typed !== verifiedRecordDeletePhrase) {
+        setMessage("Protected verified record was not deleted.");
+        return;
+      }
+
+      setMessage("This verified record is retained by PCC and is not deleted from the ordinary newsroom.");
+      return;
+    }
+
+    const typed = window.prompt(
+      `Delete "${post.title}"?\n\nThis permanently removes the article from the public newsroom.\n\nType DELETE to confirm.`
     );
 
-    if (!confirmed) return;
+    if (typed !== "DELETE") {
+      setMessage("Article was not deleted.");
+      return;
+    }
 
     setMessage("");
 
@@ -633,6 +962,181 @@ export default function AdminNewsPage() {
                       />
                     </div>
 
+                    <section className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-white">
+                            Organisations involved
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-gray-500">
+                            These show on the public article like tournament
+                            organising organisations.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addNewsOrganisation}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {newsOrganisations.length === 0 ? (
+                        <p className="mt-4 text-sm text-gray-500">
+                          No organisations linked.
+                        </p>
+                      ) : (
+                        <div className="mt-4 space-y-3">
+                          {newsOrganisations.map((item, index) => (
+                            <div
+                              key={`${item.id ?? "new"}-${index}`}
+                              className="rounded-xl border border-white/10 bg-black p-3"
+                            >
+                              <div className="grid gap-3">
+                                <select
+                                  value={item.organisation_id}
+                                  onChange={(event) =>
+                                    updateNewsOrganisation(
+                                      index,
+                                      "organisation_id",
+                                      event.target.value
+                                    )
+                                  }
+                                  className={inputClass}
+                                >
+                                  {organisations.map((organisation) => (
+                                    <option key={organisation.id} value={organisation.id}>
+                                      {organisation.name}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <input
+                                  value={item.role}
+                                  onChange={(event) =>
+                                    updateNewsOrganisation(
+                                      index,
+                                      "role",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Programme organiser, partner, host..."
+                                  className={inputClass}
+                                />
+
+                                <input
+                                  value={item.representative_name}
+                                  onChange={(event) =>
+                                    updateNewsOrganisation(
+                                      index,
+                                      "representative_name",
+                                      event.target.value
+                                    )
+                                  }
+                                  placeholder="Representative name if needed"
+                                  className={inputClass}
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => removeNewsOrganisation(index)}
+                                  className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10"
+                                >
+                                  Remove organisation
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="rounded-2xl border border-white/10 bg-zinc-950 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-bold text-white">
+                            Officials and facilitators
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-gray-500">
+                            Link people from Player Centre and choose their role
+                            for this article.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addNewsOfficial}
+                          className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-red-500"
+                        >
+                          Add
+                        </button>
+                      </div>
+
+                      {newsOfficials.length === 0 ? (
+                        <p className="mt-4 text-sm text-gray-500">
+                          No people linked.
+                        </p>
+                      ) : (
+                        <div className="mt-4 space-y-3">
+                          {newsOfficials.map((item, index) => (
+                            <div
+                              key={`${item.id ?? "new"}-${index}`}
+                              className="rounded-xl border border-white/10 bg-black p-3"
+                            >
+                              <div className="grid gap-3">
+                                <select
+                                  value={item.player_id}
+                                  onChange={(event) =>
+                                    updateNewsOfficial(
+                                      index,
+                                      "player_id",
+                                      event.target.value
+                                    )
+                                  }
+                                  className={inputClass}
+                                >
+                                  {players.map((player) => (
+                                    <option key={player.id} value={player.id}>
+                                      {player.full_name}
+                                      {player.chess_sa_id
+                                        ? ` - ${player.chess_sa_id}`
+                                        : ""}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <input
+                                  value={item.role}
+                                  onChange={(event) =>
+                                    updateNewsOfficial(index, "role", event.target.value)
+                                  }
+                                  placeholder="Facilitator, coach, arbiter trainer..."
+                                  className={inputClass}
+                                />
+
+                                <input
+                                  value={item.notes}
+                                  onChange={(event) =>
+                                    updateNewsOfficial(index, "notes", event.target.value)
+                                  }
+                                  placeholder="Optional note"
+                                  className={inputClass}
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => removeNewsOfficial(index)}
+                                  className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10"
+                                >
+                                  Remove person
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+
                     <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-zinc-950 p-4">
                       <input
                         type="checkbox"
@@ -854,8 +1358,24 @@ export default function AdminNewsPage() {
                                 </span>
 
                                 <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs text-gray-300">
-                                  {formatDate(post.published_at)}
+                                  {post.display_date || formatDate(post.published_at)}
                                 </span>
+
+                                {post.protected && (
+                                  <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-200">
+                                    Protected retained record
+                                  </span>
+                                )}
+                                {!isSuperAdmin && !post.protected && (
+                                  <span className="rounded-full border border-white/10 bg-zinc-950 px-3 py-1 text-xs text-gray-400">
+                                    Super Admin edits
+                                  </span>
+                                )}
+                                {!isSuperAdmin && post.protected && (
+                                  <span className="rounded-full border border-white/10 bg-zinc-950 px-3 py-1 text-xs text-gray-400">
+                                    Super Admin protected action
+                                  </span>
+                                )}
                               </div>
 
                               <h3 className="mt-4 text-xl font-black text-white">
@@ -871,25 +1391,31 @@ export default function AdminNewsPage() {
                               <button
                                 type="button"
                                 onClick={() => editPost(post)}
-                                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
+                                disabled={!isSuperAdmin || post.protected}
+                                className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-45"
                               >
-                                Edit
+                                {post.protected ? "Protected" : "Edit"}
                               </button>
 
                               <button
                                 type="button"
                                 onClick={() => togglePublished(post)}
+                                disabled={!isSuperAdmin || post.protected}
                                 className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
                                   post.published
                                     ? "border border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10"
                                     : "bg-green-600 text-white hover:bg-green-700"
-                                }`}
+                                } disabled:cursor-not-allowed disabled:opacity-45`}
                               >
-                                {post.published ? "Unpublish" : "Publish"}
+                                {post.protected
+                                  ? "Retained"
+                                  : post.published
+                                    ? "Unpublish"
+                                    : "Publish"}
                               </button>
 
                               <Link
-                                href={`/news/${post.id}`}
+                                href={post.href ?? `/news/${post.id}`}
                                 className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
                               >
                                 View
@@ -898,7 +1424,8 @@ export default function AdminNewsPage() {
                               <button
                                 type="button"
                                 onClick={() => deletePost(post)}
-                                className="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-500/10"
+                                disabled={!isSuperAdmin}
+                                className="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-45"
                               >
                                 Delete
                               </button>

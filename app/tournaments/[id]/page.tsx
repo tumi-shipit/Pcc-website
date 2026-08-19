@@ -987,6 +987,12 @@ export default function TournamentHubPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
+        <TournamentCredits
+          organisations={organisations}
+          officials={officials}
+          fallbackArbiter={arbiter}
+        />
+
         {!isCompleted && (
           <>
             <EntryBoard
@@ -1293,7 +1299,7 @@ function TournamentCredits({
   if (organisations.length === 0 && teamCards.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-white/10 bg-zinc-900 p-5 md:p-6">
+    <section className="mb-6 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -1317,12 +1323,12 @@ function TournamentCredits({
             organisation?.representative_name;
 
           const card = (
-            <div className="flex h-full min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-zinc-950 p-4 transition hover:border-red-500/60">
+            <div className="flex h-full min-w-0 items-center gap-4 rounded-2xl border border-white/10 bg-black/35 p-4 transition hover:border-red-500/60">
               {organisation?.logo_url ? (
                 <img
                   src={organisation.logo_url}
                   alt={`${organisation.name} logo`}
-                  className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
+                  className="h-16 w-16 shrink-0 rounded-xl border border-white/10 bg-white object-contain"
                 />
               ) : (
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-zinc-900 text-lg font-black text-red-200">

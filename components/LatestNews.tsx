@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
+import { verifiedRecordNewsItems } from "@/lib/verifiedRecords";
 
 type NewsPost = {
   id: string;
@@ -12,6 +13,9 @@ type NewsPost = {
   image_url: string | null;
   category: string | null;
   published_at: string | null;
+  display_date?: string | null;
+  href?: string;
+  protected?: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -31,6 +35,7 @@ function getCategoryIcon(category: string | null) {
   if (category === "Live Update") return "Live";
   if (category === "Achievement") return "Honours";
   if (category === "Player Spotlight") return "Player";
+  if (category === "Verified Record") return "Verified";
   return "News";
 }
 
@@ -53,9 +58,9 @@ export default function LatestNews() {
 
       if (error) {
         console.error("Latest news error:", error);
-        setPosts([]);
+          setPosts(verifiedRecordNewsItems);
       } else {
-        setPosts((data ?? []) as NewsPost[]);
+        setPosts([...verifiedRecordNewsItems, ...((data ?? []) as NewsPost[])]);
       }
 
       setLoading(false);
@@ -129,7 +134,7 @@ export default function LatestNews() {
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-zinc-900">
             <div className="grid gap-0 lg:grid-cols-[1.05fr_0.95fr]">
               <Link
-                href={`/news/${activePost.id}`}
+                href={activePost.href ?? `/news/${activePost.id}`}
                 className="group relative block min-h-[280px] overflow-hidden bg-zinc-950 md:min-h-[420px]"
               >
                 {activePost.image_url ? (
@@ -157,10 +162,10 @@ export default function LatestNews() {
 
               <div className="flex flex-col justify-center p-6 md:p-10">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
-                  {formatDate(activePost.published_at)}
+                  {activePost.display_date || formatDate(activePost.published_at)}
                 </p>
 
-                <Link href={`/news/${activePost.id}`}>
+                <Link href={activePost.href ?? `/news/${activePost.id}`}>
                   <h3 className="mt-4 text-3xl font-black leading-tight transition hover:text-red-300 md:text-5xl">
                     {activePost.title}
                   </h3>
@@ -172,10 +177,10 @@ export default function LatestNews() {
 
                 <div className="mt-8 flex flex-wrap items-center gap-3">
                   <Link
-                    href={`/news/${activePost.id}`}
+                    href={activePost.href ?? `/news/${activePost.id}`}
                     className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
                   >
-                    Read Update 
+                    {activePost.protected ? "Open Record" : "Read Update"} 
                   </Link>
 
                   {posts.length > 1 && (

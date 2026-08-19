@@ -59,12 +59,20 @@ export default async function VerifiedRecordPage({
             {record.dateLabel}
           </span>
           <span className="rounded-full border border-green-500/30 bg-green-500/10 px-4 py-2 text-sm font-bold text-green-200">
-            PCC record retained
+            {record.statusLabel}
           </span>
         </div>
 
         <article className="mt-10 rounded-3xl border border-white/10 bg-zinc-950 p-6 shadow-2xl shadow-black/30 md:p-8">
           <p className="text-lg leading-8 text-gray-200">{record.summary}</p>
+
+          <div className="mt-8 grid gap-5 lg:grid-cols-2">
+            <RecordPeoplePanel
+              title="Organisations involved"
+              items={record.organisations}
+            />
+            <RecordPeoplePanel title="Facilitators" items={record.facilitators} />
+          </div>
 
           <div className="mt-8 space-y-5 text-sm leading-7 text-gray-400 md:text-base md:leading-8">
             {record.body.map((paragraph) => (
@@ -92,5 +100,32 @@ export default async function VerifiedRecordPage({
         </article>
       </section>
     </main>
+  );
+}
+
+function RecordPeoplePanel({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ name: string; role: string }>;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-black p-5">
+      <p className="text-xs font-bold uppercase tracking-[0.18em] text-red-300">
+        {title}
+      </p>
+      <div className="mt-4 grid gap-3">
+        {items.map((item) => (
+          <div
+            key={`${item.name}-${item.role}`}
+            className="rounded-xl border border-white/10 bg-zinc-950 p-4"
+          >
+            <p className="font-black text-white">{item.name}</p>
+            <p className="mt-1 text-sm leading-6 text-gray-400">{item.role}</p>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import { verifiedRecordNewsItems } from "@/lib/verifiedRecords";
 
 type NewsPost = {
   id: string;
@@ -12,6 +13,9 @@ type NewsPost = {
   image_url: string | null;
   category: string | null;
   published_at: string | null;
+  display_date?: string | null;
+  href?: string;
+  protected?: boolean;
 };
 
 function formatDate(value: string | null) {
@@ -30,6 +34,7 @@ function getCategoryIcon(category: string | null) {
   if (category === "Tournament News") return "Tournament";
   if (category === "Achievement") return "Honours";
   if (category === "Player Spotlight") return "Player";
+  if (category === "Verified Record") return "Verified";
   return "News";
 }
 
@@ -47,7 +52,10 @@ export default function NewsPage() {
         .eq("published", true)
         .order("published_at", { ascending: false });
 
-      setPosts((data ?? []) as unknown as NewsPost[]);
+      setPosts([
+        ...verifiedRecordNewsItems,
+        ...((data ?? []) as unknown as NewsPost[]),
+      ]);
       setLoading(false);
     }
 
@@ -88,7 +96,7 @@ export default function NewsPage() {
             {posts.map((post) => (
               <Link
                 key={post.id}
-                href={`/news/${post.id}`}
+                href={post.href ?? `/news/${post.id}`}
                 className="group overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 transition hover:-translate-y-1 hover:border-red-500/60"
               >
                 <div className="relative aspect-[16/10] bg-zinc-950">
@@ -113,7 +121,8 @@ export default function NewsPage() {
 
                 <div className="p-5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-red-400">
-                    {formatDate(post.published_at)}
+                    {post.display_date || formatDate(post.published_at)}
+                    {post.protected ? " - PCC retained record" : ""}
                   </p>
 
                   <h2 className="mt-2 line-clamp-2 text-xl font-bold transition group-hover:text-red-300">
@@ -125,7 +134,7 @@ export default function NewsPage() {
                   </p>
 
                   <p className="mt-4 text-sm font-semibold text-red-300">
-                    Read article 
+                    {post.protected ? "Open record" : "Read article"} 
                   </p>
                 </div>
               </Link>

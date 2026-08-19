@@ -5,7 +5,36 @@ export const verifiedRecords = [
     label: "Development record",
     summary:
       "PCC leadership contributed to a Chess Limpopo training programme for teachers entering the coaching pathway, with club officials also supporting arbiter development.",
-    dateLabel: "Provincial development",
+    dateLabel: "2026",
+    statusLabel: "PCC record retained",
+    organisations: [
+      {
+        name: "Chess Limpopo",
+        role: "Programme organiser",
+      },
+      {
+        name: "Chess South Africa",
+        role: "Official source record",
+      },
+      {
+        name: "Polokwane Chess Club",
+        role: "Facilitation support",
+      },
+    ],
+    facilitators: [
+      {
+        name: "Elias Mabotja",
+        role: "Coaching facilitator",
+      },
+      {
+        name: "PCC Games Organiser",
+        role: "Arbiter development facilitator",
+      },
+      {
+        name: "PCC Club Manager",
+        role: "Arbiter development facilitator",
+      },
+    ],
     sourceLabel: "Chess SA official record",
     sourceUrl: "https://chessa.co.za/news-detail.php?id=436",
     body: [
@@ -17,3 +46,15 @@ export const verifiedRecords = [
 ];
 
 export type VerifiedRecord = (typeof verifiedRecords)[number];
+
+export const verifiedRecordNewsItems = verifiedRecords.map((record) => ({
+  id: `verified-${record.slug}`,
+  title: record.title,
+  excerpt: record.summary,
+  image_url: null as string | null,
+  category: "Verified Record",
+  published_at: null as string | null,
+  display_date: record.dateLabel,
+  href: `/verified-records/${record.slug}`,
+  protected: true,
+}));
