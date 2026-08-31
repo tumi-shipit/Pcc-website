@@ -15,7 +15,6 @@ export default function Navbar() {
     { href: "/players", label: "Players" },
     { href: "/store", label: "Store" },
     { href: "/news", label: "News" },
-    { href: "/platform", label: "Platform" },
     { href: "/contact", label: "Contact" },
     { href: "/admin", label: "Admin" },
   ];
