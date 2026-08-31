@@ -156,6 +156,12 @@ export default function AdminOrganiserAccessPage() {
   }
 
   async function revokeAccess(row: AccessRow) {
+    const confirmed = window.confirm(
+      `Revoke organiser portal access for ${row.organiser_email}? The record will be kept so it can be restored later.`
+    );
+
+    if (!confirmed) return;
+
     setSaving(true);
     setMessage("");
 
@@ -168,6 +174,33 @@ export default function AdminOrganiserAccessPage() {
       setMessage(`Could not revoke access: ${error.message}`);
     } else {
       setMessage(`Access revoked for ${row.organiser_email}.`);
+      await load();
+    }
+
+    setSaving(false);
+  }
+
+  async function deleteAccess(row: AccessRow) {
+    const confirmed = window.confirm(
+      `Permanently delete the organiser access record for ${row.organiser_email} on ${
+        row.tournaments?.tournament_name ?? "this tournament"
+      }? This cannot be restored.`
+    );
+
+    if (!confirmed) return;
+
+    setSaving(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("tournament_organiser_access")
+      .delete()
+      .eq("id", row.id);
+
+    if (error) {
+      setMessage(`Could not delete access record: ${error.message}`);
+    } else {
+      setMessage(`Access record deleted for ${row.organiser_email}.`);
       await load();
     }
 
@@ -230,14 +263,24 @@ export default function AdminOrganiserAccessPage() {
                       <p>Role: {row.role ?? "Organiser"}</p>
                     </div>
 
-                    <button
-                      type="button"
-                      disabled={saving || row.access_status === "Revoked"}
-                      onClick={() => revokeAccess(row)}
-                      className="mt-4 w-full rounded-lg border border-red-500/40 px-4 py-3 text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
-                    >
-                      Revoke Access
-                    </button>
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        disabled={saving || row.access_status === "Revoked"}
+                        onClick={() => revokeAccess(row)}
+                        className="rounded-lg border border-red-500/40 px-4 py-3 text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
+                      >
+                        Revoke access
+                      </button>
+                      <button
+                        type="button"
+                        disabled={saving}
+                        onClick={() => deleteAccess(row)}
+                        className="rounded-lg border border-white/15 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-red-500 hover:text-red-200 disabled:opacity-40"
+                      >
+                        Delete record
+                      </button>
+                    </div>
                   </article>
                 ))}
                 {!loading && accessRows.length === 0 && (
@@ -287,14 +330,24 @@ export default function AdminOrganiserAccessPage() {
                             {row.access_status ?? "Active"}
                           </td>
                           <td className="p-4">
-                            <button
-                              type="button"
-                              disabled={saving || row.access_status === "Revoked"}
-                              onClick={() => revokeAccess(row)}
-                              className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
-                            >
-                              Revoke
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                type="button"
+                                disabled={saving || row.access_status === "Revoked"}
+                                onClick={() => revokeAccess(row)}
+                                className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 transition hover:bg-red-500/10 disabled:opacity-40"
+                              >
+                                Revoke
+                              </button>
+                              <button
+                                type="button"
+                                disabled={saving}
+                                onClick={() => deleteAccess(row)}
+                                className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold text-zinc-300 transition hover:border-red-500 hover:text-red-200 disabled:opacity-40"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

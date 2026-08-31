@@ -2136,6 +2136,8 @@ function ArchiveContent({
         isCompleted
       />
 
+      <CalculatedTeamStandings results={results} />
+
       <TeamRankingTable
         teamResults={teamResults}
         sections={sections}
@@ -2766,6 +2768,203 @@ function FinalRankingTable({
           );
         })}
       </div>
+    </section>
+  );
+}
+
+type CalculatedTeamStanding = {
+  name: string;
+  points: number;
+  playerCount: number;
+  bestPlayerPoints: number;
+  players: Array<{ name: string; points: number | null }>;
+};
+
+const teamColourStyles = [
+  { dot: "bg-red-400", border: "border-red-400/40", text: "text-red-200", panel: "bg-red-500/10" },
+  { dot: "bg-sky-400", border: "border-sky-400/40", text: "text-sky-200", panel: "bg-sky-500/10" },
+  { dot: "bg-emerald-400", border: "border-emerald-400/40", text: "text-emerald-200", panel: "bg-emerald-500/10" },
+  { dot: "bg-amber-300", border: "border-amber-300/40", text: "text-amber-100", panel: "bg-amber-400/10" },
+  { dot: "bg-violet-400", border: "border-violet-400/40", text: "text-violet-200", panel: "bg-violet-500/10" },
+  { dot: "bg-pink-400", border: "border-pink-400/40", text: "text-pink-200", panel: "bg-pink-500/10" },
+  { dot: "bg-teal-300", border: "border-teal-300/40", text: "text-teal-100", panel: "bg-teal-400/10" },
+  { dot: "bg-orange-400", border: "border-orange-400/40", text: "text-orange-200", panel: "bg-orange-500/10" },
+  { dot: "bg-lime-300", border: "border-lime-300/40", text: "text-lime-100", panel: "bg-lime-400/10" },
+];
+
+function teamColourIndex(name: string) {
+  return Array.from(name).reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0
+  ) % teamColourStyles.length;
+}
+
+function calculatedTeamStandings(
+  results: ResultWithPlayer[],
+  groupBy: "province" | "club"
+) {
+  const grouped = new Map<string, CalculatedTeamStanding>();
+
+  results.forEach((result) => {
+    const teamName = result.player?.[groupBy]?.trim();
+    if (!teamName) return;
+
+    const current = grouped.get(teamName) ?? {
+      name: teamName,
+      points: 0,
+      playerCount: 0,
+      bestPlayerPoints: 0,
+      players: [],
+    };
+    const points = result.points ?? 0;
+    current.points += points;
+    current.playerCount += 1;
+    current.bestPlayerPoints = Math.max(current.bestPlayerPoints, points);
+    current.players.push({ name: publicResultName(result), points: result.points });
+    grouped.set(teamName, current);
+  });
+
+  return [...grouped.values()]
+    .map((team) => ({
+      ...team,
+      players: [...team.players].sort(
+        (left, right) => (right.points ?? 0) - (left.points ?? 0)
+      ),
+    }))
+    .sort(
+      (left, right) =>
+        right.points - left.points ||
+        right.bestPlayerPoints - left.bestPlayerPoints ||
+        left.name.localeCompare(right.name)
+    );
+}
+
+function CalculatedTeamStandings({ results }: { results: ResultWithPlayer[] }) {
+  const provinceStandings = calculatedTeamStandings(results, "province");
+  const clubStandings = calculatedTeamStandings(results, "club");
+  const hasProvinceStandings = provinceStandings.length > 1;
+  const hasClubStandings = clubStandings.length > 1;
+  const [groupBy, setGroupBy] = useState<"province" | "club">(
+    hasProvinceStandings ? "province" : "club"
+  );
+
+  useEffect(() => {
+    if (groupBy === "province" && !hasProvinceStandings && hasClubStandings) {
+      setGroupBy("club");
+    } else if (groupBy === "club" && !hasClubStandings && hasProvinceStandings) {
+      setGroupBy("province");
+    }
+  }, [groupBy, hasClubStandings, hasProvinceStandings]);
+
+  if (!hasProvinceStandings && !hasClubStandings) return null;
+
+  const standings = groupBy === "province" ? provinceStandings : clubStandings;
+  const groupingLabel = groupBy === "province" ? "Province" : "Club";
+
+  return (
+    <section
+      id="team-standings"
+      className="rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-8"
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-300">
+            Team points standings
+          </p>
+          <h2 className="mt-3 text-2xl font-black md:text-4xl">
+            {groupingLabel} leaderboard from individual results
+          </h2>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">
+            Every player keeps their individual result. Their final points are also
+            added to the {groupBy} they registered under, making team competition
+            visible without changing the tournament&apos;s individual format.
+          </p>
+        </div>
+
+        <div className="flex rounded-xl border border-white/10 bg-black/35 p-1">
+          {hasProvinceStandings && (
+            <button
+              type="button"
+              onClick={() => setGroupBy("province")}
+              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                groupBy === "province"
+                  ? "bg-yellow-400 text-black"
+                  : "text-gray-300 hover:text-white"
+              }`}
+            >
+              Provinces
+            </button>
+          )}
+          {hasClubStandings && (
+            <button
+              type="button"
+              onClick={() => setGroupBy("club")}
+              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                groupBy === "club"
+                  ? "bg-yellow-400 text-black"
+                  : "text-gray-300 hover:text-white"
+              }`}
+            >
+              Clubs
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-7 grid gap-4 lg:grid-cols-2">
+        {standings.map((team, index) => {
+          const colours = teamColourStyles[teamColourIndex(team.name)];
+
+          return (
+            <article
+              key={`${groupBy}-${team.name}`}
+              className={`overflow-hidden rounded-2xl border ${colours.border} bg-zinc-900/80`}
+            >
+              <div className={`flex items-center justify-between gap-4 border-b ${colours.border} ${colours.panel} px-5 py-4`}>
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className={`h-3 w-3 shrink-0 rounded-full ${colours.dot}`} />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
+                      {groupingLabel} #{index + 1}
+                    </p>
+                    <h3 className="truncate text-xl font-black text-white">{team.name}</h3>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`text-3xl font-black ${colours.text}`}>{team.points}</p>
+                  <p className="text-xs text-gray-400">team points</p>
+                </div>
+              </div>
+
+              <div className="p-5">
+                <div className="mb-4 flex items-center justify-between text-xs text-gray-400">
+                  <span>{team.playerCount} scoring player{team.playerCount === 1 ? "" : "s"}</span>
+                  <span>Best score: {team.bestPlayerPoints}</span>
+                </div>
+                <div className="space-y-2">
+                  {team.players.map((player) => (
+                    <div
+                      key={`${team.name}-${player.name}`}
+                      className="flex items-center justify-between gap-3 rounded-lg bg-black/25 px-3 py-2 text-sm"
+                    >
+                      <span className="min-w-0 truncate font-semibold text-white">{player.name}</span>
+                      <span className={`shrink-0 font-black ${colours.text}`}>
+                        {player.points ?? 0} pts
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <p className="mt-5 text-xs leading-5 text-gray-500">
+        Team totals use every published individual final result shown above. If an
+        event has a different team rule, its official Swiss team tiebreak table is
+        still displayed separately below.
+      </p>
     </section>
   );
 }
