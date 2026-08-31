@@ -9,6 +9,7 @@ const tournamentTabs = [
   ["Gallery", "/gallery"],
   ["Officials", "/arbiters"],
   ["Organisations", "/organisations"],
+  ["Programme", "/programme"],
   ["Live", "/live"],
   ["Edit", "/edit"],
 ];

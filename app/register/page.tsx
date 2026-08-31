@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import {
   formatCalendarDate,
   getCalendarYear,
@@ -48,6 +49,7 @@ type NewPlayerForm = {
 
 type RegistrationReceipt = {
   playerName: string;
+  tournamentId: string;
   tournamentName: string;
   sectionName: string;
   paymentStatus: string;
@@ -1254,6 +1256,7 @@ export default function RegisterPage() {
         playerName: selectedChessSaPlayer
           ? selectedChessSaPlayer.full_name
           : newPlayerFullName,
+        tournamentId: selectedTournamentId,
         tournamentName: selectedTournament?.tournament_name ?? "Tournament",
         sectionName: selectedSection?.section_name ?? "Section pending",
         paymentStatus:
@@ -2359,6 +2362,15 @@ export default function RegisterPage() {
                   Contact: {registrationReceipt.contact}
                 </p>
               </div>
+            )}
+
+            {registrationReceipt && (
+              <Link
+                href={"/tournaments/" + registrationReceipt.tournamentId}
+                className="mt-4 block rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm font-bold text-green-100 transition hover:bg-green-500/20"
+              >
+                Open official event page
+              </Link>
             )}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">

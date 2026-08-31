@@ -11,9 +11,7 @@ if (!supabaseUrl || !supabasePublishableKey) {
 }
 
 export const publicSupabase = createClient(supabaseUrl, supabasePublishableKey, {
-  auth: {
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-    persistSession: false,
-  },
+  // Public pages never call Supabase Auth. Supplying an anonymous token provider
+  // avoids creating a second GoTrue client beside the authenticated admin client.
+  accessToken: async () => null,
 });

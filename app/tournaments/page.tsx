@@ -1,12 +1,24 @@
 import Navbar from "@/components/Navbar";
 import Tournaments from "@/components/Tournaments";
 
-export default function TournamentsPage() {
+type TournamentSearchParams = Promise<{
+  search?: string;
+  status?: string;
+  province?: string;
+}>;
+
+export default async function TournamentsPage({
+  searchParams,
+}: {
+  searchParams: TournamentSearchParams;
+}) {
+  const filters = await searchParams;
+
   return (
     <>
       <Navbar />
       <main className="pt-10">
-        <Tournaments fullPage />
+        <Tournaments fullPage filters={filters} />
       </main>
     </>
   );

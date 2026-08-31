@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
@@ -68,6 +69,14 @@ type OperationStats = {
   rejected: number;
 };
 
+type HealthCheck = {
+  title: string;
+  description: string;
+  state: "ready" | "attention" | "complete" | "upcoming";
+  href: string;
+  action: string;
+};
+
 const emptyOperationStats: OperationStats = {
   pending_review: 0,
   proof_submitted: 0,
@@ -117,12 +126,47 @@ export default function AdminTournamentDashboardPage() {
   );
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [publicLinkCopied, setPublicLinkCopied] = useState(false);
+
+  async function copyPublicLink() {
+    const publicUrl = window.location.origin + "/tournaments/" + tournamentId;
+
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setPublicLinkCopied(true);
+      window.setTimeout(() => setPublicLinkCopied(false), 2200);
+    } catch {
+      window.prompt("Copy this official event link:", publicUrl);
+    }
+  }
 
   const unpaidCount = useMemo(() => {
     const approved = stats?.approved_registrations ?? 0;
     const paid = stats?.paid_registrations ?? 0;
     return Math.max(approved - paid, 0);
   }, [stats]);
+
+  const capacityAlerts = useMemo(
+    () =>
+      sectionStats
+        .filter(
+          (section) =>
+            section.maximum_players !== null &&
+            section.maximum_players > 0 &&
+            section.total / section.maximum_players >= 0.8
+        )
+        .map((section) => {
+          const maximum = section.maximum_players as number;
+          const spacesLeft = Math.max(maximum - section.total, 0);
+
+          return {
+            ...section,
+            spacesLeft,
+            isFull: spacesLeft === 0,
+          };
+        }),
+    [sectionStats]
+  );
 
   const lifecycleSteps = useMemo(() => {
     const total = stats?.total_registrations ?? 0;
@@ -171,6 +215,138 @@ export default function AdminTournamentDashboardPage() {
       },
     ];
   }, [gallery.length, results.length, stats, tournament?.registration_status, unpaidCount]);
+
+  const healthChecks = useMemo<HealthCheck[]>(() => {
+    const registrationTotal = stats?.total_registrations ?? 0;
+    const isCompleted = tournament?.registration_status === "Completed";
+    const hasEventDetails = Boolean(
+      tournament?.venue?.trim() &&
+        tournament?.start_date &&
+        tournament?.description?.trim()
+    );
+
+    return [
+      {
+        title: "Event details",
+        description: hasEventDetails
+          ? "Venue, date and public event summary are in place."
+          : "Add the venue, date and a clear public event summary.",
+        state: hasEventDetails ? "ready" : "attention",
+        href: `/admin/tournaments/${tournamentId}/edit`,
+        action: "Edit details",
+      },
+      {
+        title: "Poster",
+        description: tournament?.poster_image_url
+          ? "A poster is ready for the public event page."
+          : "Add a poster so the event is recognisable in public listings.",
+        state: tournament?.poster_image_url ? "ready" : "attention",
+        href: `/admin/tournaments/${tournamentId}/edit`,
+        action: tournament?.poster_image_url ? "View setup" : "Add poster",
+      },
+      {
+        title: "Sections",
+        description:
+          sectionArchiveStatus.length > 0
+            ? `${sectionArchiveStatus.length} section${sectionArchiveStatus.length === 1 ? " is" : "s are"} configured.`
+            : "Add at least one section before accepting entries.",
+        state: sectionArchiveStatus.length > 0 ? "ready" : "attention",
+        href: `/admin/tournaments/${tournamentId}/edit`,
+        action: sectionArchiveStatus.length > 0 ? "Manage sections" : "Add sections",
+      },
+      {
+        title: "Registration",
+        description:
+          tournament?.registration_status === "Open"
+            ? "Players can submit entries from the public event page."
+            : isCompleted
+              ? "Registration is closed because the event is complete."
+              : "Registration is currently closed. Open it when entries should be accepted.",
+        state:
+          tournament?.registration_status === "Open"
+            ? "ready"
+            : isCompleted
+              ? "complete"
+              : "attention",
+        href: `/admin/tournaments/${tournamentId}/edit`,
+        action:
+          tournament?.registration_status === "Open" || isCompleted
+            ? "View setup"
+            : "Open registration",
+      },
+      {
+        title: "Entry review",
+        description:
+          registrationTotal === 0
+            ? "No entry review is needed until players register."
+            : operationStats.pending_review +
+                  operationStats.proof_submitted +
+                  operationStats.missing_chess_sa ===
+                0
+              ? "All current entry checks are clear."
+              : `${operationStats.pending_review + operationStats.proof_submitted + operationStats.missing_chess_sa} entry check${operationStats.pending_review + operationStats.proof_submitted + operationStats.missing_chess_sa === 1 ? " needs" : "s need"} attention.`,
+        state:
+          registrationTotal === 0
+            ? "upcoming"
+            : operationStats.pending_review +
+                  operationStats.proof_submitted +
+                  operationStats.missing_chess_sa ===
+                0
+              ? "ready"
+              : "attention",
+        href: `/admin/registrations?tournament=${encodeURIComponent(
+          tournament?.tournament_name ?? ""
+        )}`,
+        action: registrationTotal === 0 ? "Open registrations" : "Review entries",
+      },
+      {
+        title: "Results",
+        description:
+          results.length > 0
+            ? `${results.length} final-ranking row${results.length === 1 ? " is" : "s are"} recorded.`
+            : isCompleted
+              ? "Import final rankings to complete the public record."
+              : "Results become due once the event has been played.",
+        state:
+          results.length > 0
+            ? "complete"
+            : isCompleted
+              ? "attention"
+              : "upcoming",
+        href: `/admin/tournaments/${tournamentId}/archive`,
+        action: results.length > 0 ? "View results" : "Open results",
+      },
+      {
+        title: "Gallery",
+        description:
+          gallery.length > 0
+            ? `${gallery.length} event photo${gallery.length === 1 ? " is" : "s are"} linked.`
+            : isCompleted
+              ? "Add an album link or gallery photos to preserve the event."
+              : "Gallery publishing becomes due after the event.",
+        state:
+          gallery.length > 0
+            ? "complete"
+            : isCompleted
+              ? "attention"
+              : "upcoming",
+        href: `/admin/tournaments/${tournamentId}/gallery`,
+        action: gallery.length > 0 ? "Manage gallery" : "Add gallery",
+      },
+    ];
+  }, [
+    gallery.length,
+    operationStats,
+    results.length,
+    sectionArchiveStatus.length,
+    stats?.total_registrations,
+    tournament,
+    tournamentId,
+  ]);
+
+  const healthAttentionCount = healthChecks.filter(
+    (check) => check.state === "attention"
+  ).length;
 
   async function loadGallery() {
     const { data, error } = await supabase
@@ -499,25 +675,30 @@ export default function AdminTournamentDashboardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
-        <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-          Loading tournament dashboard...
-        </div>
-      </main>
+      <AdminGuard>
+        <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
+          <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
+            Loading tournament dashboard...
+          </div>
+        </main>
+      </AdminGuard>
     );
   }
 
   if (!tournament) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-100">
-          {message || "Tournament not found."}
-        </div>
-      </main>
+      <AdminGuard>
+        <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
+          <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-100">
+            {message || "Tournament not found."}
+          </div>
+        </main>
+      </AdminGuard>
     );
   }
 
   return (
+    <AdminGuard>
     <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
       <div className="mx-auto max-w-7xl">
         <Link
@@ -690,6 +871,13 @@ export default function AdminTournamentDashboardPage() {
               </Link>
 
               <Link
+                href={"/admin/tournaments/" + tournamentId + "/live"}
+                className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-center text-sm font-bold text-amber-100 transition hover:bg-amber-500/20"
+              >
+                Live Updates
+              </Link>
+
+              <Link
                 href="/admin/registrations"
                 className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
               >
@@ -709,7 +897,48 @@ export default function AdminTournamentDashboardPage() {
               >
                 Public Page
               </Link>
+
+              <button
+                type="button"
+                onClick={copyPublicLink}
+                className="rounded-xl border border-white/10 px-4 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
+              >
+                {publicLinkCopied ? "Link Copied" : "Copy Public Link"}
+              </button>
             </div>
+
+            <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-950 p-5">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+                    Event health
+                  </p>
+                  <h2 className="mt-2 text-2xl font-black">Ready for every stage</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-400">
+                    A universal readiness check for club, district, provincial and
+                    national events. It only flags work that is due now.
+                  </p>
+                </div>
+
+                <span
+                  className={`w-fit rounded-full px-4 py-2 text-xs font-black ${
+                    healthAttentionCount === 0
+                      ? "bg-green-500/15 text-green-200"
+                      : "bg-yellow-500/15 text-yellow-200"
+                  }`}
+                >
+                  {healthAttentionCount === 0
+                    ? "Ready to operate"
+                    : `${healthAttentionCount} action item${healthAttentionCount === 1 ? "" : "s"}`}
+                </span>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {healthChecks.map((check) => (
+                  <HealthCheckCard key={check.title} check={check} />
+                ))}
+              </div>
+            </section>
 
             <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-950 p-5">
               <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -814,6 +1043,49 @@ export default function AdminTournamentDashboardPage() {
               Open Payment Desk
             </Link>
           </div>
+
+          {capacityAlerts.length > 0 && (
+            <div className="mt-5 rounded-2xl border border-orange-500/30 bg-orange-500/10 p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-sm font-black text-orange-200">
+                    Section capacity attention
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-orange-100/80">
+                    These sections are at least 80% full based on visible registrations.
+                  </p>
+                </div>
+                <Link
+                  href={"/admin/tournaments/" + tournamentId + "/sections"}
+                  className="w-fit rounded-lg border border-orange-400/40 px-3 py-2 text-xs font-black text-orange-100 transition hover:bg-orange-500/15"
+                >
+                  Manage sections
+                </Link>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {capacityAlerts.map((section) => (
+                  <div
+                    key={section.section_name}
+                    className="rounded-xl border border-orange-400/20 bg-zinc-950/60 p-3"
+                  >
+                    <p className="font-bold text-white">{section.section_name}</p>
+                    <p className="mt-1 text-sm text-orange-100">
+                      {section.total} of {section.maximum_players} registered
+                    </p>
+                    <p className="mt-1 text-xs font-semibold text-orange-200/80">
+                      {section.isFull
+                        ? "Capacity reached"
+                        : section.spacesLeft +
+                          " space" +
+                          (section.spacesLeft === 1 ? "" : "s") +
+                          " remaining"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {sectionStats.length === 0 ? (
             <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
@@ -1198,6 +1470,52 @@ export default function AdminTournamentDashboardPage() {
         </section>
       </div>
     </main>
+    </AdminGuard>
+  );
+}
+
+function HealthCheckCard({ check }: { check: HealthCheck }) {
+  const style = {
+    ready: {
+      card: "border-green-500/30 bg-green-500/10",
+      badge: "bg-green-500/20 text-green-200",
+      label: "Ready",
+    },
+    attention: {
+      card: "border-yellow-500/30 bg-yellow-500/10",
+      badge: "bg-yellow-500/20 text-yellow-100",
+      label: "Action needed",
+    },
+    complete: {
+      card: "border-blue-500/30 bg-blue-500/10",
+      badge: "bg-blue-500/20 text-blue-100",
+      label: "Complete",
+    },
+    upcoming: {
+      card: "border-white/10 bg-black/30",
+      badge: "bg-zinc-800 text-gray-300",
+      label: "Not due yet",
+    },
+  }[check.state];
+
+  return (
+    <div className={`rounded-2xl border p-4 ${style.card}`}>
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-black text-white">{check.title}</h3>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${style.badge}`}>
+          {style.label}
+        </span>
+      </div>
+      <p className="mt-3 min-h-12 text-sm leading-6 text-gray-300">
+        {check.description}
+      </p>
+      <Link
+        href={check.href}
+        className="mt-4 inline-flex text-sm font-bold text-white underline decoration-white/30 underline-offset-4 transition hover:text-red-200"
+      >
+        {check.action}
+      </Link>
+    </div>
   );
 }
 

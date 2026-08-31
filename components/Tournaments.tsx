@@ -34,6 +34,22 @@ type TournamentSectionFee = {
   entry_fee_override: number | null;
 };
 
+type TournamentFilters = {
+  search?: string;
+  status?: string;
+  province?: string;
+};
+
+const directoryStatuses = [
+  { value: "", label: "All statuses" },
+  { value: "Open", label: "Open for entries" },
+  { value: "Live", label: "Live now" },
+  { value: "Closed", label: "Closed" },
+  { value: "Postponed", label: "Postponed" },
+  { value: "Completed", label: "Completed" },
+  { value: "Coming Soon", label: "Coming soon" },
+];
+
 const TOURNAMENT_COLUMNS =
   "id,tournament_name,organiser_name,description,start_date,end_date,venue,province,registration_status,entry_fee,poster_image_url";
 
@@ -116,12 +132,19 @@ async function fetchPublicTournaments() {
   }
 }
 
-function formatDate(date: string) {
-  return formatCalendarDate(date, {
+function formatTournamentDate(tournament: Tournament) {
+  const options: Intl.DateTimeFormatOptions = {
     day: "2-digit",
     month: "short",
     year: "numeric",
-  });
+  };
+  const start = formatCalendarDate(tournament.start_date, options);
+
+  if (!tournament.end_date || tournament.end_date === tournament.start_date) {
+    return start;
+  }
+
+  return start + " – " + formatCalendarDate(tournament.end_date, options);
 }
 
 function formatMoney(amount: number) {
@@ -182,6 +205,33 @@ function getStatusClass(status: Tournament["registration_status"]) {
   return "bg-zinc-700";
 }
 
+function matchesDirectoryFilters(
+  tournament: Tournament,
+  filters: TournamentFilters
+) {
+  const search = filters.search?.trim().toLocaleLowerCase() ?? "";
+  const province = filters.province?.trim().toLocaleLowerCase() ?? "";
+  const status = filters.status?.trim() ?? "";
+  const statusLabel = getStatusLabel(tournament.registration_status);
+
+  const searchableText = [
+    tournament.tournament_name,
+    tournament.organiser_name,
+    tournament.venue,
+    tournament.province,
+    tournament.description,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLocaleLowerCase();
+
+  return (
+    (!search || searchableText.includes(search)) &&
+    (!province || tournament.province?.toLocaleLowerCase() === province) &&
+    (!status || statusLabel === status)
+  );
+}
+
 function PostponedPosterStamp() {
   return (
     <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center bg-black/25">
@@ -236,7 +286,7 @@ function TournamentCard({
 
       <div className="p-3 md:p-4">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-red-400 md:text-xs">
-          {formatDate(tournament.start_date)}
+          {formatTournamentDate(tournament)}
         </p>
 
         <Link href={`/tournaments/${tournament.id}`}>
@@ -252,7 +302,8 @@ function TournamentCard({
         )}
 
         <p className="mt-2 line-clamp-1 text-xs text-gray-400">
-          Venue: {tournament.venue}
+          {tournament.venue}
+          {tournament.province ? " · " + tournament.province : ""}
         </p>
 
         <p className="mt-1 text-xs font-semibold text-gray-300">
@@ -290,12 +341,25 @@ function TournamentCard({
 
 export default async function Tournaments({
   fullPage = false,
+  filters = {},
 }: {
   fullPage?: boolean;
+  filters?: TournamentFilters;
 }) {
   const { tournaments, sectionFees, error } = await fetchPublicTournaments();
 
-  const upcomingTournaments = tournaments
+  const filteredTournaments = fullPage
+    ? tournaments.filter((tournament) => matchesDirectoryFilters(tournament, filters))
+    : tournaments;
+  const provinces = Array.from(
+    new Set(
+      tournaments
+        .map((tournament) => tournament.province?.trim())
+        .filter((province): province is string => Boolean(province))
+    )
+  ).sort((left, right) => left.localeCompare(right));
+
+  const upcomingTournaments = filteredTournaments
     .filter(isActiveTournament)
     .sort((left, right) => {
       const leftFuture = isFutureDatedTournament(left);
@@ -309,7 +373,7 @@ export default async function Tournaments({
       );
     });
 
-  const pastTournaments = tournaments
+  const pastTournaments = filteredTournaments
     .filter((tournament) => tournament.registration_status === "Completed")
     .sort(
       (left, right) =>
@@ -323,6 +387,8 @@ export default async function Tournaments({
   const visiblePastTournaments = fullPage
     ? pastTournaments
     : pastTournaments.slice(0, 4);
+  const completedOnly = filters.status === "Completed";
+  const activeStatusOnly = Boolean(filters.status && filters.status !== "Completed");
 
   return (
     <section id="tournaments" className="bg-zinc-950 py-16 text-white md:py-24">
@@ -352,6 +418,76 @@ export default async function Tournaments({
           </Link>
         </div>
 
+        {fullPage && !error && (
+          <form
+            action="/tournaments"
+            className="mb-8 grid gap-3 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:grid-cols-[minmax(0,1fr)_180px_180px_auto] md:items-end"
+          >
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-zinc-400">
+                Search events
+              </span>
+              <input
+                type="search"
+                name="search"
+                defaultValue={filters.search ?? ""}
+                placeholder="Tournament, organiser, venue or province"
+                className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-zinc-500 focus:border-red-500"
+              />
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-zinc-400">
+                Status
+              </span>
+              <select
+                name="status"
+                defaultValue={filters.status ?? ""}
+                className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition focus:border-red-500"
+              >
+                {directoryStatuses.map((status) => (
+                  <option key={status.value || "all"} value={status.value}>
+                    {status.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-wide text-zinc-400">
+                Province
+              </span>
+              <select
+                name="province"
+                defaultValue={filters.province ?? ""}
+                className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition focus:border-red-500"
+              >
+                <option value="">All provinces</option>
+                {provinces.map((province) => (
+                  <option key={province} value={province}>
+                    {province}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700"
+              >
+                Apply
+              </button>
+              <Link
+                href="/tournaments"
+                className="rounded-xl border border-white/10 px-4 py-3 text-sm font-bold text-zinc-300 transition hover:border-red-500 hover:text-white"
+              >
+                Reset
+              </Link>
+            </div>
+          </form>
+        )}
+
         {error ? (
           <p className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-sm text-gray-300">
             Tournament listings are refreshing. Please use the Register button
@@ -359,7 +495,12 @@ export default async function Tournaments({
           </p>
         ) : (
           <>
-            {upcomingTournaments.length > 0 ? (
+            {filteredTournaments.length === 0 ? (
+              <p className="rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">
+                No tournaments match those filters. Try another organiser, venue,
+                province or status.
+              </p>
+            ) : !completedOnly && (upcomingTournaments.length > 0 ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                 {visibleUpcomingTournaments.map((tournament) => (
                   <TournamentCard
@@ -373,9 +514,9 @@ export default async function Tournaments({
               <p className="rounded-2xl border border-white/10 bg-zinc-900 p-5 text-sm text-gray-400">
                 No upcoming tournaments are currently listed.
               </p>
-            )}
+            ))}
 
-            {pastTournaments.length > 0 && (
+            {!activeStatusOnly && pastTournaments.length > 0 && (
               <div id="archive" className="mt-16 scroll-mt-28 border-t border-white/10 pt-12">
                 <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
                   <div className="max-w-3xl">

@@ -125,6 +125,27 @@ const quickTemplates = [
     excerpt: "Live update from the tournament venue.",
     content: "Live update from the tournament venue:",
   },
+  {
+    title: "Venue and Arrival Notice",
+    category: "Tournament News",
+    excerpt: "Participants should confirm the venue, arrival time and registration point before travelling.",
+    content:
+      "Participants are reminded to confirm the venue, arrival time and registration point before travelling. Please arrive early enough to complete any on-site checks before the first round.",
+  },
+  {
+    title: "Programme Update",
+    category: "Announcement",
+    excerpt: "The event programme has been updated with the latest official times and activities.",
+    content:
+      "The event programme has been updated. Participants should check the official event page for the latest times, round schedule and venue notices.",
+  },
+  {
+    title: "Payment Follow-up",
+    category: "Registration",
+    excerpt: "Approved entrants should complete payment or submit proof for review.",
+    content:
+      "Approved entrants who have not yet completed payment should use the payment details on the official event page and submit proof where required. Entry confirmation remains subject to the organiser's review.",
+  },
 ];
 
 const inputClass =

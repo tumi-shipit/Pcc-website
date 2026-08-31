@@ -115,6 +115,25 @@ type LiveStandingUpdate = {
   created_at: string;
 };
 
+type EventAnnouncement = {
+  id: string;
+  title: string;
+  excerpt: string;
+  published_at: string | null;
+  created_at: string;
+};
+
+type ProgrammeItem = {
+  id: string;
+  programme_date: string;
+  start_time: string | null;
+  end_time: string | null;
+  title: string;
+  location: string | null;
+  notes: string | null;
+  display_order: number;
+};
+
 type ResultWithPlayer = TournamentResult & {
   player: Player | null;
   section: TournamentSection | null;
@@ -230,6 +249,54 @@ function formatMoney(amount: number) {
   }).format(amount);
 }
 
+function escapeCalendarText(value: string) {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
+}
+
+function calendarDate(value: string) {
+  return value.replace(/-/g, "");
+}
+
+function calendarEndDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function buildCalendarFile(tournament: Tournament) {
+  const eventEndDate = tournament.end_date || tournament.start_date;
+  const description = [
+    tournament.description?.trim(),
+    tournament.province ? `Province: ${tournament.province}` : null,
+    `Event page: https://polokwanechessclub.co.za/tournaments/${tournament.id}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//Polokwane Chess Club//Tournament Hub//EN",
+    "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT",
+    `UID:pcc-tournament-${tournament.id}@polokwanechessclub.co.za`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`,
+    `DTSTART;VALUE=DATE:${calendarDate(tournament.start_date)}`,
+    `DTEND;VALUE=DATE:${calendarEndDate(eventEndDate)}`,
+    `SUMMARY:${escapeCalendarText(tournament.tournament_name)}`,
+    `LOCATION:${escapeCalendarText(tournament.venue)}`,
+    `DESCRIPTION:${escapeCalendarText(description)}`,
+    `URL:https://polokwanechessclub.co.za/tournaments/${tournament.id}`,
+    "END:VEVENT",
+    "END:VCALENDAR",
+    "",
+  ].join("\r\n");
+}
+
 function sectionEntryFee(section: TournamentSection, tournament: Tournament) {
   return section.entry_fee_override ?? tournament.entry_fee;
 }
@@ -281,6 +348,123 @@ function PostponedPosterStamp() {
         Postponed
       </div>
     </div>
+  );
+}
+
+function AddToCalendarButton({ tournament }: { tournament: Tournament }) {
+  function downloadCalendarFile() {
+    const calendar = buildCalendarFile(tournament);
+    const blob = new Blob([calendar], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${tournament.tournament_name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "pcc-tournament"}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={downloadCalendarFile}
+      className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
+    >
+      Add to calendar
+    </button>
+  );
+}
+
+function ShareTournamentButton({ tournament }: { tournament: Tournament }) {
+  const [copied, setCopied] = useState(false);
+
+  async function shareTournament() {
+    const url = window.location.href;
+    const shareData = {
+      title: tournament.tournament_name,
+      text:
+        tournament.tournament_name +
+        " · " +
+        formatCalendarDate(tournament.start_date) +
+        " · " +
+        tournament.venue,
+      url,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (error) {
+        if ((error as DOMException).name === "AbortError") return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      window.prompt("Copy this official event link:", url);
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={shareTournament}
+      className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
+    >
+      {copied ? "Link copied" : "Share event"}
+    </button>
+  );
+}
+
+function VenueDirectionsLink({ tournament }: { tournament: Tournament }) {
+  const location = tournament.venue + (tournament.province ? ", " + tournament.province : "");
+  const directionsUrl =
+    "https://www.google.com/maps/search/?api=1&query=" +
+    encodeURIComponent(location);
+
+  return (
+    <a
+      href={directionsUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="rounded-xl border border-white/10 px-6 py-3 text-sm font-bold text-white transition hover:border-red-500"
+    >
+      Get directions
+    </a>
+  );
+}
+
+function EventNavigation({
+  links,
+}: {
+  links: Array<{ href: string; label: string }>;
+}) {
+  return (
+    <nav
+      aria-label="Tournament page navigation"
+      className="border-b border-white/10 bg-black/55 backdrop-blur-sm"
+    >
+      <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 md:px-6">
+        {links.map((link) => (
+          <a
+            key={link.href}
+            href={link.href}
+            className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-bold text-gray-200 transition hover:border-red-500 hover:text-white"
+          >
+            {link.label}
+          </a>
+        ))}
+      </div>
+    </nav>
   );
 }
 
@@ -473,6 +657,8 @@ export default function TournamentHubPage() {
   const [results, setResults] = useState<ResultWithPlayer[]>([]);
   const [teamResults, setTeamResults] = useState<TournamentTeamResult[]>([]);
   const [standingUpdates, setStandingUpdates] = useState<LiveStandingUpdate[]>([]);
+  const [announcements, setAnnouncements] = useState<EventAnnouncement[]>([]);
+  const [programmeItems, setProgrammeItems] = useState<ProgrammeItem[]>([]);
   const [registeredPlayers, setRegisteredPlayers] = useState<PublicRegistrationRow[]>([]);
   const [arbiter, setArbiter] = useState<Player | null>(null);
   const [officials, setOfficials] = useState<PublicOfficial[]>([]);
@@ -602,6 +788,35 @@ export default function TournamentHubPage() {
 
       if (!liveStandingError) {
         liveStandingRows = (liveStandingData ?? []) as unknown as LiveStandingUpdate[];
+      }
+
+      const { data: announcementData, error: announcementError } = await supabase
+        .from("news_posts")
+        .select("id, title, excerpt, published_at, created_at")
+        .eq("published", true)
+        .eq("category", "Live Update")
+        .ilike("content", "%Tournament ID: " + tournamentId + "%")
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .limit(8);
+
+      if (announcementError) {
+        console.error("Error loading event updates:", announcementError);
+      }
+
+      const { data: programmeData, error: programmeError } = await supabase
+        .from("tournament_programme_items")
+        .select(
+          "id, programme_date, start_time, end_time, title, location, notes, display_order"
+        )
+        .eq("tournament_id", tournamentId)
+        .eq("is_published", true)
+        .order("programme_date", { ascending: true })
+        .order("start_time", { ascending: true, nullsFirst: false })
+        .order("display_order", { ascending: true });
+
+      if (programmeError) {
+        console.error("Error loading event programme:", programmeError);
       }
 
       const { data: registrationListData } = await supabase
@@ -752,6 +967,8 @@ export default function TournamentHubPage() {
       setResults(resultRowsWithPlayers);
       setTeamResults(teamResultRows);
       setStandingUpdates(liveStandingRows);
+      setAnnouncements((announcementData ?? []) as EventAnnouncement[]);
+      setProgrammeItems((programmeData ?? []) as ProgrammeItem[]);
       setRegisteredPlayers(
         (registrationListData ?? []) as unknown as PublicRegistrationRow[]
       );
@@ -833,6 +1050,19 @@ export default function TournamentHubPage() {
   const feeSummary = tournamentFeeSummary(tournament, sections);
   const competitionDocumentLabel =
     tournament.competition_document_label?.trim() || "Competition document";
+  const hasTournamentTeam =
+    organisations.length > 0 || buildPublicTeamCards(officials, arbiter).length > 0;
+  const eventNavigation = [
+    { href: "#event-overview", label: "Overview" },
+    ...(hasTournamentTeam ? [{ href: "#team", label: "Event team" }] : []),
+    ...(announcements.length > 0 ? [{ href: "#updates", label: "Updates" }] : []),
+    ...(programmeItems.length > 0 ? [{ href: "#programme", label: "Programme" }] : []),
+    ...(!isCompleted ? [{ href: "#entries", label: "Entries & sections" }] : []),
+    ...(hasPublicStandings
+      ? [{ href: "#standings", label: isCompleted ? "Results" : "Standings" }]
+      : []),
+    ...(isCompleted ? [{ href: "#gallery", label: "Photos" }] : []),
+  ];
   const pageBackgroundStyle = tournament.poster_image_url
     ? {
         backgroundImage: `linear-gradient(180deg, rgba(9,9,11,0.92) 0%, rgba(9,9,11,0.84) 46%, rgba(9,9,11,0.94) 100%), url(${JSON.stringify(
@@ -846,7 +1076,10 @@ export default function TournamentHubPage() {
       className="min-h-screen bg-zinc-950 bg-cover bg-fixed bg-center pt-24 text-white"
       style={pageBackgroundStyle}
     >
-      <section className="border-b border-white/10 bg-black/35 backdrop-blur-sm">
+      <section
+        id="event-overview"
+        className="scroll-mt-28 border-b border-white/10 bg-black/35 backdrop-blur-sm"
+      >
         <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 md:grid-cols-[minmax(260px,380px)_1fr] md:px-6 md:py-12">
           <div className="overflow-hidden rounded-3xl border border-white/15 bg-black shadow-2xl shadow-black/60">
             <div className="relative aspect-[3/4]">
@@ -975,6 +1208,10 @@ export default function TournamentHubPage() {
                   {competitionDocumentLabel}
                 </a>
               )}
+
+              <AddToCalendarButton tournament={tournament} />
+              {tournament.venue && <VenueDirectionsLink tournament={tournament} />}
+              <ShareTournamentButton tournament={tournament} />
             </div>
 
             {isPostponed && (
@@ -986,18 +1223,23 @@ export default function TournamentHubPage() {
         </div>
       </section>
 
+      <EventNavigation links={eventNavigation} />
+
       <section className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
         <TournamentCredits
           organisations={organisations}
           officials={officials}
           fallbackArbiter={arbiter}
         />
+        <EventUpdatesPanel announcements={announcements} />
+        <EventProgrammePanel items={programmeItems} />
 
         {!isCompleted && (
           <>
             <EntryBoard
               tournament={tournament}
               sections={sections}
+              registeredPlayers={registeredPlayers}
               registeredCount={registeredCount}
               resultsCount={results.length}
               feeSummary={feeSummary}
@@ -1031,7 +1273,10 @@ export default function TournamentHubPage() {
         )}
 
         {isCompleted && (
-          <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 backdrop-blur md:p-8">
+          <section
+            id="gallery"
+            className="scroll-mt-28 mt-8 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 backdrop-blur md:p-8"
+          >
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -1299,7 +1544,10 @@ function TournamentCredits({
   if (organisations.length === 0 && teamCards.length === 0) return null;
 
   return (
-    <section className="mb-6 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6">
+    <section
+      id="team"
+      className="scroll-mt-28 mb-6 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6"
+    >
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -1371,6 +1619,121 @@ function TournamentCredits({
 
         {teamCards.map((card) => (
           <PublicOfficialCard key={card.key} card={card} className="h-full" />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EventUpdatesPanel({
+  announcements,
+}: {
+  announcements: EventAnnouncement[];
+}) {
+  if (announcements.length === 0) return null;
+
+  return (
+    <section
+      id="updates"
+      className="scroll-mt-28 mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6"
+    >
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-amber-300">
+            Event updates
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-white">
+            Latest organiser notices
+          </h2>
+          <p className="mt-1 text-sm text-gray-300">
+            Official updates published by the event organiser.
+          </p>
+        </div>
+        <span className="w-fit rounded-full bg-amber-300 px-3 py-1 text-xs font-bold text-amber-950">
+          {announcements.length} update{announcements.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {announcements.map((announcement) => (
+          <Link
+            key={announcement.id}
+            href={"/news/" + announcement.id}
+            className="block rounded-xl border border-white/10 bg-zinc-950/80 p-4 transition hover:border-amber-300/70 hover:bg-zinc-900"
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <h3 className="font-bold text-white">{announcement.title}</h3>
+              <span className="shrink-0 text-xs font-semibold text-gray-400">
+                {formatDate(announcement.published_at || announcement.created_at)}
+              </span>
+            </div>
+            {announcement.excerpt && (
+              <p className="mt-2 text-sm text-gray-300">{announcement.excerpt}</p>
+            )}
+            <span className="mt-3 inline-block text-sm font-semibold text-amber-300">
+              Open update →
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EventProgrammePanel({ items }: { items: ProgrammeItem[] }) {
+  if (items.length === 0) return null;
+
+  const days = Array.from(new Set(items.map((item) => item.programme_date)));
+
+  return (
+    <section
+      id="programme"
+      className="scroll-mt-28 mb-6 rounded-2xl border border-blue-400/25 bg-blue-500/10 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6"
+    >
+      <p className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-300">
+        Event programme
+      </p>
+      <h2 className="mt-2 text-2xl font-black text-white">Plan your day</h2>
+      <p className="mt-1 text-sm text-gray-300">
+        Times and activities published by the event organiser.
+      </p>
+
+      <div className="mt-5 space-y-5">
+        {days.map((day) => (
+          <div key={day}>
+            <h3 className="text-sm font-black uppercase tracking-wide text-blue-200">
+              {formatCalendarDate(day, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </h3>
+            <div className="mt-3 space-y-2">
+              {items
+                .filter((item) => item.programme_date === day)
+                .map((item) => (
+                  <article
+                    key={item.id}
+                    className="grid gap-2 rounded-xl border border-white/10 bg-zinc-950/80 p-4 sm:grid-cols-[120px_1fr]"
+                  >
+                    <p className="text-sm font-black text-blue-200">
+                      {item.start_time ? item.start_time.slice(0, 5) : "TBA"}
+                      {item.end_time ? "–" + item.end_time.slice(0, 5) : ""}
+                    </p>
+                    <div>
+                      <h4 className="font-bold text-white">{item.title}</h4>
+                      {item.location && (
+                        <p className="mt-1 text-sm text-gray-300">{item.location}</p>
+                      )}
+                      {item.notes && (
+                        <p className="mt-2 text-sm leading-6 text-gray-400">{item.notes}</p>
+                      )}
+                    </div>
+                  </article>
+                ))}
+            </div>
+          </div>
         ))}
       </div>
     </section>
@@ -1606,18 +1969,34 @@ function NextStep({ label, text }: { label: string; text: string }) {
 function EntryBoard({
   tournament,
   sections,
+  registeredPlayers,
   registeredCount,
   resultsCount,
   feeSummary,
 }: {
   tournament: Tournament;
   sections: TournamentSection[];
+  registeredPlayers: PublicRegistrationRow[];
   registeredCount: number;
   resultsCount: number;
   feeSummary: string;
 }) {
+  const sectionEntryCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+
+    registeredPlayers.forEach((player) => {
+      if (!player.section_id) return;
+      counts.set(player.section_id, (counts.get(player.section_id) ?? 0) + 1);
+    });
+
+    return counts;
+  }, [registeredPlayers]);
+
   return (
-    <section className="rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/30 backdrop-blur md:p-6">
+    <section
+      id="entries"
+      className="scroll-mt-28 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/30 backdrop-blur md:p-6"
+    >
       <div className="grid gap-5 lg:grid-cols-[1fr_1.4fr]">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -1656,22 +2035,47 @@ function EntryBoard({
             </p>
           ) : (
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {sections.map((section) => (
-                <div
-                  key={section.id}
-                  className="rounded-xl border border-white/10 bg-black/35 p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <p className="font-bold">{section.section_name}</p>
-                    <span className="rounded-full bg-red-600/20 px-2.5 py-1 text-xs font-black text-red-100">
-                      {formatMoney(sectionEntryFee(section, tournament))}
-                    </span>
+              {sections.map((section) => {
+                const entries = sectionEntryCounts.get(section.id) ?? 0;
+                const maximum = section.maximum_players;
+                const spacesLeft =
+                  maximum === null ? null : Math.max(maximum - entries, 0);
+                const isFull = spacesLeft === 0 && maximum !== null;
+
+                return (
+                  <div
+                    key={section.id}
+                    className="rounded-xl border border-white/10 bg-black/35 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-bold">{section.section_name}</p>
+                      <span className="rounded-full bg-red-600/20 px-2.5 py-1 text-xs font-black text-red-100">
+                        {formatMoney(sectionEntryFee(section, tournament))}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-gray-400">
+                      {sectionRuleLabel(section) || "Open section"}
+                    </p>
+                    {maximum !== null && (
+                      <p
+                        className={
+                          "mt-3 text-xs font-bold " +
+                          (isFull ? "text-orange-300" : "text-green-300")
+                        }
+                      >
+                        {isFull
+                          ? "Section capacity reached"
+                          : entries +
+                            " registered · " +
+                            spacesLeft +
+                            " space" +
+                            (spacesLeft === 1 ? "" : "s") +
+                            " left"}
+                      </p>
+                    )}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-gray-400">
-                    {sectionRuleLabel(section) || "Open section"}
-                  </p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -2104,6 +2508,60 @@ function getSectionCombinationInfo(
   };
 }
 
+function csvCell(value: string | number | null | undefined) {
+  return '"' + String(value ?? "").replace(/"/g, '""') + '"';
+}
+
+function DownloadResultsButton({
+  results,
+  sections,
+}: {
+  results: ResultWithPlayer[];
+  sections: TournamentSection[];
+}) {
+  function downloadResults() {
+    const sectionNames = new Map(sections.map((section) => [section.id, section.section_name]));
+    const rows = sortResults(results).map((result) =>
+      [
+        sectionNames.get(result.section_id ?? "") ?? "Overall",
+        result.final_position,
+        publicResultName(result),
+        result.starting_number,
+        publicResultRating(result),
+        publicResultFederation(result),
+        result.points,
+        result.tie_break,
+        result.award_title,
+      ]
+        .map(csvCell)
+        .join(",")
+    );
+    const csv =
+      ["Section,Rank,Player,Start Number,Rating,Federation,Points,Tie Break,Award"]
+        .concat(rows)
+        .join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "pcc-event-results.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={downloadResults}
+      className="rounded-full border border-white/10 bg-zinc-950 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
+    >
+      Download results
+    </button>
+  );
+}
+
 function FinalRankingTable({
   results,
   sections,
@@ -2160,6 +2618,7 @@ function FinalRankingTable({
           <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
             Top 10 list
           </span>
+          <DownloadResultsButton results={results} sections={sections} />
           {chessResultsUrl && (
             <a
               href={chessResultsUrl}
