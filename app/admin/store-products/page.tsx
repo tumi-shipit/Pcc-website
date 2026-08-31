@@ -408,6 +408,7 @@ function ImageField({ label, url, uploading, onUpload, onRemove }: { label: stri
           <label className="cursor-pointer rounded-lg bg-white px-4 py-2 text-sm font-black text-zinc-950"><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={onUpload} className="sr-only" />{uploading ? "Uploading..." : url ? "Replace image" : "Upload image"}</label>
           {url && <button type="button" onClick={onRemove} className="text-sm font-bold text-red-300">Remove</button>}
         </div>
+        <p className="mt-3 text-xs leading-5 text-zinc-500">Recommended: 1600 × 1600 px square, product centred, WebP or JPEG, ideally under 1 MB.</p>
       </div>
     </div>
   );
