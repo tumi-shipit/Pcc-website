@@ -4,14 +4,14 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Polokwane Chess Club",
   description:
-    "Official website of Polokwane Chess Club. Established in 1958, promoting chess development across Limpopo.",
+    "Polokwane Chess Club is the home of chess in the heart of Polokwane, offering tournament information and online registration for events in and beyond the city.",
 
   metadataBase: new URL("https://polokwanechessclub.co.za"),
 
   openGraph: {
     title: "Polokwane Chess Club",
     description:
-      "Official website of Polokwane Chess Club. Established in 1958.",
+      "The home of chess in the heart of Polokwane, with online tournament registration for events in and beyond the city.",
     url: "https://polokwanechessclub.co.za",
     siteName: "Polokwane Chess Club",
     images: [
@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Polokwane Chess Club",
     description:
-      "Official website of Polokwane Chess Club. Established in 1958.",
+      "The home of chess in the heart of Polokwane, with online tournament registration for events in and beyond the city.",
     images: ["/images/organisations/polokwane-chess-club.png"],
   },
 };

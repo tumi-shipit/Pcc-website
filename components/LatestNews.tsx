@@ -124,7 +124,7 @@ export default function LatestNews() {
 
             <p className="mt-4 max-w-2xl text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
               Tournament reports, player spotlights, registration notices and
-              club announcements, curated for players, parents and supporters.
+              club announcements published by Polokwane Chess Club.
             </p>
           </div>
 

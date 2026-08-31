@@ -5,30 +5,30 @@ const platformSteps = [
   {
     number: "01",
     title: "Create the event",
-    text: "An authorised organiser creates one event with its venue, dates, sections, fees, programme and public information.",
+    text: "Add the dates, venue, sections, fees and information players need.",
   },
   {
     number: "02",
-    title: "Open one official hub",
-    text: "Players, parents, schools, clubs and officials use the same public event page for entries, directions, updates and documents.",
+    title: "Publish the event page",
+    text: "Players and teams use one page for registration, directions, documents and updates.",
   },
   {
     number: "03",
-    title: "Run the event clearly",
-    text: "Organisers manage entries, payments, capacity, officials, live notices and standings from a focused admin workflow.",
+    title: "Manage the entries",
+    text: "The assigned organiser can review entries, payments, sections and event notices.",
   },
   {
     number: "04",
-    title: "Keep the record",
-    text: "Results, reports, photos and verified records remain accessible as a useful archive after the final round.",
+    title: "Publish the results",
+    text: "After the event, the page can show results, reports and a link to the photo album.",
   },
 ];
 
 const audiences = [
-  ["PCC club events", "Keep PCC activity organised, visible and owned by the club."],
-  ["Schools and districts", "Give parents, coaches and teams one dependable entry and information point."],
-  ["Provinces and organisations", "Provide scoped organiser access without surrendering PCC’s platform ownership."],
-  ["National events", "Use the same dependable workflow at larger scale, without creating a separate special system."],
+  ["Individuals", "Enter an available tournament online."],
+  ["Schools and organisations", "Collect entries for school, club or organisational events."],
+  ["Districts and provinces", "Use the same registration process for larger regional events."],
+  ["National federations", "List sections and accept entries for national events."],
 ];
 
 export default function PlatformPage() {
@@ -42,19 +42,19 @@ export default function PlatformPage() {
               Polokwane Chess Club platform
             </p>
             <h1 className="mt-5 max-w-5xl text-4xl font-black leading-tight md:text-6xl">
-              A club-owned chess platform built to serve the whole structure.
+              Tournament registration from Polokwane to national events.
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-gray-300 md:text-xl">
-              PCC keeps its roots as a club asset while giving every authorised
-              event—club, district, provincial, organisational or national—the
-              same clear operational standard.
+              This is Polokwane Chess Club&apos;s registration service. It can be
+              used by individuals, schools, organisations, districts, provinces
+              and national federations for approved chess events.
             </p>
             <div className="mt-9 flex flex-wrap gap-3">
               <Link href="/tournaments" className="rounded-xl bg-red-600 px-6 py-3 text-sm font-black transition hover:bg-red-700">
-                Explore event hubs
+                View tournaments
               </Link>
               <Link href="/register" className="rounded-xl border border-white/15 px-6 py-3 text-sm font-black transition hover:border-red-400">
-                See player entry flow
+                Register for an event
               </Link>
             </div>
           </div>
@@ -64,16 +64,15 @@ export default function PlatformPage() {
           <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-                The principle
+                Who it serves
               </p>
               <h2 className="mt-4 text-3xl font-black md:text-5xl">
-                Club-first. Structure-capable.
+                Based in Polokwane, available beyond the city.
               </h2>
               <p className="mt-5 text-sm leading-7 text-gray-400 md:text-base">
-                PCC does not build a different website for every important event.
-                It builds one dependable system with equal-quality public hubs and
-                responsible organiser access. That protects club ownership while
-                making collaboration practical.
+                Polokwane Chess Club is a city-based chess club. Its website also
+                gives approved organisers outside the city a practical way to
+                publish an event and receive online registrations.
               </p>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -90,10 +89,10 @@ export default function PlatformPage() {
         <section className="border-y border-white/10 bg-zinc-900/50">
           <div className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-24">
             <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-              One standard workflow
+              How registration works
             </p>
             <h2 className="mt-4 text-3xl font-black md:text-5xl">
-              From announcement to permanent record
+              From event listing to published results
             </h2>
             <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               {platformSteps.map((step) => (
@@ -109,15 +108,15 @@ export default function PlatformPage() {
 
         <section className="mx-auto max-w-5xl px-4 py-16 text-center md:px-6 md:py-24">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-            PCC commitment
+            About the service
           </p>
           <h2 className="mt-4 text-3xl font-black md:text-5xl">
-            Better service without losing the club’s identity.
+            Operated by Polokwane Chess Club.
           </h2>
           <p className="mx-auto mt-5 max-w-3xl text-sm leading-7 text-gray-400 md:text-base">
-            The platform stays visibly PCC: locally accountable, carefully managed
-            and built to preserve the history, people and development work behind
-            every event it supports.
+            PCC controls access to the system. Organisers receive access only to
+            the tournaments assigned to them, while players and the public use the
+            event pages without needing admin access.
           </p>
         </section>
       </main>

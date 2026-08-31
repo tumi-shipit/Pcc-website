@@ -1290,13 +1290,14 @@ export default function RegisterPage() {
             </h1>
 
             <p className="mt-4 max-w-4xl text-sm leading-6 text-gray-300 md:text-base md:leading-7">
-              Find tournaments listed by PCC and approved organisers, choose the
-              right section, and send your entry from one place.
+              Register for events run by PCC or approved organisers. The service
+              supports individuals, schools, organisations, districts, provinces
+              and national federations.
             </p>
 
             <p className="mt-3 hidden max-w-4xl text-sm leading-6 text-gray-400 md:block md:text-base md:leading-7">
-              Players, parents, schools and coaches can use this page to enter
-              events without sending names through scattered messages.
+              Find the player, choose the tournament and section, add the contact
+              and payment details, and submit the entry.
             </p>
 
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
@@ -1305,7 +1306,7 @@ export default function RegisterPage() {
 
             <div className="mt-5 flex flex-wrap gap-2">
               <span className="rounded-full border border-green-500/40 bg-green-500/10 px-3 py-1.5 text-xs font-medium text-green-300">
-                Limpopo Tournament List
+                Tournament List
               </span>
 
               <span className="rounded-full border border-blue-500/40 bg-blue-500/10 px-3 py-1.5 text-xs font-medium text-blue-300">

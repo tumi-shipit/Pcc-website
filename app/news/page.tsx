@@ -88,8 +88,8 @@ export default function NewsPage() {
         </h1>
 
         <p className="mt-5 max-w-3xl text-gray-400 md:text-lg">
-          Read tournament reports, club notices and stories from the chess
-          community.
+          Tournament reports, club notices, player news and registration updates
+          published by Polokwane Chess Club.
         </p>
 
         <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

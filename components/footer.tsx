@@ -27,9 +27,8 @@ export default function Footer() {
           </Link>
 
           <p className="mt-5 max-w-md text-sm leading-7 text-gray-400">
-            Polokwane Chess Club connects players, parents, organisers and
-            supporters through tournaments, player development and a growing
-            archive of Limpopo chess.
+            The home of chess in the heart of Polokwane, with online tournament
+            registration available to events in and beyond the city.
           </p>
         </div>
 

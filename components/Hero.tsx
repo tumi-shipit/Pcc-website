@@ -32,15 +32,15 @@ const quickLinks = [
   {
     href: "/organisers",
     title: "Organisers",
-    text: "Run events without chasing spreadsheets",
+    text: "Manage the tournaments assigned to you",
   },
   { href: "/hall-of-fame", title: "Hall of Fame", text: "PCC legacy" },
 ];
 
 const proofPoints = [
-  { label: "Established", value: "1958", text: "Serving Limpopo chess for generations" },
-  { label: "Home Base", value: "Polokwane", text: "Built around real local chess" },
-  { label: "Records", value: "Kept", text: "Entries, results and player history in one place" },
+  { label: "Established", value: "1958", text: "A chess club based in Polokwane" },
+  { label: "Home", value: "Polokwane", text: "The city at the heart of the club" },
+  { label: "Registration", value: "Online", text: "Available to events beyond the city" },
 ];
 
 export default function Hero() {
@@ -69,8 +69,9 @@ export default function Hero() {
           </h1>
 
           <p className="mt-5 max-w-3xl text-base leading-7 text-gray-200 md:text-xl md:leading-9">
-            Find tournaments, enter online, follow standings and look back at
-            the results without hunting through old messages.
+            The home of chess in the heart of Polokwane. Our online registration
+            service is also available to schools, organisations, districts,
+            provinces and national federations running events beyond the city.
           </p>
 
           <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-3">

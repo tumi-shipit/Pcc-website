@@ -14,8 +14,7 @@ export default function Achievements() {
         </h2>
 
         <p className="mx-auto mt-5 max-w-3xl text-center text-base leading-7 text-gray-400 md:text-lg">
-          Celebrating milestones, championships and memorable moments that have
-          shaped our journey.
+          Results and achievements recorded by Polokwane Chess Club.
         </p>
 
         <div className="mt-12 overflow-hidden rounded-2xl border border-white/10 bg-zinc-900">
@@ -30,9 +29,7 @@ export default function Achievements() {
               </h3>
 
               <p className="mt-6 text-lg leading-8 text-gray-400">
-                One of the proudest moments in the club&apos;s history, showcasing
-                teamwork, determination and excellence as Polokwane Chess Club
-                claimed the ULSSA Team Championship.
+                Polokwane Chess Club won the ULSSA Team Championship in 2023.
               </p>
 
               <Link

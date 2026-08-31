@@ -10,15 +10,13 @@ export default function About() {
           </p>
 
           <h2 className="max-w-2xl text-4xl font-black leading-tight md:text-5xl">
-            More than a chess club
+            A chess club in the heart of Polokwane
           </h2>
 
           <p className="mt-8 text-lg leading-8 text-gray-600">
-            Established in 1958, Polokwane Chess Club has proudly served the
-            Limpopo chess community for more than six decades. Through
-            coaching, tournaments and youth development, PCC continues to
-            inspire strategic thinking while producing competitive players
-            across the province.
+            Polokwane Chess Club was established in 1958. It is a home for
+            chess players in Polokwane and provides tournament information,
+            online entry, results and player records through this website.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2">
@@ -28,7 +26,7 @@ export default function About() {
                 Years of club history
               </p>
               <p className="mt-3 text-sm leading-6 text-gray-500">
-                A long-running institution for players, parents and officials.
+                Serving players, parents, schools and officials in Polokwane.
               </p>
             </div>
 
@@ -38,7 +36,7 @@ export default function About() {
                 Club founded
               </p>
               <p className="mt-3 text-sm leading-6 text-gray-500">
-                Preserving the story of Polokwane chess while building what is next.
+                The year Polokwane Chess Club was established.
               </p>
             </div>
           </div>
