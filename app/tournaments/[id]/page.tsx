@@ -683,41 +683,13 @@ export default function TournamentHubPage() {
       setLoading(true);
       setMessage("");
 
-      let { data: tournamentData, error: tournamentError } = await supabase
+      const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, postponement_reason, start_date, end_date, venue, province, registration_status, team_standings_basis, entry_fee, poster_image_url, payment_details, chess_results_url, competition_document_url, competition_document_label, external_gallery_url, external_gallery_label, arbiter_player_id"
+          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
         )
         .eq("id", tournamentId)
         .single();
-
-      if (
-        tournamentError?.message.toLowerCase().includes("postponement_reason") ||
-        tournamentError?.message.toLowerCase().includes("team_standings_basis") ||
-        tournamentError?.message.toLowerCase().includes("external_gallery") ||
-        tournamentError?.message.toLowerCase().includes("competition_document")
-      ) {
-        const fallback = await supabase
-          .from("tournaments")
-          .select(
-            "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
-          )
-          .eq("id", tournamentId)
-          .single();
-
-        tournamentData = fallback.data
-          ? {
-              ...fallback.data,
-              postponement_reason: null,
-              team_standings_basis: "Club / District",
-              competition_document_url: null,
-              competition_document_label: null,
-              external_gallery_url: null,
-              external_gallery_label: null,
-            }
-          : null;
-        tournamentError = fallback.error;
-      }
 
       if (tournamentError || !tournamentData) {
         setMessage("Tournament could not be found.");
@@ -725,7 +697,42 @@ export default function TournamentHubPage() {
         return;
       }
 
-      const loadedTournament = tournamentData as Tournament;
+      const [postponementFields, standingsFields, documentFields, galleryFields] =
+        await Promise.all([
+          supabase
+            .from("tournaments")
+            .select("postponement_reason")
+            .eq("id", tournamentId)
+            .maybeSingle(),
+          supabase
+            .from("tournaments")
+            .select("team_standings_basis")
+            .eq("id", tournamentId)
+            .maybeSingle(),
+          supabase
+            .from("tournaments")
+            .select("competition_document_url, competition_document_label")
+            .eq("id", tournamentId)
+            .maybeSingle(),
+          supabase
+            .from("tournaments")
+            .select("external_gallery_url, external_gallery_label")
+            .eq("id", tournamentId)
+            .maybeSingle(),
+        ]);
+
+      const loadedTournament = {
+        ...tournamentData,
+        postponement_reason: postponementFields.data?.postponement_reason ?? null,
+        team_standings_basis:
+          standingsFields.data?.team_standings_basis ?? "Club / District",
+        competition_document_url:
+          documentFields.data?.competition_document_url ?? null,
+        competition_document_label:
+          documentFields.data?.competition_document_label ?? null,
+        external_gallery_url: galleryFields.data?.external_gallery_url ?? null,
+        external_gallery_label: galleryFields.data?.external_gallery_label ?? null,
+      } as Tournament;
 
       const { data: sectionData } = await supabase
         .from("tournament_sections")
