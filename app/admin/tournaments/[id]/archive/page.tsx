@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
+import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import AdminImportSummaryPanel from "@/components/admin/AdminImportSummaryPanel";
 import { createImportSession, createImportSessionRows } from "@/lib/importSummary";
 import { supabase } from "@/lib/supabase";
@@ -3160,7 +3161,11 @@ export default function TournamentArchiveContinuationPage() {
              Back to Tournament Dashboard
           </Link>
 
-          <section className="mt-6 border-b border-white/10 pb-6">
+          <div className="mt-6">
+            <AdminTournamentTabs id={tournamentId} />
+          </div>
+
+          <section className="border-b border-white/10 pb-6">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-red-400">
               Completed Manager
             </p>

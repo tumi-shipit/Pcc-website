@@ -4,6 +4,7 @@ import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
+import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import {
   normalizeTournamentRatingType,
   tournamentRatingOptions,
@@ -741,7 +742,11 @@ export default function EditTournamentPage() {
              Back to Tournament Management
           </Link>
 
-          <p className="mt-6 text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
+          <div className="mt-6">
+            <AdminTournamentTabs id={tournamentId} />
+          </div>
+
+          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
             Edit Tournament
           </p>
 
