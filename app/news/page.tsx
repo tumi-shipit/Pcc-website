@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import PublicPageShell from "@/components/PublicPageShell";
 import { supabase } from "../../lib/supabase";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
@@ -32,14 +33,14 @@ function formatDate(value: string | null) {
   });
 }
 
-function getCategoryIcon(category: string | null) {
+function getCategoryLabel(category: string | null) {
+  if (category === "PCC Archive") return "PCC Archive";
   if (category === "Platform Update") return "Platform";
   if (category === "Tournament Report") return "Results";
   if (category === "Tournament News") return "Tournament";
   if (category === "Achievement") return "Honours";
   if (category === "Player Spotlight") return "Player";
-  if (category === "Verified Record") return "Verified";
-  return "News";
+  return `News ${category ?? "Update"}`;
 }
 
 export default function NewsPage() {
@@ -75,7 +76,8 @@ export default function NewsPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
+    <PublicPageShell>
+      <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
       <div className="mx-auto max-w-7xl">
         <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
           PCC Media Centre
@@ -127,7 +129,7 @@ export default function NewsPage() {
                   )}
 
                   <span className="absolute left-3 top-3 rounded-full bg-red-600 px-3 py-1 text-xs font-bold uppercase tracking-wide text-white">
-                    {getCategoryIcon(post.category)} {post.category ?? "News"}
+                    {getCategoryLabel(post.category)}
                   </span>
                 </div>
 
@@ -154,7 +156,8 @@ export default function NewsPage() {
           </div>
         )}
       </div>
-    </main>
+      </main>
+    </PublicPageShell>
   );
 }
 

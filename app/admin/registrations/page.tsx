@@ -155,7 +155,7 @@ function RegistrationsPageContent() {
   const [search, setSearch] = useState("");
   const [tournamentFilter, setTournamentFilter] = useState("All");
   const [sectionFilter, setSectionFilter] = useState("All");
-  const [activeTab, setActiveTab] = useState<StatusTab>("All");
+  const [activeTab, setActiveTab] = useState<StatusTab>("Pending");
   const [sortBy, setSortBy] = useState<SortOption>("Newest first");
   const [pageSize, setPageSize] = useState<(typeof pageSizeOptions)[number]>(50);
   const [currentPage, setCurrentPage] = useState(1);
@@ -552,6 +552,17 @@ function RegistrationsPageContent() {
       return;
     }
 
+    const action = changes.registration_status
+      ? `mark as ${changes.registration_status}`
+      : `mark payment as ${changes.payment_status}`;
+    const confirmed = window.confirm(
+      `${action[0].toUpperCase()}${action.slice(1)} for ${selectedRegistrationIds.length} selected registration${
+        selectedRegistrationIds.length === 1 ? "" : "s"
+      }?`
+    );
+
+    if (!confirmed) return;
+
     setUpdating(true);
     setMessage("");
 
@@ -648,13 +659,17 @@ function RegistrationsPageContent() {
       return;
     }
 
-    const confirmed = window.confirm(
+    const deletePhrase = `DELETE ${selectedRegistrationIds.length}`;
+    const typed = window.prompt(
       `Delete ${selectedRegistrationIds.length} selected registration${
         selectedRegistrationIds.length === 1 ? "" : "s"
-      }?\n\nThis action cannot be undone.`
+      }?\n\nThis action cannot be undone. Type exactly: ${deletePhrase}`
     );
 
-    if (!confirmed) return;
+    if (typed !== deletePhrase) {
+      setMessage("Bulk delete cancelled.");
+      return;
+    }
 
     setUpdating(true);
     setMessage("");
@@ -1172,7 +1187,7 @@ function RegistrationsPageContent() {
                 : "xl:grid-cols-[1fr_1fr]"
             }`}
           >
-            <div className="rounded-xl border border-white/10 bg-zinc-900 p-4">
+            <div className="rounded-xl border border-white/10 bg-zinc-900 p-4 xl:sticky xl:top-24 xl:z-20">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="font-semibold">Selected entries</p>

@@ -5,7 +5,13 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import PublicPageShell from "@/components/PublicPageShell";
 import { formatCalendarDate } from "@/lib/dateHelpers";
+import {
+  canonicalOrganisationName,
+  organisationNameKey,
+} from "@/lib/organisationNames";
+import { hasOfficialTeamStandings } from "@/lib/tournamentStandings";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 
 type Tournament = {
@@ -1075,10 +1081,11 @@ export default function TournamentHubPage() {
     : undefined;
 
   return (
-    <main
-      className="min-h-screen bg-zinc-950 bg-cover bg-fixed bg-center pt-24 text-white"
-      style={pageBackgroundStyle}
-    >
+    <PublicPageShell>
+      <main
+        className="min-h-screen bg-zinc-950 bg-cover bg-fixed bg-center pt-24 text-white"
+        style={pageBackgroundStyle}
+      >
       <section
         id="event-overview"
         className="scroll-mt-28 border-b border-white/10 bg-black/35 backdrop-blur-sm"
@@ -1289,7 +1296,7 @@ export default function TournamentHubPage() {
                   Tournament photos
                 </h2>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">
-                  Photos are kept in the organiser's album so the full
+                  Photos are kept in the organiser&apos;s album so the full
                   collection stays together and does not fill website storage.
                 </p>
               </div>
@@ -1315,7 +1322,8 @@ export default function TournamentHubPage() {
           </section>
         )}
       </section>
-    </main>
+      </main>
+    </PublicPageShell>
   );
 }
 
@@ -2139,17 +2147,19 @@ function ArchiveContent({
         isCompleted
       />
 
-      <CalculatedTeamStandings
-        results={results}
-        basis={tournament.team_standings_basis ?? "Club / District"}
-      />
-
-      <TeamRankingTable
-        teamResults={teamResults}
-        sections={sections}
-        sectionCombinations={sectionCombinations}
-        chessResultsUrl={tournament.chess_results_url}
-      />
+      {hasOfficialTeamStandings(teamResults) ? (
+        <TeamRankingTable
+          teamResults={teamResults}
+          sections={sections}
+          sectionCombinations={sectionCombinations}
+          chessResultsUrl={tournament.chess_results_url}
+        />
+      ) : (
+        <CalculatedTeamStandings
+          results={results}
+          basis={tournament.team_standings_basis ?? "Club / District"}
+        />
+      )}
     </div>
   );
 }
@@ -2792,10 +2802,14 @@ function calculatedTeamStandings(
   const grouped = new Map<string, CalculatedTeamStanding>();
 
   results.forEach((result) => {
-    const teamName = result.player?.[groupBy]?.trim();
-    if (!teamName) return;
+    const rawTeamName = result.player?.[groupBy]?.trim();
+    const teamName =
+      groupBy === "club" ? canonicalOrganisationName(rawTeamName) : rawTeamName;
+    const teamKey =
+      groupBy === "club" ? organisationNameKey(teamName) : teamName?.toLocaleLowerCase("en-ZA");
+    if (!teamName || !teamKey) return;
 
-    const current = grouped.get(teamName) ?? {
+    const current = grouped.get(teamKey) ?? {
       name: teamName,
       points: 0,
       playerCount: 0,
@@ -2805,7 +2819,7 @@ function calculatedTeamStandings(
     current.points += points;
     current.playerCount += 1;
     current.bestPlayerPoints = Math.max(current.bestPlayerPoints, points);
-    grouped.set(teamName, current);
+    grouped.set(teamKey, current);
   });
 
   return [...grouped.values()]

@@ -10,10 +10,13 @@ import {
 } from "@/lib/ratingTypes";
 import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
+import {
+  teamStandingsBasisForTournamentType,
+  type TournamentType,
+} from "@/lib/tournamentStandings";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Postponed" | "Completed";
 type GenderRestriction = "All" | "Male" | "Female";
-type TournamentType = "Club" | "District" | "Provincial" | "National" | "Organisation / School";
 
 type TournamentForm = {
   tournament_name: string;
@@ -420,8 +423,7 @@ export default function NewTournamentPage() {
       registration_close_date: registrationCloseDate,
       registration_status: form.registration_status,
       tournament_type: form.tournament_type,
-      team_standings_basis:
-        form.tournament_type === "National" ? "National" : "Club / District",
+      team_standings_basis: teamStandingsBasisForTournamentType(form.tournament_type),
       rating_type: form.rating_type,
       rating_import_id: latestRatingImport?.id ?? null,
       rating_list_locked_at: latestRatingImport ? new Date().toISOString() : null,

@@ -3,7 +3,7 @@
 import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { tokenSimilarity } from "@/lib/identityResolver";
+import PublicPageShell from "@/components/PublicPageShell";
 import { supabase } from "@/lib/supabase";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 
@@ -114,6 +114,7 @@ export default function PublicPlayerProfilePage({
           "id, pcc_id, full_name, chess_sa_id, fide_id, gender, club, province, rating, verification_status, profile_photo_url, biography, title"
         )
         .eq("id", playerId)
+        .eq("verification_status", "Verified")
         .maybeSingle();
 
       let loadedPlayer = playerData as Player | null;
@@ -149,28 +150,12 @@ export default function PublicPlayerProfilePage({
         return;
       }
 
-      const { data: relatedPlayerData } = await supabase
-        .from("players")
-        .select("id, pcc_id, full_name, chess_sa_id, verification_status")
-        .neq("id", playerId)
-        .limit(10000);
-
-      const relatedPlayerIds = (relatedPlayerData ?? [])
-        .filter((candidate) => {
-          if (candidate.chess_sa_id) return false;
-          if (candidate.verification_status === "Verified") return false;
-          return tokenSimilarity(loadedPlayer.full_name, candidate.full_name) >= 50;
-        })
-        .map((candidate) => candidate.id);
-
-      const profilePlayerIds = [playerId, ...relatedPlayerIds];
-
       const { data: resultData } = await supabase
         .from("tournament_results")
         .select(
           "id, tournament_id, section_id, final_position, points, tie_break, award_title, tournaments(id, tournament_name, start_date, venue, registration_status), tournament_sections(id, section_name)"
         )
-        .in("player_id", profilePlayerIds)
+        .eq("player_id", playerId)
         .order("created_at", { ascending: false })
         .limit(12);
 
@@ -191,7 +176,7 @@ export default function PublicPlayerProfilePage({
       const { data: officialData } = await supabase
         .from("tournament_officials")
         .select("id, role, tournaments(id, tournament_name, start_date, venue)")
-        .in("player_id", profilePlayerIds)
+        .eq("player_id", playerId)
         .order("created_at", { ascending: false })
         .limit(6);
 
@@ -253,7 +238,8 @@ export default function PublicPlayerProfilePage({
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
+    <PublicPageShell>
+      <main className="min-h-screen bg-zinc-950 pt-24 text-white">
       <section className="border-b border-white/10">
         <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
           <Link
@@ -476,7 +462,8 @@ export default function PublicPlayerProfilePage({
           )}
         </aside>
       </section>
-    </main>
+      </main>
+    </PublicPageShell>
   );
 }
 

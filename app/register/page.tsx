@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import PublicPageShell from "@/components/PublicPageShell";
 import {
   formatCalendarDate,
   getCalendarYear,
@@ -1275,7 +1276,8 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
+    <PublicPageShell>
+      <main className="min-h-screen bg-zinc-950 pt-24 text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.22),_transparent_38%)]">
         <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
           <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-xl md:p-8">
@@ -1536,7 +1538,7 @@ export default function RegisterPage() {
             <h2 className="text-xl font-bold md:text-2xl">Select your profile</h2>
             <p className="mt-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm leading-6 text-blue-100/90">
               More than one player can have the same surname or similar names.
-              Choose the profile that matches the player's date of birth, FED
+              Choose the profile that matches the player&apos;s date of birth, FED
               and Chess SA ID.
             </p>
 
@@ -2393,7 +2395,8 @@ export default function RegisterPage() {
           </div>
         </div>
       )}
-    </main>
+      </main>
+    </PublicPageShell>
   );
 }
 

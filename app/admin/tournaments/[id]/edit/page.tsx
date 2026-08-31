@@ -12,10 +12,13 @@ import {
 } from "@/lib/ratingTypes";
 import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
+import {
+  teamStandingsBasisForTournamentType,
+  type TournamentType,
+} from "@/lib/tournamentStandings";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Postponed" | "Completed";
 type GenderRestriction = "All" | "Male" | "Female";
-type TournamentType = "Club" | "District" | "Provincial" | "National" | "Organisation / School";
 
 type TournamentForm = {
   tournament_name: string;
@@ -372,6 +375,23 @@ export default function EditTournamentPage() {
     setUploadingCompetitionDocument(false);
   }
 
+  async function loadLockedRatingImport(importId: string | null) {
+    if (!importId) {
+      setLockedRatingImport(null);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("rating_imports")
+      .select("id, file_name, imported_at, imported_count")
+      .eq("id", importId)
+      .maybeSingle();
+
+    if (!error) {
+      setLockedRatingImport((data as RatingImportSummary | null) ?? null);
+    }
+  }
+
   useEffect(() => {
     async function loadTournament() {
       setLoading(true);
@@ -537,23 +557,6 @@ export default function EditTournamentPage() {
     loadLatestRatingImport();
   }, [form.rating_type]);
 
-  async function loadLockedRatingImport(importId: string | null) {
-    if (!importId) {
-      setLockedRatingImport(null);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("rating_imports")
-      .select("id, file_name, imported_at, imported_count")
-      .eq("id", importId)
-      .maybeSingle();
-
-    if (!error) {
-      setLockedRatingImport((data as RatingImportSummary | null) ?? null);
-    }
-  }
-
   function useLatestRatingImport() {
     if (!latestRatingImport) {
       setMessage("No completed rating import exists for this rating type yet.");
@@ -611,8 +614,7 @@ export default function EditTournamentPage() {
       registration_close_date: form.registration_close_date || form.start_date,
       registration_status: form.registration_status,
       tournament_type: form.tournament_type,
-      team_standings_basis:
-        form.tournament_type === "National" ? "National" : "Club / District",
+      team_standings_basis: teamStandingsBasisForTournamentType(form.tournament_type),
       rating_type: form.rating_type,
       rating_import_id: nextRatingImportId,
       rating_list_locked_at: nextRatingLockedAt,
@@ -1162,7 +1164,10 @@ export default function EditTournamentPage() {
               </div>
             </div>
 
-            <section className="rounded-2xl border border-white/10 bg-zinc-950 p-5">
+            <section
+              id="sections"
+              className="scroll-mt-28 rounded-2xl border border-white/10 bg-zinc-950 p-5"
+            >
               <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
                 <div>
                   <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">

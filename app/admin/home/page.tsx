@@ -68,48 +68,6 @@ type OrganiserAccessRow = {
   } | null;
 };
 
-const adminDirectory = [
-  {
-    group: "Daily control",
-    links: [
-      { href: "/admin/home", label: "Command Overview", text: "Main administration dashboard." },
-      { href: "/admin/search", label: "Admin Search", text: "Find players and tournaments quickly." },
-      { href: "/admin/organiser-access", label: "Organiser Access", text: "Grant tournament-only entry access." },
-      { href: "/admin/organiser-requests", label: "Organiser Requests", text: "Approve or reject organiser entry changes." },
-      { href: "/admin/admin-access", label: "Admin Access", text: "Review admin roles and restricted approval requests." },
-    ],
-  },
-  {
-    group: "Players",
-    links: [
-      { href: "/admin/players", label: "Player Centre", text: "Search, filter and open player records." },
-      { href: "/admin/members", label: "Membership Register", text: "Record paid memberships and renewal dates." },
-      { href: "/admin/import-ratings", label: "Rating Files", text: "Upload Classical, Rapid and Blitz rating lists." },
-      { href: "/admin/players/sync", label: "Chess SA Sync", text: "Import IDs, missing details and safe identity matches." },
-      { href: "/admin/players/duplicates", label: "Duplicate Centre", text: "Find and repair duplicate profiles." },
-    ],
-  },
-  {
-    group: "Tournaments",
-    links: [
-      { href: "/admin/tournaments", label: "Tournament Centre", text: "Open and manage all tournaments." },
-      { href: "/admin/tournaments/new", label: "New Tournament", text: "Create a new tournament page." },
-      { href: "/admin/registrations", label: "Registrations", text: "Approve entries and confirm payments." },
-      { href: "/admin/payments", label: "Payment Desk", text: "Review proof of payment and unpaid entries." },
-      { href: "/admin/officials", label: "Officials", text: "Assign arbiters, organisers and officials." },
-      { href: "/organiser", label: "Organiser Portal", text: "Preview the organiser-facing dashboard." },
-    ],
-  },
-  {
-    group: "Records and publishing",
-    links: [
-      { href: "/admin/imports", label: "Import History", text: "Review every import session." },
-      { href: "/admin/imports/review", label: "Import Review", text: "Inspect imported rows that need attention." },
-      { href: "/admin/news", label: "Newsroom", text: "Publish news, reports and player stories." },
-    ],
-  },
-];
-
 function statusClass(status: string | null) {
   if (status === "Open") return "bg-green-500/10 text-green-300";
   if (status === "Completed") return "bg-blue-500/10 text-blue-300";
@@ -118,7 +76,6 @@ function statusClass(status: string | null) {
   if (status === "Live") return "bg-red-500/10 text-red-300";
   return "bg-zinc-800 text-zinc-300";
 }
-
 function formatTimeAgo(value: string | null) {
   if (!value) return "No date";
   const date = new Date(value);
@@ -393,47 +350,6 @@ export default function AdminDashboardPage() {
             />
           </section>
 
-          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
-                  Admin Directory
-                </p>
-              <h2 className="mt-2 text-2xl font-black">
-                  Admin Directory
-                </h2>
-              </div>
-              <Link
-                href="/admin/login"
-                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
-              >
-                Login page
-              </Link>
-            </div>
-
-            <div className="mt-5 grid gap-4 lg:grid-cols-2">
-              {adminDirectory.map((section) => (
-                <AdminDirectoryGroup
-                  key={section.group}
-                  group={section.group}
-                  links={section.links}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section className="mt-8 rounded-xl border border-white/10 bg-zinc-900 p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
-              Core Systems
-            </p>
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <KeepItem title="Player verification" text="Protect public profile quality and identity accuracy." />
-              <KeepItem title="Chess SA sync" text="Keep ratings and player details aligned with official source data." />
-              <KeepItem title="Tournament archive" text="Preserve tournament results, reports and galleries." />
-              <KeepItem title="News publishing" text="Publish club updates, reports and player stories." />
-            </div>
-          </section>
-
           <section className="mt-10 grid gap-8 lg:grid-cols-[1fr_380px]">
             <div>
               <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -567,20 +483,6 @@ export default function AdminDashboardPage() {
             </div>
 
             <aside className="space-y-6">
-              <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
-                <h2 className="text-xl font-black">Core Tools</h2>
-                <div className="mt-4 space-y-3">
-                  <QuickLink href="/admin/organiser-access" label="Organiser access" />
-                  <QuickLink href="/admin/organisations" label="Organisations" />
-                  <QuickLink href="/admin/admin-access" label="Admin access" />
-                  <QuickLink href="/admin/import-ratings" label="Rating files" />
-                  <QuickLink href="/admin/players/sync" label="Chess SA sync" />
-                  <QuickLink href="/admin/players/duplicates" label="Duplicate checks" />
-                  <QuickLink href="/admin/tournaments" label="Tournament centre" />
-                  <QuickLink href="/admin/news" label="News publishing" />
-                </div>
-              </section>
-
               <section className="rounded-xl border border-white/10 bg-zinc-900 p-5">
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-xl font-black">Organiser access</h2>
@@ -718,51 +620,5 @@ function WorkflowLink({
         {description}
       </p>
     </Link>
-  );
-}
-
-function QuickLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="block rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-sm font-bold text-white transition hover:border-red-500"
-    >
-      {label}
-    </Link>
-  );
-}
-
-function KeepItem({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-zinc-950 p-4">
-      <p className="font-black text-white">{title}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{text}</p>
-    </div>
-  );
-}
-
-function AdminDirectoryGroup({
-  group,
-  links,
-}: {
-  group: string;
-  links: { href: string; label: string; text: string }[];
-}) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-zinc-950 p-4">
-      <p className="text-sm font-black text-white">{group}</p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {links.map((link) => (
-          <Link
-            key={link.href}
-            href={link.href}
-            className="rounded-lg border border-white/10 bg-zinc-900 p-3 transition hover:border-red-500"
-          >
-            <p className="text-sm font-black text-white">{link.label}</p>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">{link.text}</p>
-          </Link>
-        ))}
-      </div>
-    </div>
   );
 }

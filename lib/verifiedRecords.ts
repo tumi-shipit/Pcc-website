@@ -108,7 +108,7 @@ export function buildVerifiedRecordNewsItems(
       title: mergedRecord.title,
       excerpt: mergedRecord.summary,
       image_url: mergedRecord.image_url,
-      category: "Verified Record",
+      category: "PCC Archive",
       published_at: null as string | null,
       display_date: mergedRecord.dateLabel,
       href: `/verified-records/${record.slug}`,

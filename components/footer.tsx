@@ -28,7 +28,7 @@ export default function Footer() {
 
           <p className="mt-5 max-w-md text-sm leading-7 text-gray-400">
             Polokwane Chess Club connects players, parents, organisers and
-            supporters through tournaments, verified records and a growing
+            supporters through tournaments, player development and a growing
             archive of Limpopo chess.
           </p>
         </div>

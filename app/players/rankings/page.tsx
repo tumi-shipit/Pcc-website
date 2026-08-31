@@ -1,4 +1,5 @@
 import Link from "next/link";
+import PublicPageShell from "@/components/PublicPageShell";
 
 const partnerName =
   process.env.NEXT_PUBLIC_PARTNER_RANKINGS_NAME || "Limpopo Chess Academy";
@@ -8,7 +9,8 @@ const partnerUrl =
 
 export default function PublicPlayerRankingsPage() {
   return (
-    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
+    <PublicPageShell>
+      <main className="min-h-screen bg-zinc-950 pt-24 text-white">
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,_rgba(220,38,38,0.22),_transparent_34%)]">
         <div className="mx-auto max-w-7xl px-4 py-10 md:px-6 md:py-16">
           <Link
@@ -80,6 +82,7 @@ export default function PublicPlayerRankingsPage() {
           directly.
         </p>
       </section>
-    </main>
+      </main>
+    </PublicPageShell>
   );
 }

@@ -32,15 +32,15 @@ function formatDate(value: string | null) {
   });
 }
 
-function getCategoryIcon(category: string | null) {
+function getCategoryLabel(category: string | null) {
+  if (category === "PCC Archive") return "PCC Archive";
   if (category === "Platform Update") return "Platform";
   if (category === "Tournament News") return "Tournament";
   if (category === "Registration") return "Registration";
   if (category === "Live Update") return "Live";
   if (category === "Achievement") return "Honours";
   if (category === "Player Spotlight") return "Player";
-  if (category === "Verified Record") return "Verified";
-  return "News";
+  return `News ${category ?? "Update"}`;
 }
 
 export default function LatestNews() {
@@ -167,8 +167,7 @@ export default function LatestNews() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent" />
 
                 <span className="absolute left-4 top-4 rounded-full bg-red-600 px-4 py-2 text-xs font-bold uppercase tracking-wide text-white">
-                  {getCategoryIcon(activePost.category)}{" "}
-                  {activePost.category ?? "News"}
+                  {getCategoryLabel(activePost.category)}
                 </span>
               </Link>
 

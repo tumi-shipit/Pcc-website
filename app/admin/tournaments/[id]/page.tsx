@@ -1056,7 +1056,7 @@ export default function AdminTournamentDashboardPage() {
                   </p>
                 </div>
                 <Link
-                  href={"/admin/tournaments/" + tournamentId + "/sections"}
+                  href={"/admin/tournaments/" + tournamentId + "/edit#sections"}
                   className="w-fit rounded-lg border border-orange-400/40 px-3 py-2 text-xs font-black text-orange-100 transition hover:bg-orange-500/15"
                 >
                   Manage sections

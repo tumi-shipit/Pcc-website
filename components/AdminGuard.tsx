@@ -13,7 +13,6 @@ const primaryNav = [
   { href: "/admin/registrations", label: "Entries" },
   { href: "/admin/payments", label: "Payments" },
   { href: "/admin/news", label: "News" },
-  { href: "/admin/operations", label: "Ops" },
   { href: "/admin/admin-access", label: "Admins" },
 ];
 

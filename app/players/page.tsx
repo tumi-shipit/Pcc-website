@@ -3,7 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PlayerAvatar from "@/components/PlayerAvatar";
-import { tokenSimilarity } from "@/lib/identityResolver";
+import PublicPageShell from "@/components/PublicPageShell";
+import {
+  canonicalOrganisationName,
+  organisationNameKey,
+  uniqueOrganisationNames,
+} from "@/lib/organisationNames";
 import { supabase } from "@/lib/supabase";
 
 type Player = {
@@ -30,15 +35,6 @@ type ResultRow = {
 type OfficialRow = {
   tournament_id: string | null;
   player_id: string | null;
-};
-
-type PlayerSearchIdentity = {
-  player_id?: string | null;
-  chess_sa_id?: string | null;
-  full_name?: string | null;
-  email?: string | null;
-  organiser_name?: string | null;
-  organiser_email?: string | null;
 };
 
 const playerSelect =
@@ -104,6 +100,7 @@ export default function PublicPlayersDirectoryPage() {
       const { data: playerData, error: playerError } = await supabase
         .from("players")
         .select(playerSelect)
+        .eq("verification_status", "Verified")
         .order("full_name", { ascending: true })
         .limit(10000);
 
@@ -147,86 +144,18 @@ export default function PublicPlayersDirectoryPage() {
     const timer = window.setTimeout(async () => {
       const pattern = searchPattern(text);
       const searchPlayers: Player[] = [];
-      const searchIdentities: PlayerSearchIdentity[] = [];
 
       const { data } = await supabase
         .from("players")
         .select(playerSelect)
+        .eq("verification_status", "Verified")
         .or(
-          `full_name.ilike.${pattern},pcc_id.ilike.${pattern},chess_sa_id.ilike.${pattern},fide_id.ilike.${pattern},club.ilike.${pattern},province.ilike.${pattern},title.ilike.${pattern},email.ilike.${pattern}`
+          `full_name.ilike.${pattern},pcc_id.ilike.${pattern},chess_sa_id.ilike.${pattern},fide_id.ilike.${pattern},club.ilike.${pattern},province.ilike.${pattern},title.ilike.${pattern}`
         )
         .order("full_name", { ascending: true })
         .limit(50);
 
       searchPlayers.push(...((data ?? []) as unknown as Player[]));
-
-      const { data: registrationMatches } = await supabase
-        .from("registration_details")
-        .select("full_name, chess_sa_id, email")
-        .or(`full_name.ilike.${pattern},chess_sa_id.ilike.${pattern},email.ilike.${pattern}`)
-        .limit(30);
-
-      searchIdentities.push(...((registrationMatches ?? []) as unknown as PlayerSearchIdentity[]));
-
-      const { data: accessMatches } = await supabase
-        .from("tournament_organiser_access")
-        .select("player_id, chess_sa_id, organiser_name, organiser_email")
-        .or(
-          `organiser_name.ilike.${pattern},chess_sa_id.ilike.${pattern},organiser_email.ilike.${pattern}`
-        )
-        .limit(30);
-
-      searchIdentities.push(...((accessMatches ?? []) as unknown as PlayerSearchIdentity[]));
-
-      const playerIds = Array.from(
-        new Set(searchIdentities.map((identity) => identity.player_id).filter(Boolean))
-      ) as string[];
-      const chessSaIds = Array.from(
-        new Set(searchIdentities.map((identity) => identity.chess_sa_id).filter(Boolean))
-      ) as string[];
-      const names = Array.from(
-        new Set(
-          searchIdentities
-            .map((identity) => identity.full_name ?? identity.organiser_name)
-            .filter(Boolean)
-            .map((name) => name!.trim())
-            .filter(Boolean)
-        )
-      );
-
-      if (playerIds.length > 0) {
-        const { data: linkedPlayers } = await supabase
-          .from("players")
-          .select(playerSelect)
-          .in("id", playerIds)
-          .limit(50);
-
-        searchPlayers.push(...((linkedPlayers ?? []) as unknown as Player[]));
-      }
-
-      if (chessSaIds.length > 0) {
-        const { data: chessSaPlayers } = await supabase
-          .from("players")
-          .select(playerSelect)
-          .in("chess_sa_id", chessSaIds)
-          .limit(50);
-
-        searchPlayers.push(...((chessSaPlayers ?? []) as unknown as Player[]));
-      }
-
-      const nameMatches = await Promise.all(
-        names.slice(0, 8).map((name) =>
-          supabase
-            .from("players")
-            .select(playerSelect)
-            .ilike("full_name", searchPattern(name))
-            .limit(10)
-        )
-      );
-
-      nameMatches.forEach(({ data: matchedPlayers }) => {
-        searchPlayers.push(...((matchedPlayers ?? []) as unknown as Player[]));
-      });
 
       setDirectSearchPlayers(uniquePlayers(searchPlayers));
     }, 250);
@@ -285,50 +214,17 @@ export default function PublicPlayersDirectoryPage() {
     );
   }, [results, officials]);
 
-  const duplicateOwnerMap = useMemo(() => {
-    const map = new Map<string, string>();
-
-    players.forEach((player) => {
-      if (player.verification_status === "Verified" || player.chess_sa_id) return;
-
-      const owner = players.find((candidate) => {
-        if (candidate.id === player.id) return false;
-        if (candidate.verification_status !== "Verified" && !candidate.chess_sa_id) return false;
-        return tokenSimilarity(player.full_name, candidate.full_name) >= 70;
-      });
-
-      if (owner) map.set(player.id, owner.id);
-    });
-
-    return map;
-  }, [players]);
-
   const displayPlayerStats = useMemo(() => {
     const stats = new Map<string, { events: number; wins: number; podiums: number; officialRoles: number }>();
 
     playerStats.forEach((value, playerId) => {
-      const ownerId = duplicateOwnerMap.get(playerId) ?? playerId;
-      const current = stats.get(ownerId) ?? {
-        events: 0,
-        wins: 0,
-        podiums: 0,
-        officialRoles: 0,
-      };
-
-      stats.set(ownerId, {
-        events: current.events + value.events,
-        wins: current.wins + value.wins,
-        podiums: current.podiums + value.podiums,
-        officialRoles: current.officialRoles + value.officialRoles,
-      });
+      stats.set(playerId, value);
     });
 
     return stats;
-  }, [playerStats, duplicateOwnerMap]);
+  }, [playerStats]);
 
-  const publicPlayers = useMemo(() => {
-    return players.filter((player) => !duplicateOwnerMap.has(player.id));
-  }, [players, duplicateOwnerMap]);
+  const publicPlayers = players;
 
   const provinces = useMemo(() => {
     const values = publicPlayers
@@ -340,23 +236,13 @@ export default function PublicPlayersDirectoryPage() {
   }, [publicPlayers]);
 
   const clubs = useMemo(() => {
-    const values = publicPlayers
-      .map((player) => player.club)
-      .filter((value): value is string => Boolean(value))
-      .sort();
-
-    return ["All", ...Array.from(new Set(values))];
+    return ["All", ...uniqueOrganisationNames(publicPlayers.map((player) => player.club))];
   }, [publicPlayers]);
 
   const filteredPlayers = useMemo(() => {
     const text = search.trim().toLowerCase();
-    const ownerForPlayer = (player: Player) => {
-      const ownerId = duplicateOwnerMap.get(player.id);
-      if (!ownerId) return player;
-      return players.find((candidate) => candidate.id === ownerId) ?? player;
-    };
     const directSearchIds = new Set(
-      directSearchPlayers.map((player) => ownerForPlayer(player).id)
+      directSearchPlayers.map((player) => player.id)
     );
 
     const searchMatches = (player: Player) =>
@@ -376,8 +262,7 @@ export default function PublicPlayersDirectoryPage() {
       : publicPlayers;
 
     seedPlayers.forEach((player) => {
-      const displayPlayer = ownerForPlayer(player);
-      directPlayerMap.set(displayPlayer.id, displayPlayer);
+      directPlayerMap.set(player.id, player);
     });
 
     const searchablePlayers = Array.from(directPlayerMap.values());
@@ -391,16 +276,16 @@ export default function PublicPlayersDirectoryPage() {
 
         const matchesProvince =
           provinceFilter === "All" || player.province === provinceFilter;
-        const matchesClub = clubFilter === "All" || player.club === clubFilter;
+        const matchesCanonicalClub =
+          clubFilter === "All" ||
+          organisationNameKey(player.club) === organisationNameKey(clubFilter);
         const matchesStatus =
           statusFilter === "All" ||
-          (statusFilter === "Verified" &&
-            player.verification_status === "Verified") ||
           (statusFilter === "Rated" && Boolean(player.rating)) ||
           (statusFilter === "FIDE" && Boolean(player.fide_id)) ||
           (statusFilter === "Officials" && (stats?.officialRoles ?? 0) > 0);
 
-        return matchesSearch && matchesProvince && matchesClub && matchesStatus;
+        return matchesSearch && matchesProvince && matchesCanonicalClub && matchesStatus;
       })
       .sort((a, b) => {
         const aStats = displayPlayerStats.get(a.id);
@@ -446,7 +331,8 @@ export default function PublicPlayersDirectoryPage() {
   }, [publicPlayers, displayPlayerStats]);
 
   return (
-    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
+    <PublicPageShell>
+      <main className="min-h-screen bg-zinc-950 pt-24 text-white">
       <section className="border-b border-white/10 bg-zinc-950">
         <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
           <Link
@@ -537,8 +423,7 @@ export default function PublicPlayersDirectoryPage() {
               onChange={(event) => setStatusFilter(event.target.value)}
               className={inputClass}
             >
-              <option value="All">All players</option>
-              <option value="Verified">Verified only</option>
+              <option value="All">All verified players</option>
               <option value="Rated">Rated only</option>
               <option value="FIDE">FIDE linked</option>
               <option value="Officials">Officials</option>
@@ -632,7 +517,7 @@ export default function PublicPlayersDirectoryPage() {
                             {valueOrDash(player.rating)}
                           </td>
                           <td className="border border-white/10 p-4 text-zinc-300">
-                            {valueOrDash(player.club)}
+                            {valueOrDash(canonicalOrganisationName(player.club))}
                             <span className="block text-xs text-zinc-500">
                               {valueOrDash(player.province)}
                             </span>
@@ -673,7 +558,8 @@ export default function PublicPlayersDirectoryPage() {
           )}
         </div>
       </section>
-    </main>
+      </main>
+    </PublicPageShell>
   );
 }
 
