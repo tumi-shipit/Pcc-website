@@ -42,6 +42,20 @@ type RegistrationRow = {
   section_name: string | null;
 };
 
+type TournamentSection = {
+  id: string;
+  section_name: string;
+};
+
+type BulkEntry = {
+  rowNumber: number;
+  fullName: string;
+  dateOfBirth: string;
+  rating: number | null;
+  club: string;
+  gender: string;
+};
+
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
@@ -60,6 +74,36 @@ function safeFileName(value: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
+}
+
+function cellText(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function templateDateToKey(value: unknown) {
+  if (typeof value === "number") {
+    const parsed = XLSX.SSF.parse_date_code(value);
+    if (parsed) {
+      return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
+    }
+  }
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  }
+
+  const text = cellText(value);
+  const isoMatch = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+  }
+
+  const southAfricanMatch = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (southAfricanMatch) {
+    return `${southAfricanMatch[3]}-${southAfricanMatch[2].padStart(2, "0")}-${southAfricanMatch[1].padStart(2, "0")}`;
+  }
+
+  return "";
 }
 
 export default function OrganiserTournamentEntriesPage() {
@@ -84,6 +128,7 @@ function TournamentEntries({
   const params = useParams();
   const tournamentId = String(params.id ?? "");
   const [tournament, setTournament] = useState<Tournament | null>(null);
+  const [tournamentSections, setTournamentSections] = useState<TournamentSection[]>([]);
   const [registrations, setRegistrations] = useState<RegistrationRow[]>([]);
   const [search, setSearch] = useState("");
   const [sectionFilter, setSectionFilter] = useState("All");
@@ -94,6 +139,12 @@ function TournamentEntries({
   const [message, setMessage] = useState("");
   const [exportFormat, setExportFormat] =
     useState<TournamentExportFormat>("swiss");
+  const [bulkSectionId, setBulkSectionId] = useState("");
+  const [bulkContactEmail, setBulkContactEmail] = useState(email);
+  const [bulkContactPhone, setBulkContactPhone] = useState("");
+  const [bulkEntries, setBulkEntries] = useState<BulkEntry[]>([]);
+  const [bulkIssues, setBulkIssues] = useState<string[]>([]);
+  const [importingBulkEntries, setImportingBulkEntries] = useState(false);
 
   const allowed = isAdmin || access.some((row) => row.tournament_id === tournamentId);
 
@@ -118,6 +169,22 @@ function TournamentEntries({
       setLoading(false);
       return;
     }
+
+    const { data: sectionData, error: sectionError } = await supabase
+      .from("tournament_sections")
+      .select("id, section_name")
+      .eq("tournament_id", tournamentId)
+      .order("display_order", { ascending: true });
+
+    if (sectionError) {
+      setMessage(`Could not load tournament sections: ${sectionError.message}`);
+      setLoading(false);
+      return;
+    }
+
+    const loadedSections = (sectionData ?? []) as TournamentSection[];
+    setTournamentSections(loadedSections);
+    setBulkSectionId((current) => current || loadedSections[0]?.id || "");
 
     const { data, error } = await supabase
       .from("registration_details")
@@ -349,6 +416,128 @@ function TournamentEntries({
     );
   }
 
+  async function readBulkTemplate(file: File | undefined) {
+    if (!file) return;
+
+    if (!file.name.toLowerCase().match(/\.xlsx?$/)) {
+      setBulkEntries([]);
+      setBulkIssues(["Choose the completed PCC Excel template (.xlsx or .xls)."]);
+      return;
+    }
+
+    try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { cellDates: true });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
+        header: 1,
+        defval: "",
+        raw: true,
+      });
+      const headerRowIndex = rows.findIndex((row) =>
+        row.some((cell) => cellText(cell).toLowerCase() === "name") &&
+        row.some((cell) => cellText(cell).toLowerCase() === "date of birth")
+      );
+
+      if (headerRowIndex === -1) {
+        setBulkEntries([]);
+        setBulkIssues(["This does not look like the PCC bulk registration template. Keep its Name and Date of birth headers."]);
+        return;
+      }
+
+      const headers = rows[headerRowIndex].map((cell) => cellText(cell).toLowerCase());
+      const nameIndex = headers.indexOf("name");
+      const dobIndex = headers.indexOf("date of birth");
+      const ratingIndex = headers.indexOf("rtg");
+      const clubIndex = headers.indexOf("club/city");
+      const genderIndex = headers.indexOf("gender");
+      const entries: BulkEntry[] = [];
+      const issues: string[] = [];
+
+      rows.slice(headerRowIndex + 1).forEach((row, index) => {
+        const fullName = cellText(row[nameIndex]);
+        const dateOfBirth = templateDateToKey(row[dobIndex]);
+        const sourceRow = headerRowIndex + index + 2;
+
+        if (!fullName && !cellText(row[dobIndex])) return;
+        if (!fullName || !dateOfBirth) {
+          issues.push(`Row ${sourceRow}: Name and date of birth are required.`);
+          return;
+        }
+
+        const parsedRating = Number(cellText(row[ratingIndex]).replace(/[^0-9.-]/g, ""));
+        entries.push({
+          rowNumber: sourceRow,
+          fullName,
+          dateOfBirth,
+          rating: Number.isFinite(parsedRating) ? Math.round(parsedRating) : null,
+          club: cellText(row[clubIndex]),
+          gender: cellText(row[genderIndex]),
+        });
+      });
+
+      if (entries.length > 200) {
+        issues.push("Only the first 200 valid players can be imported at one time.");
+      }
+
+      setBulkEntries(entries.slice(0, 200));
+      setBulkIssues(issues);
+    } catch {
+      setBulkEntries([]);
+      setBulkIssues(["The Excel file could not be read. Please use the PCC template and try again."]);
+    }
+  }
+
+  async function importBulkEntries() {
+    if (!bulkSectionId || bulkEntries.length === 0) {
+      setMessage("Choose a section and upload at least one valid player row first.");
+      return;
+    }
+    if (!bulkContactEmail.trim() || !bulkContactPhone.trim()) {
+      setMessage("Enter the organiser or group contact email and phone number before importing.");
+      return;
+    }
+
+    setImportingBulkEntries(true);
+    setMessage("");
+    const failures: string[] = [];
+    let imported = 0;
+
+    for (const entry of bulkEntries) {
+      const { error } = await supabase.rpc("submit_tournament_registration", {
+        p_full_name: entry.fullName,
+        p_pcc_id: "",
+        p_chess_sa_id: "",
+        p_date_of_birth: entry.dateOfBirth,
+        p_gender: entry.gender,
+        p_rating: entry.rating,
+        p_email: bulkContactEmail.trim(),
+        p_phone: bulkContactPhone.trim(),
+        p_club: entry.club,
+        p_province: "",
+        p_tournament_id: tournamentId,
+        p_section_id: bulkSectionId,
+        p_payment_status: "Pending",
+        p_proof_of_payment_url: "",
+      });
+
+      if (error) {
+        failures.push(`Row ${entry.rowNumber} (${entry.fullName}): ${error.message}`);
+      } else {
+        imported += 1;
+      }
+    }
+
+    const completionMessage = failures.length
+      ? `${imported} player${imported === 1 ? "" : "s"} imported. ${failures.length} row${failures.length === 1 ? " needs" : "s need"} attention below.`
+      : `${imported} player${imported === 1 ? "" : "s"} imported as pending entries.`;
+
+    setImportingBulkEntries(false);
+    setBulkEntries([]);
+    setBulkIssues(failures);
+    await loadEntries();
+    setMessage(completionMessage);
+  }
+
   if (loading) {
     return (
       <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
@@ -419,6 +608,124 @@ function TournamentEntries({
           <StatCard label="Approved" value={stats.approved} />
           <StatCard label="Paid" value={stats.paid} />
           <StatCard label="Pending" value={stats.pending} />
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/5 p-5 md:p-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-red-300">
+                PCC bulk entry
+              </p>
+              <h2 className="mt-2 text-2xl font-black text-white">
+                Import players from the PCC template
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">
+                Download the standard PCC Excel sheet, complete one player per row,
+                then upload it here. Each imported player is added as a pending entry
+                and still follows the tournament&apos;s normal section, duplicate and
+                capacity checks.
+              </p>
+            </div>
+            <a
+              href="/templates/pcc-bulk-registration-template.xlsx"
+              download
+              className="shrink-0 rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:bg-white/5"
+            >
+              Download PCC template
+            </a>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <label className="text-sm font-semibold text-zinc-200">
+              Tournament section
+              <select
+                value={bulkSectionId}
+                onChange={(event) => setBulkSectionId(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+              >
+                <option value="">Choose section</option>
+                {tournamentSections.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.section_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm font-semibold text-zinc-200">
+              Group contact email
+              <input
+                type="email"
+                value={bulkContactEmail}
+                onChange={(event) => setBulkContactEmail(event.target.value)}
+                placeholder="organiser@example.com"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+              />
+            </label>
+            <label className="text-sm font-semibold text-zinc-200">
+              Group contact phone
+              <input
+                type="tel"
+                value={bulkContactPhone}
+                onChange={(event) => setBulkContactPhone(event.target.value)}
+                placeholder="e.g. 082 000 0000"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+              />
+            </label>
+            <label className="text-sm font-semibold text-zinc-200">
+              Completed PCC template
+              <input
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                onChange={(event) => readBulkTemplate(event.target.files?.[0])}
+                disabled={importingBulkEntries}
+                className="mt-2 block w-full cursor-pointer rounded-xl border border-dashed border-white/20 bg-zinc-950 px-3 py-[11px] text-xs text-zinc-300 file:mr-3 file:rounded-lg file:border-0 file:bg-red-600 file:px-3 file:py-2 file:text-xs file:font-bold file:text-white hover:border-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </label>
+          </div>
+
+          <p className="mt-4 text-xs leading-5 text-zinc-400">
+            The PCC sheet requires Name and Date of birth. Rating, Club/City and
+            Gender are optional. The group contact details are recorded on each
+            player&apos;s entry so PCC can follow up where necessary.
+          </p>
+
+          {bulkEntries.length > 0 && (
+            <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950/70 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-semibold text-white">
+                  {bulkEntries.length} valid player{bulkEntries.length === 1 ? "" : "s"} ready to import
+                </p>
+                <button
+                  type="button"
+                  onClick={importBulkEntries}
+                  disabled={importingBulkEntries || !bulkSectionId}
+                  className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {importingBulkEntries ? "Importing players..." : "Import pending entries"}
+                </button>
+              </div>
+              <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2 lg:grid-cols-4">
+                {bulkEntries.slice(0, 8).map((entry) => (
+                  <p key={`${entry.rowNumber}-${entry.fullName}`} className="truncate">
+                    Row {entry.rowNumber}: {entry.fullName}
+                  </p>
+                ))}
+                {bulkEntries.length > 8 && <p>+ {bulkEntries.length - 8} more players</p>}
+              </div>
+            </div>
+          )}
+
+          {bulkIssues.length > 0 && (
+            <div className="mt-5 rounded-xl border border-amber-400/30 bg-amber-400/10 p-4 text-sm text-amber-100">
+              <p className="font-bold">Rows needing attention</p>
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5">
+                {bulkIssues.slice(0, 12).map((issue, index) => (
+                  <li key={`${issue}-${index}`}>{issue}</li>
+                ))}
+                {bulkIssues.length > 12 && <li>+ {bulkIssues.length - 12} more rows</li>}
+              </ul>
+            </div>
+          )}
         </section>
 
         {message && (
