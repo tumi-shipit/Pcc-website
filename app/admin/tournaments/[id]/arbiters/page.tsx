@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type Tournament = {
   id: string;
@@ -151,7 +152,7 @@ const arbiterTitleGroups = [
 
 function formatDate(value: string | null) {
   if (!value) return "TBA";
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

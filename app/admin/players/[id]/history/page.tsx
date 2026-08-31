@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminPlayerTabs from "@/components/admin/AdminPlayerTabs";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type Player = {
   id: string;
@@ -65,7 +66,7 @@ type Registration = {
 function formatDate(value: string | null) {
   if (!value) return "TBA";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type PaymentTab =
   | "Proof Submitted"
@@ -57,7 +58,7 @@ function statusClass(status: string) {
 }
 
 function formatDate(date: string) {
-  return new Date(date).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(date, {
     day: "numeric",
     month: "short",
     year: "numeric",

@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate, getSouthAfricaDateKey } from "@/lib/dateHelpers";
 
 type Player = {
   id: string;
@@ -38,7 +39,7 @@ function singlePlayer(value: Player | Player[] | null) {
 
 function formatDate(value: string | null) {
   if (!value) return "-";
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -172,8 +173,21 @@ export default function AdminMembersPage() {
     const linked = members.filter((member) => member.player_id).length;
     const expiringSoon = members.filter((member) => {
       if (!member.end_date || member.membership_status !== "Active") return false;
-      const days = Math.ceil(
-        (new Date(member.end_date).getTime() - new Date().getTime()) / 86400000
+      const today = getSouthAfricaDateKey();
+      const endDate = member.end_date;
+      if (!today) return false;
+      const days = Math.round(
+        (Date.UTC(
+          Number(endDate.slice(0, 4)),
+          Number(endDate.slice(5, 7)) - 1,
+          Number(endDate.slice(8, 10))
+        ) -
+          Date.UTC(
+            Number(today.slice(0, 4)),
+            Number(today.slice(5, 7)) - 1,
+            Number(today.slice(8, 10))
+          )) /
+          86400000
       );
       return days >= 0 && days <= 30;
     }).length;
@@ -203,15 +217,15 @@ export default function AdminMembersPage() {
     setChessSaId(member.chess_sa_id ?? "");
     setMembershipType(member.membership_type);
     setMembershipStatus("Active");
-    setStartDate(new Date().toISOString().slice(0, 10));
+    setStartDate(getSouthAfricaDateKey() ?? "");
 
     const nextYear = new Date();
     nextYear.setFullYear(nextYear.getFullYear() + 1);
-    setEndDate(nextYear.toISOString().slice(0, 10));
+    setEndDate(getSouthAfricaDateKey(nextYear) ?? "");
 
     setAmountPaid(member.amount_paid?.toString() ?? "");
     setPaymentReference("");
-    setPaymentDate(new Date().toISOString().slice(0, 10));
+    setPaymentDate(getSouthAfricaDateKey() ?? "");
     setNotes(member.payment_reference ? `Previous ref: ${member.payment_reference}` : "");
   }
 

@@ -5,6 +5,10 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import { supabase } from "@/lib/supabase";
+import {
+  formatCalendarDate,
+  formatSouthAfricaDateTime,
+} from "@/lib/dateHelpers";
 
 type Tournament = {
   id: string;
@@ -148,7 +152,7 @@ const inputClass =
 
 function formatDate(value: string | null) {
   if (!value) return "TBA";
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -157,7 +161,7 @@ function formatDate(value: string | null) {
 
 function formatDateTime(value: string | null) {
   if (!value) return "TBA";
-  return new Date(value).toLocaleString("en-ZA", {
+  return formatSouthAfricaDateTime(value, {
     day: "numeric",
     month: "short",
     hour: "2-digit",

@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type AdminUser = {
   id: string;
@@ -86,7 +87,7 @@ const organisationRoles = [
 function formatDate(value: string | null) {
   if (!value) return "Not recorded";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

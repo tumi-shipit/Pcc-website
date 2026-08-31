@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type NewsPost = {
   id: string;
@@ -45,7 +46,7 @@ type NewsOfficialCredit = {
 function formatDate(value: string | null) {
   if (!value) return "";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "long",
     year: "numeric",

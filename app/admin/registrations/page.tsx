@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 import AdminGuard from "@/components/AdminGuard";
 import * as XLSX from "xlsx";
 import {
@@ -89,7 +90,7 @@ const emptyStats: RegistrationStats = {
 function formatDate(date: string | null) {
   if (!date) return "Not recorded";
 
-  return new Date(date).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(date, {
     day: "numeric",
     month: "short",
     year: "numeric",

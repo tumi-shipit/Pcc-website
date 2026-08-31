@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type Player = {
   id: string;
@@ -164,7 +165,7 @@ function calculateAge(dateOfBirth: string | null) {
 function formatDate(value: string | null) {
   if (!value) return "No activity";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

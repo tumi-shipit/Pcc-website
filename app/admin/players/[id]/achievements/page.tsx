@@ -5,6 +5,7 @@ import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
 import AdminPlayerTabs from "@/components/admin/AdminPlayerTabs";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate, getSouthAfricaDateKey } from "@/lib/dateHelpers";
 
 type Player = {
   id: string;
@@ -47,7 +48,7 @@ const emptyForm: AchievementForm = {
   title: "",
   achievement_type: "Achievement",
   description: "",
-  achieved_at: new Date().toISOString().slice(0, 10),
+  achieved_at: getSouthAfricaDateKey() ?? "",
   tournament_id: "",
 };
 
@@ -69,7 +70,7 @@ const inputClass =
 function formatDate(value: string | null) {
   if (!value) return "TBA";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -191,7 +192,7 @@ export default function AdminPlayerAchievementsPage({
       achievement_type: achievement.achievement_type ?? "Achievement",
       description: achievement.description ?? "",
       achieved_at:
-        achievement.achieved_at ?? new Date().toISOString().slice(0, 10),
+        achievement.achieved_at ?? getSouthAfricaDateKey() ?? "",
       tournament_id: achievement.tournament_id ?? "",
     });
 

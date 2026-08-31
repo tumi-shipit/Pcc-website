@@ -6,6 +6,7 @@ import AdminGuard from "@/components/AdminGuard";
 import AdminPlayerTabs from "@/components/admin/AdminPlayerTabs";
 import { singleRelation } from "@/lib/supabaseHelpers";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type Player = {
   id: string;
@@ -73,7 +74,7 @@ const inputClass =
 function formatDate(value: string | null) {
   if (!value) return "TBA";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

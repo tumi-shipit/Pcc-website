@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { formatCalendarDate } from "@/lib/dateHelpers";
+import {
+  formatCalendarDate,
+  formatSouthAfricaDateTime,
+} from "@/lib/dateHelpers";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 
 type Tournament = {
@@ -83,7 +86,7 @@ function formatDate(value: string | null) {
 }
 
 function formatUpdateTime(value: string) {
-  return new Date(value).toLocaleTimeString("en-ZA", {
+  return formatSouthAfricaDateTime(value, {
     hour: "2-digit",
     minute: "2-digit",
   });

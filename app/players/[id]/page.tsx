@@ -5,6 +5,7 @@ import Link from "next/link";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 
 type Player = {
   id: string;
@@ -74,7 +75,7 @@ type MemberResolvedPlayer = Omit<Player, "gender" | "biography" | "title">;
 
 function formatDate(value: string | null) {
   if (!value) return "TBA";
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

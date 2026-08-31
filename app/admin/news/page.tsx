@@ -7,6 +7,10 @@ import AdminGuard from "@/components/AdminGuard";
 import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 import {
+  formatCalendarDate,
+  formatSouthAfricaDateTime,
+} from "@/lib/dateHelpers";
+import {
   buildVerifiedRecordNewsItems,
   type VerifiedRecordOverride,
 } from "@/lib/verifiedRecords";
@@ -157,7 +161,7 @@ const verifiedRecordDeletePhrase =
 function formatDate(value: string | null) {
   if (!value) return "Not published";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -167,7 +171,7 @@ function formatDate(value: string | null) {
 function formatDateTime(value: string | null) {
   if (!value) return "Not published";
 
-  return new Date(value).toLocaleString("en-ZA", {
+  return formatSouthAfricaDateTime(value, {
     day: "numeric",
     month: "short",
     year: "numeric",

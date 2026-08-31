@@ -24,6 +24,7 @@ import { use, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { tokenSimilarity } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
+import { getCalendarYear } from "@/lib/dateHelpers";
 
 export default function PlayerHistoryPage({
   params,
@@ -82,7 +83,7 @@ export default function PlayerHistoryPage({
 
   const years = useMemo(() => {
     const values = Array.from(new Set(
-      results.map(r => new Date(r.tournaments?.start_date).getFullYear().toString())
+      results.map(r => String(getCalendarYear(r.tournaments?.start_date) ?? ""))
     )).sort().reverse();
 
     return ["All", ...values];
@@ -96,7 +97,7 @@ export default function PlayerHistoryPage({
           .includes(search.toLowerCase());
 
       const tournamentYear =
-        new Date(r.tournaments?.start_date).getFullYear().toString();
+        String(getCalendarYear(r.tournaments?.start_date) ?? "");
 
       const matchesYear =
         year === "All" || tournamentYear === year;

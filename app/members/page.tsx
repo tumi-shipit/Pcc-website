@@ -8,6 +8,11 @@ import MemberGuard, {
   MemberProfile,
 } from "@/components/members/MemberGuard";
 import { supabase } from "@/lib/supabase";
+import {
+  formatCalendarDate,
+  getCalendarDateKey,
+  getSouthAfricaDateKey,
+} from "@/lib/dateHelpers";
 
 type MemberResult = {
   id: string;
@@ -95,7 +100,7 @@ type MemberTournament = {
 
 function formatDate(value: string | null) {
   if (!value) return "Not recorded";
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -123,10 +128,23 @@ function emailLabel(email: string) {
 
 function membershipDaysLeft(membership: MemberMembership) {
   if (!membership.end_date) return null;
-  const today = new Date();
-  const end = new Date(membership.end_date);
-  const diff = Math.ceil((end.getTime() - today.getTime()) / 86400000);
-  return diff;
+  const today = getSouthAfricaDateKey();
+  const end = getCalendarDateKey(membership.end_date);
+  if (!today || !end) return null;
+
+  return Math.round(
+    (Date.UTC(
+      Number(end.slice(0, 4)),
+      Number(end.slice(5, 7)) - 1,
+      Number(end.slice(8, 10))
+    ) -
+      Date.UTC(
+        Number(today.slice(0, 4)),
+        Number(today.slice(5, 7)) - 1,
+        Number(today.slice(8, 10))
+      )) /
+      86400000
+  );
 }
 
 function statusTone(status: string) {
@@ -144,22 +162,21 @@ function renewalMessage(daysLeft: number | null) {
 }
 
 function isUpcomingDate(value: string | null | undefined) {
-  if (!value) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-
-  return date.getTime() >= today.getTime();
+  const date = getCalendarDateKey(value);
+  const today = getSouthAfricaDateKey();
+  return Boolean(date && today && date >= today);
 }
 
 function bySoonestDate<T extends { start_date: string | null }>(left: T, right: T) {
-  return new Date(left.start_date ?? "9999-12-31").getTime() - new Date(right.start_date ?? "9999-12-31").getTime();
+  return (getCalendarDateKey(left.start_date) ?? "9999-12-31").localeCompare(
+    getCalendarDateKey(right.start_date) ?? "9999-12-31"
+  );
 }
 
 function byLatestDate<T extends { start_date: string | null }>(left: T, right: T) {
-  return new Date(right.start_date ?? "0001-01-01").getTime() - new Date(left.start_date ?? "0001-01-01").getTime();
+  return (getCalendarDateKey(right.start_date) ?? "0001-01-01").localeCompare(
+    getCalendarDateKey(left.start_date) ?? "0001-01-01"
+  );
 }
 
 function MemberDashboard({

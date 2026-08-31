@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../../lib/supabase";
+import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
   buildVerifiedRecordNewsItems,
   type VerifiedRecordOverride,
@@ -24,7 +25,7 @@ type NewsPost = {
 function formatDate(value: string | null) {
   if (!value) return "";
 
-  return new Date(value).toLocaleDateString("en-ZA", {
+  return formatCalendarDate(value, {
     day: "numeric",
     month: "short",
     year: "numeric",
