@@ -4,9 +4,7 @@ import Link from "next/link";
 
 import PublicPageShell from "@/components/PublicPageShell";
 
-import hoodieRedBack from "../admin/store-preview/assets/hoodie-red-back.png";
 import hoodieRed from "../admin/store-preview/assets/hoodie-red.png";
-import jacketBlackBack from "../admin/store-preview/assets/jacket-black-back.png";
 import jacketBlack from "../admin/store-preview/assets/jacket-black.png";
 import poloWhiteBack from "../admin/store-preview/assets/polo-v2-white-back.png";
 import poloWhite from "../admin/store-preview/assets/polo-v2-white.png";
@@ -85,7 +83,6 @@ const products: StoreProduct[] = [
     price: 750,
     availability: "out-of-stock",
     front: hoodieRed,
-    back: hoodieRedBack,
   },
   {
     name: "PCC Tournament Jacket",
@@ -96,7 +93,6 @@ const products: StoreProduct[] = [
     price: 1200,
     availability: "out-of-stock",
     front: jacketBlack,
-    back: jacketBlackBack,
   },
 ];
 
@@ -152,6 +148,8 @@ export default function StorePage() {
                         <ProductImage image={product.front} alt={`${product.name} front view`} label="Front" />
                         <ProductImage image={product.back} alt={`${product.name} back view`} label="Back" />
                       </div>
+                    ) : product.front ? (
+                      <SingleProductImage image={product.front} alt={`${product.name} front view`} />
                     ) : (
                       <EquipmentPreview product={product} />
                     )}
@@ -206,6 +204,24 @@ export default function StorePage() {
         </section>
       </main>
     </PublicPageShell>
+  );
+}
+
+function SingleProductImage({ image, alt }: { image: StaticImageData; alt: string }) {
+  return (
+    <div className="relative aspect-[8/5] overflow-hidden bg-slate-100">
+      <Image
+        src={image}
+        alt={alt}
+        fill
+        placeholder="blur"
+        sizes="(min-width: 1024px) 33vw, 100vw"
+        className="object-contain"
+      />
+      <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-700 backdrop-blur">
+        Front
+      </span>
+    </div>
   );
 }
 
