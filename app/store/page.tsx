@@ -1,114 +1,167 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/footer";
+import Image, { type StaticImageData } from "next/image";
+
+import PublicPageShell from "@/components/PublicPageShell";
+
+import hoodieRedBack from "../admin/store-preview/assets/hoodie-red-back.png";
+import hoodieRed from "../admin/store-preview/assets/hoodie-red.png";
+import jacketBlackBack from "../admin/store-preview/assets/jacket-black-back.png";
+import jacketBlack from "../admin/store-preview/assets/jacket-black.png";
+import poloWhiteBack from "../admin/store-preview/assets/polo-v2-white-back.png";
+import poloWhite from "../admin/store-preview/assets/polo-v2-white.png";
 
 export const metadata: Metadata = {
-  title: "PCC Store Coming Soon | Polokwane Chess Club",
+  title: "PCC Store | Polokwane Chess Club",
   description:
-    "PCC merchandise is being prepared. Polokwane Chess Club apparel and supporter items will be available soon.",
+    "Browse the Polokwane Chess Club apparel catalogue. Current products are displayed as out of stock until ordering opens.",
 };
+
+type StoreProduct = {
+  name: string;
+  category: string;
+  colour: string;
+  description: string;
+  front: StaticImageData;
+  back: StaticImageData;
+};
+
+const products: StoreProduct[] = [
+  {
+    name: "PCC Chess Pieces Polo",
+    category: "Polo",
+    colour: "White",
+    description:
+      "A white short-sleeve polo featuring PCC branding, South African flag detail and chess-piece artwork.",
+    front: poloWhite,
+    back: poloWhiteBack,
+  },
+  {
+    name: "PCC Club Hoodie",
+    category: "Hoodie",
+    colour: "Red",
+    description:
+      "A red pullover hoodie featuring PCC branding, chessboard detail and a front pouch pocket.",
+    front: hoodieRed,
+    back: hoodieRedBack,
+  },
+  {
+    name: "PCC Tournament Jacket",
+    category: "Jacket",
+    colour: "Black",
+    description:
+      "A black zip-up jacket featuring PCC branding, South African flag detail and a chessboard finish.",
+    front: jacketBlack,
+    back: jacketBlackBack,
+  },
+];
 
 export default function StorePage() {
   return (
-    <>
-      <Navbar />
-      <main className="min-h-screen bg-[#f4f0e8] px-4 pb-16 pt-28 text-zinc-950 md:px-6">
-        <section className="mx-auto grid max-w-7xl gap-8 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-          <div>
-            <p className="text-sm font-black uppercase tracking-[0.28em] text-red-700">
+    <PublicPageShell>
+      <main className="min-h-screen bg-[#f4f1ea] text-slate-950">
+        <section className="border-b border-white/10 bg-slate-950 px-5 py-16 text-white sm:px-8 lg:py-20">
+          <div className="mx-auto max-w-7xl">
+            <p className="text-xs font-black uppercase tracking-[0.24em] text-amber-400">
               PCC Store
             </p>
-            <h1 className="mt-4 max-w-4xl text-5xl font-black leading-tight md:text-7xl">
-              Store coming soon
+            <h1 className="mt-4 max-w-4xl text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+              Club apparel, made for the chess community.
             </h1>
-            <p className="mt-5 max-w-3xl text-base leading-8 text-zinc-700 md:text-xl md:leading-9">
-              PCC merchandise is being prepared. Apparel and supporter items
-              will be shared here once designs, pricing and manufacturing are
-              finalised.
+            <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
+              This is the first PCC product collection. Ordering will open once
+              stock, sizes and prices have been confirmed.
             </p>
-
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                href="/"
-                className="rounded-lg bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700"
-              >
-                Back home
-              </Link>
-              <Link
-                href="/#tournaments"
-                className="rounded-lg border border-zinc-300 bg-white px-5 py-3 text-sm font-black text-zinc-950 transition hover:border-red-400"
-              >
-                View tournaments
-              </Link>
-              <Link
-                href="/contact"
-                className="rounded-lg border border-zinc-950 bg-zinc-950 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700"
-              >
-                Contact PCC
-              </Link>
-            </div>
-
-            <div className="mt-10 grid gap-3 sm:grid-cols-3">
-              <StoreNote title="Polos" text="Club and tournament wear" />
-              <StoreNote title="Hoodies" text="Warm-up and supporter gear" />
-              <StoreNote title="Jackets" text="Team and travel concepts" />
-            </div>
-          </div>
-
-          <div className="overflow-hidden rounded-[1.5rem] border border-zinc-200 bg-white shadow-2xl shadow-zinc-300/60">
-            <div className="grid grid-cols-[0.85fr_1.15fr] gap-0 border-b border-zinc-200">
-              <MerchTile tone="dark" title="Team black" />
-              <MerchTile tone="red" title="Tournament red" />
-            </div>
-            <div className="grid grid-cols-[1.15fr_0.85fr] gap-0">
-              <MerchTile tone="light" title="Club white" />
-              <div className="bg-zinc-950 p-5 text-white md:p-7">
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-red-300">
-                  In development
-                </p>
-                <h2 className="mt-3 text-2xl font-black">
-                  Apparel range under review
-                </h2>
-                <p className="mt-3 text-sm leading-6 text-zinc-300">
-                  The store will open after PCC confirms the product range,
-                  supplier, sizes, prices and order process.
-                </p>
-              </div>
+            <div className="mt-8 flex flex-wrap gap-3 text-sm font-bold">
+              <span className="rounded-full bg-white/10 px-4 py-2">3 products</span>
+              <span className="rounded-full bg-red-500/15 px-4 py-2 text-red-200">
+                All currently out of stock
+              </span>
             </div>
           </div>
         </section>
+
+        <section className="px-5 py-12 sm:px-8 lg:py-16">
+          <div className="mx-auto max-w-7xl">
+            <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.2em] text-slate-500">
+                  Current catalogue
+                </p>
+                <h2 className="mt-2 text-3xl font-black tracking-tight">PCC apparel</h2>
+              </div>
+              <p className="text-sm font-semibold text-slate-600">Prices to be confirmed</p>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-3">
+              {products.map((product) => (
+                <article
+                  key={product.name}
+                  className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]"
+                >
+                  <div className="relative grid grid-cols-2 gap-px bg-slate-200">
+                    <ProductImage image={product.front} alt={`${product.name} front view`} label="Front" />
+                    <ProductImage image={product.back} alt={`${product.name} back view`} label="Back" />
+                    <span className="absolute left-4 top-4 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-lg">
+                      Out of stock
+                    </span>
+                  </div>
+
+                  <div className="p-6">
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">
+                      {product.category} / {product.colour}
+                    </p>
+                    <h3 className="mt-2 text-2xl font-black tracking-tight">{product.name}</h3>
+                    <p className="mt-3 min-h-20 text-sm leading-6 text-slate-600">
+                      {product.description}
+                    </p>
+                    <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-5">
+                      <span className="text-sm font-bold text-slate-500">Price unavailable</span>
+                      <button
+                        type="button"
+                        disabled
+                        className="cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-black text-slate-500"
+                      >
+                        Out of stock
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <aside className="mt-8 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950">
+              <strong>Stock notice:</strong> These products are shown for preview only. No order or
+              payment can be placed until PCC confirms availability, sizes and prices.
+            </aside>
+          </div>
+        </section>
       </main>
-      <Footer />
-    </>
+    </PublicPageShell>
   );
 }
 
-function StoreNote({ title, text }: { title: string; text: string }) {
+function ProductImage({
+  image,
+  alt,
+  label,
+}: {
+  image: StaticImageData;
+  alt: string;
+  label: string;
+}) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 shadow-lg shadow-zinc-200/60">
-      <p className="text-sm font-black text-zinc-950">{title}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{text}</p>
-    </div>
-  );
-}
-
-function MerchTile({ tone, title }: { tone: "dark" | "red" | "light"; title: string }) {
-  const styles = {
-    dark: "bg-zinc-950 text-white",
-    red: "bg-red-700 text-white",
-    light: "bg-[#f8f3ea] text-zinc-950",
-  };
-
-  return (
-    <div className={`relative min-h-64 overflow-hidden p-5 md:p-7 ${styles[tone]}`}>
-      <div className="absolute inset-x-6 bottom-0 h-48 rounded-t-[2.5rem] border border-current/20 bg-current/10" />
-      <div className="absolute bottom-8 left-1/2 h-28 w-24 -translate-x-1/2 rounded-t-[2rem] border border-current/30 bg-current/10" />
-      <div className="absolute bottom-14 left-1/2 h-16 w-44 -translate-x-1/2 rounded-full border border-current/20" />
-      <p className="relative text-xs font-black uppercase tracking-[0.22em] opacity-70">
-        Preview
-      </p>
-      <h2 className="relative mt-2 text-2xl font-black">{title}</h2>
+    <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
+      <Image
+        src={image}
+        alt={alt}
+        fill
+        placeholder="blur"
+        sizes="(min-width: 1024px) 16vw, 50vw"
+        className="object-cover"
+      />
+      <span className="absolute bottom-3 left-3 rounded-full bg-white/90 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-700 backdrop-blur">
+        {label}
+      </span>
     </div>
   );
 }
