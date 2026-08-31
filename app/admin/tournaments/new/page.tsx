@@ -13,6 +13,7 @@ import { supabase } from "@/lib/supabase";
 
 type TournamentStatus = "Draft" | "Open" | "Closed" | "Postponed" | "Completed";
 type GenderRestriction = "All" | "Male" | "Female";
+type TeamStandingsBasis = "National" | "Club / District";
 
 type TournamentForm = {
   tournament_name: string;
@@ -28,6 +29,7 @@ type TournamentForm = {
   registration_open_date: string;
   registration_close_date: string;
   registration_status: TournamentStatus;
+  team_standings_basis: TeamStandingsBasis;
   rating_type: TournamentRatingType;
   entry_fee: string;
   poster_image_url: string;
@@ -70,6 +72,7 @@ const emptyForm: TournamentForm = {
   registration_open_date: "",
   registration_close_date: "",
   registration_status: "Draft",
+  team_standings_basis: "Club / District",
   rating_type: "standard",
   entry_fee: "0",
   poster_image_url: "",
@@ -416,6 +419,7 @@ export default function NewTournamentPage() {
       registration_open_date: registrationOpenDate,
       registration_close_date: registrationCloseDate,
       registration_status: form.registration_status,
+      team_standings_basis: form.team_standings_basis,
       rating_type: form.rating_type,
       rating_import_id: latestRatingImport?.id ?? null,
       rating_list_locked_at: latestRatingImport ? new Date().toISOString() : null,
@@ -437,6 +441,7 @@ export default function NewTournamentPage() {
       (error.message.toLowerCase().includes("rating_type") ||
         error.message.toLowerCase().includes("rating_import_id") ||
         error.message.toLowerCase().includes("rating_list_locked_at") ||
+        error.message.toLowerCase().includes("team_standings_basis") ||
         error.message.toLowerCase().includes("postponement_reason") ||
         error.message.toLowerCase().includes("competition_document"))
     ) {
@@ -444,6 +449,7 @@ export default function NewTournamentPage() {
         rating_type: _ratingType,
         rating_import_id: _ratingImportId,
         rating_list_locked_at: _ratingListLockedAt,
+        team_standings_basis: _teamStandingsBasis,
         postponement_reason: _postponementReason,
         competition_document_url: _competitionDocumentUrl,
         competition_document_label: _competitionDocumentLabel,
@@ -649,6 +655,30 @@ export default function NewTournamentPage() {
                           latestRatingImport.file_name ?? "Saved rating list"
                         } (${latestRatingImport.imported_count ?? 0} players)`
                       : "No saved rating list found yet for this type."}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold">
+                  Team standings basis
+                </label>
+                <select
+                  value={form.team_standings_basis}
+                  onChange={(event) =>
+                    updateField(
+                      "team_standings_basis",
+                      event.target.value as TeamStandingsBasis
+                    )
+                  }
+                  className={inputClass}
+                >
+                  <option value="Club / District">Club / District — registered club teams</option>
+                  <option value="National">National — South African province teams</option>
+                </select>
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Club and district events use only the player&apos;s registered club.
+                  National events use only South African provinces. Federation is
+                  never used for team standings.
                 </p>
               </div>
 

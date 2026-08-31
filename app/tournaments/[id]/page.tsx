@@ -18,6 +18,7 @@ type Tournament = {
   venue: string;
   province: string | null;
   registration_status: string;
+  team_standings_basis?: "National" | "Club / District" | null;
   entry_fee: number;
   poster_image_url: string | null;
   payment_details: string | null;
@@ -679,13 +680,14 @@ export default function TournamentHubPage() {
       let { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, postponement_reason, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, competition_document_url, competition_document_label, external_gallery_url, external_gallery_label, arbiter_player_id"
+          "id, tournament_name, description, postponement_reason, start_date, end_date, venue, province, registration_status, team_standings_basis, entry_fee, poster_image_url, payment_details, chess_results_url, competition_document_url, competition_document_label, external_gallery_url, external_gallery_label, arbiter_player_id"
         )
         .eq("id", tournamentId)
         .single();
 
       if (
         tournamentError?.message.toLowerCase().includes("postponement_reason") ||
+        tournamentError?.message.toLowerCase().includes("team_standings_basis") ||
         tournamentError?.message.toLowerCase().includes("external_gallery") ||
         tournamentError?.message.toLowerCase().includes("competition_document")
       ) {
@@ -701,6 +703,7 @@ export default function TournamentHubPage() {
           ? {
               ...fallback.data,
               postponement_reason: null,
+              team_standings_basis: "Club / District",
               competition_document_url: null,
               competition_document_label: null,
               external_gallery_url: null,
@@ -2136,7 +2139,10 @@ function ArchiveContent({
         isCompleted
       />
 
-      <CalculatedTeamStandings results={results} />
+      <CalculatedTeamStandings
+        results={results}
+        basis={tournament.team_standings_basis ?? "Club / District"}
+      />
 
       <TeamRankingTable
         teamResults={teamResults}
@@ -2839,27 +2845,18 @@ function calculatedTeamStandings(
     );
 }
 
-function CalculatedTeamStandings({ results }: { results: ResultWithPlayer[] }) {
-  const provinceStandings = calculatedTeamStandings(results, "province");
-  const clubStandings = calculatedTeamStandings(results, "club");
-  const hasProvinceStandings = provinceStandings.length > 1;
-  const hasClubStandings = clubStandings.length > 1;
-  const [groupBy, setGroupBy] = useState<"province" | "club">(
-    hasProvinceStandings ? "province" : "club"
-  );
+function CalculatedTeamStandings({
+  results,
+  basis,
+}: {
+  results: ResultWithPlayer[];
+  basis: "National" | "Club / District";
+}) {
+  const groupBy = basis === "National" ? "province" : "club";
+  const standings = calculatedTeamStandings(results, groupBy);
+  const groupingLabel = groupBy === "province" ? "South African province" : "Club";
 
-  useEffect(() => {
-    if (groupBy === "province" && !hasProvinceStandings && hasClubStandings) {
-      setGroupBy("club");
-    } else if (groupBy === "club" && !hasClubStandings && hasProvinceStandings) {
-      setGroupBy("province");
-    }
-  }, [groupBy, hasClubStandings, hasProvinceStandings]);
-
-  if (!hasProvinceStandings && !hasClubStandings) return null;
-
-  const standings = groupBy === "province" ? provinceStandings : clubStandings;
-  const groupingLabel = groupBy === "province" ? "Province" : "Club";
+  if (standings.length < 2) return null;
 
   return (
     <section
@@ -2876,39 +2873,14 @@ function CalculatedTeamStandings({ results }: { results: ResultWithPlayer[] }) {
           </h2>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">
             Every player keeps their individual result. Their final points are also
-            added to the {groupBy} they registered under, making team competition
-            visible without changing the tournament&apos;s individual format.
+            added to their {groupBy} team, making team competition visible without
+            changing the tournament&apos;s individual format.
           </p>
         </div>
 
-        <div className="flex rounded-xl border border-white/10 bg-black/35 p-1">
-          {hasProvinceStandings && (
-            <button
-              type="button"
-              onClick={() => setGroupBy("province")}
-              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                groupBy === "province"
-                  ? "bg-yellow-400 text-black"
-                  : "text-gray-300 hover:text-white"
-              }`}
-            >
-              Provinces
-            </button>
-          )}
-          {hasClubStandings && (
-            <button
-              type="button"
-              onClick={() => setGroupBy("club")}
-              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
-                groupBy === "club"
-                  ? "bg-yellow-400 text-black"
-                  : "text-gray-300 hover:text-white"
-              }`}
-            >
-              Clubs
-            </button>
-          )}
-        </div>
+        <span className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-100">
+          {basis === "National" ? "National: province teams" : "Club / District: club teams"}
+        </span>
       </div>
 
       <div className="mt-7 grid gap-4 lg:grid-cols-2">
@@ -2917,7 +2889,7 @@ function CalculatedTeamStandings({ results }: { results: ResultWithPlayer[] }) {
 
           return (
             <article
-              key={`${groupBy}-${team.name}`}
+              key={team.name}
               className={`overflow-hidden rounded-2xl border ${colours.border} bg-zinc-900/80`}
             >
               <div className={`flex items-center justify-between gap-4 border-b ${colours.border} ${colours.panel} px-5 py-4`}>
@@ -2961,9 +2933,10 @@ function CalculatedTeamStandings({ results }: { results: ResultWithPlayer[] }) {
       </div>
 
       <p className="mt-5 text-xs leading-5 text-gray-500">
-        Team totals use every published individual final result shown above. If an
-        event has a different team rule, its official Swiss team tiebreak table is
-        still displayed separately below.
+        Team totals use every published individual final result shown above. This
+        event is configured for {basis === "National" ? "South African province" : "registered club"} teams;
+        federation is never used. Official Swiss team tiebreaks, when supplied,
+        remain separate below.
       </p>
     </section>
   );
