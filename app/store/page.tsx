@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image, { type StaticImageData } from "next/image";
+import Link from "next/link";
 
 import PublicPageShell from "@/components/PublicPageShell";
 
@@ -21,17 +22,57 @@ type StoreProduct = {
   category: string;
   colour: string;
   description: string;
-  front: StaticImageData;
-  back: StaticImageData;
+  price: number;
+  availability: "available" | "out-of-stock";
+  front?: StaticImageData;
+  back?: StaticImageData;
 };
 
 const products: StoreProduct[] = [
+  {
+    name: "PCC Tournament Chess Mat",
+    category: "Chessboard",
+    colour: "Faux leather",
+    description:
+      "A faux-leather tournament chess mat for club, school and competition play.",
+    price: 160,
+    availability: "available",
+  },
+  {
+    name: "YS-902 Digital Chess Clock",
+    category: "Chess clock",
+    colour: "YS-902",
+    description:
+      "The YS-902 digital chess-clock model for timed games and tournament play.",
+    price: 400,
+    availability: "available",
+  },
+  {
+    name: "PS-1688 Tournament Chess Clock",
+    category: "Chess clock",
+    colour: "PS-1688",
+    description:
+      "The PS-1688 digital tournament chess-clock model for timed competition games.",
+    price: 750,
+    availability: "available",
+  },
+  {
+    name: "HQT101 Digital Chess Clock",
+    category: "Chess clock",
+    colour: "HQT101",
+    description:
+      "The HQT101 digital chess-clock model for club and tournament games.",
+    price: 600,
+    availability: "available",
+  },
   {
     name: "PCC Chess Pieces Polo",
     category: "Polo",
     colour: "White",
     description:
       "A white short-sleeve polo featuring PCC branding, South African flag detail and chess-piece artwork.",
+    price: 550,
+    availability: "out-of-stock",
     front: poloWhite,
     back: poloWhiteBack,
   },
@@ -41,6 +82,8 @@ const products: StoreProduct[] = [
     colour: "Red",
     description:
       "A red pullover hoodie featuring PCC branding, chessboard detail and a front pouch pocket.",
+    price: 750,
+    availability: "out-of-stock",
     front: hoodieRed,
     back: hoodieRedBack,
   },
@@ -50,6 +93,8 @@ const products: StoreProduct[] = [
     colour: "Black",
     description:
       "A black zip-up jacket featuring PCC branding, South African flag detail and a chessboard finish.",
+    price: 1200,
+    availability: "out-of-stock",
     front: jacketBlack,
     back: jacketBlackBack,
   },
@@ -68,13 +113,16 @@ export default function StorePage() {
               Club apparel, made for the chess community.
             </h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-slate-300 sm:text-lg">
-              This is the first PCC product collection. Ordering will open once
-              stock, sizes and prices have been confirmed.
+              Shop tournament equipment and preview the first PCC apparel
+              collection. Online payment will open after the secure checkout is ready.
             </p>
             <div className="mt-8 flex flex-wrap gap-3 text-sm font-bold">
-              <span className="rounded-full bg-white/10 px-4 py-2">3 products</span>
+              <span className="rounded-full bg-white/10 px-4 py-2">7 products</span>
+              <span className="rounded-full bg-emerald-500/15 px-4 py-2 text-emerald-200">
+                Equipment available
+              </span>
               <span className="rounded-full bg-red-500/15 px-4 py-2 text-red-200">
-                All currently out of stock
+                Apparel out of stock
               </span>
             </div>
           </div>
@@ -89,7 +137,7 @@ export default function StorePage() {
                 </p>
                 <h2 className="mt-2 text-3xl font-black tracking-tight">PCC apparel</h2>
               </div>
-              <p className="text-sm font-semibold text-slate-600">Prices to be confirmed</p>
+              <p className="text-sm font-semibold text-slate-600">Prices shown in South African rand</p>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-3">
@@ -98,11 +146,21 @@ export default function StorePage() {
                   key={product.name}
                   className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_18px_50px_rgba(15,23,42,0.08)]"
                 >
-                  <div className="relative grid grid-cols-2 gap-px bg-slate-200">
-                    <ProductImage image={product.front} alt={`${product.name} front view`} label="Front" />
-                    <ProductImage image={product.back} alt={`${product.name} back view`} label="Back" />
-                    <span className="absolute left-4 top-4 rounded-full bg-slate-950 px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-lg">
-                      Out of stock
+                  <div className="relative">
+                    {product.front && product.back ? (
+                      <div className="grid grid-cols-2 gap-px bg-slate-200">
+                        <ProductImage image={product.front} alt={`${product.name} front view`} label="Front" />
+                        <ProductImage image={product.back} alt={`${product.name} back view`} label="Back" />
+                      </div>
+                    ) : (
+                      <EquipmentPreview product={product} />
+                    )}
+                    <span
+                      className={`absolute left-4 top-4 rounded-full px-3 py-1.5 text-xs font-black uppercase tracking-wide text-white shadow-lg ${
+                        product.availability === "available" ? "bg-emerald-700" : "bg-slate-950"
+                      }`}
+                    >
+                      {product.availability === "available" ? "Available" : "Out of stock"}
                     </span>
                   </div>
 
@@ -115,14 +173,25 @@ export default function StorePage() {
                       {product.description}
                     </p>
                     <div className="mt-5 flex items-center justify-between border-t border-slate-100 pt-5">
-                      <span className="text-sm font-bold text-slate-500">Price unavailable</span>
-                      <button
-                        type="button"
-                        disabled
-                        className="cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-black text-slate-500"
-                      >
-                        Out of stock
-                      </button>
+                      <span className="text-xl font-black text-slate-950">
+                        R{product.price.toLocaleString("en-ZA")}
+                      </span>
+                      {product.availability === "available" ? (
+                        <Link
+                          href="/contact"
+                          className="rounded-xl bg-slate-950 px-4 py-2.5 text-sm font-black text-white transition hover:bg-red-700"
+                        >
+                          Contact to order
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="cursor-not-allowed rounded-xl bg-slate-200 px-4 py-2.5 text-sm font-black text-slate-500"
+                        >
+                          Out of stock
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -130,13 +199,28 @@ export default function StorePage() {
             </div>
 
             <aside className="mt-8 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-950">
-              <strong>Stock notice:</strong> These products are shown for preview only. No order or
-              payment can be placed until PCC confirms availability, sizes and prices.
+              <strong>Ordering notice:</strong> Available equipment can currently be ordered by
+              contacting PCC. Online payment will only open after secure checkout is fully ready.
             </aside>
           </div>
         </section>
       </main>
     </PublicPageShell>
+  );
+}
+
+function EquipmentPreview({ product }: { product: StoreProduct }) {
+  return (
+    <div className="flex aspect-[8/5] flex-col items-center justify-center bg-[radial-gradient(circle_at_top,#334155,#0f172a_68%)] px-6 text-center text-white">
+      <span className="text-6xl" aria-hidden="true">
+        {product.category === "Chessboard" ? "♟" : "⏱"}
+      </span>
+      <p className="mt-4 text-xs font-black uppercase tracking-[0.2em] text-slate-300">
+        {product.category}
+      </p>
+      <p className="mt-1 text-lg font-black">{product.colour}</p>
+      <p className="mt-3 text-xs font-semibold text-slate-400">Supplier image coming soon</p>
+    </div>
   );
 }
 
