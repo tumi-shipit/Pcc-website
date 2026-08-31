@@ -2783,27 +2783,7 @@ type CalculatedTeamStanding = {
   points: number;
   playerCount: number;
   bestPlayerPoints: number;
-  players: Array<{ name: string; points: number | null }>;
 };
-
-const teamColourStyles = [
-  { dot: "bg-red-400", border: "border-red-400/40", text: "text-red-200", panel: "bg-red-500/10" },
-  { dot: "bg-sky-400", border: "border-sky-400/40", text: "text-sky-200", panel: "bg-sky-500/10" },
-  { dot: "bg-emerald-400", border: "border-emerald-400/40", text: "text-emerald-200", panel: "bg-emerald-500/10" },
-  { dot: "bg-amber-300", border: "border-amber-300/40", text: "text-amber-100", panel: "bg-amber-400/10" },
-  { dot: "bg-violet-400", border: "border-violet-400/40", text: "text-violet-200", panel: "bg-violet-500/10" },
-  { dot: "bg-pink-400", border: "border-pink-400/40", text: "text-pink-200", panel: "bg-pink-500/10" },
-  { dot: "bg-teal-300", border: "border-teal-300/40", text: "text-teal-100", panel: "bg-teal-400/10" },
-  { dot: "bg-orange-400", border: "border-orange-400/40", text: "text-orange-200", panel: "bg-orange-500/10" },
-  { dot: "bg-lime-300", border: "border-lime-300/40", text: "text-lime-100", panel: "bg-lime-400/10" },
-];
-
-function teamColourIndex(name: string) {
-  return Array.from(name).reduce(
-    (total, character) => total + character.charCodeAt(0),
-    0
-  ) % teamColourStyles.length;
-}
 
 function calculatedTeamStandings(
   results: ResultWithPlayer[],
@@ -2820,23 +2800,15 @@ function calculatedTeamStandings(
       points: 0,
       playerCount: 0,
       bestPlayerPoints: 0,
-      players: [],
     };
     const points = result.points ?? 0;
     current.points += points;
     current.playerCount += 1;
     current.bestPlayerPoints = Math.max(current.bestPlayerPoints, points);
-    current.players.push({ name: publicResultName(result), points: result.points });
     grouped.set(teamName, current);
   });
 
   return [...grouped.values()]
-    .map((team) => ({
-      ...team,
-      players: [...team.players].sort(
-        (left, right) => (right.points ?? 0) - (left.points ?? 0)
-      ),
-    }))
     .sort(
       (left, right) =>
         right.points - left.points ||
@@ -2855,89 +2827,58 @@ function CalculatedTeamStandings({
   const groupBy = basis === "National" ? "province" : "club";
   const standings = calculatedTeamStandings(results, groupBy);
   const groupingLabel = groupBy === "province" ? "South African province" : "Club";
+  const visibleStandings = standings.slice(0, 10);
+  const hiddenCount = standings.length - visibleStandings.length;
 
   if (standings.length < 2) return null;
 
   return (
     <section
       id="team-standings"
-      className="rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-8"
+      className="rounded-xl border border-white/10 bg-zinc-950/85 p-4 backdrop-blur"
     >
-      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.25em] text-yellow-300">
-            Team points standings
-          </p>
-          <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            {groupingLabel} leaderboard from individual results
+          <h2 className="text-lg font-black text-white">
+            {groupingLabel} team points
           </h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">
-            Every player keeps their individual result. Their final points are also
-            added to their {groupBy} team, making team competition visible without
-            changing the tournament&apos;s individual format.
+          <p className="mt-1 text-xs text-gray-400">
+            Totals from published individual player points
           </p>
         </div>
-
-        <span className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-100">
-          {basis === "National" ? "National: province teams" : "Club / District: club teams"}
+        <span className="w-fit rounded-full bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-100">
+          Top {visibleStandings.length}
         </span>
       </div>
 
-      <div className="mt-7 grid gap-4 lg:grid-cols-2">
-        {standings.map((team, index) => {
-          const colours = teamColourStyles[teamColourIndex(team.name)];
-
-          return (
-            <article
-              key={team.name}
-              className={`overflow-hidden rounded-2xl border ${colours.border} bg-zinc-900/80`}
-            >
-              <div className={`flex items-center justify-between gap-4 border-b ${colours.border} ${colours.panel} px-5 py-4`}>
-                <div className="flex min-w-0 items-center gap-3">
-                  <span className={`h-3 w-3 shrink-0 rounded-full ${colours.dot}`} />
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-400">
-                      {groupingLabel} #{index + 1}
-                    </p>
-                    <h3 className="truncate text-xl font-black text-white">{team.name}</h3>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-3xl font-black ${colours.text}`}>{team.points}</p>
-                  <p className="text-xs text-gray-400">team points</p>
-                </div>
-              </div>
-
-              <div className="p-5">
-                <div className="mb-4 flex items-center justify-between text-xs text-gray-400">
-                  <span>{team.playerCount} scoring player{team.playerCount === 1 ? "" : "s"}</span>
-                  <span>Best score: {team.bestPlayerPoints}</span>
-                </div>
-                <div className="space-y-2">
-                  {team.players.map((player) => (
-                    <div
-                      key={`${team.name}-${player.name}`}
-                      className="flex items-center justify-between gap-3 rounded-lg bg-black/25 px-3 py-2 text-sm"
-                    >
-                      <span className="min-w-0 truncate font-semibold text-white">{player.name}</span>
-                      <span className={`shrink-0 font-black ${colours.text}`}>
-                        {player.points ?? 0} pts
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </article>
-          );
-        })}
+      <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead className="bg-black/35 uppercase tracking-wider text-gray-500">
+            <tr>
+              <th className="px-3 py-2">#</th>
+              <th className="px-3 py-2">Team</th>
+              <th className="px-3 py-2 text-center">Players</th>
+              <th className="px-3 py-2 text-right">Points</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleStandings.map((team, index) => (
+              <tr key={team.name} className="border-t border-white/10">
+                <td className="px-3 py-2 text-gray-500">{index + 1}</td>
+                <td className="px-3 py-2 font-semibold text-white">{team.name}</td>
+                <td className="px-3 py-2 text-center text-gray-400">{team.playerCount}</td>
+                <td className="px-3 py-2 text-right font-black text-yellow-200">{team.points}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
-      <p className="mt-5 text-xs leading-5 text-gray-500">
-        Team totals use every published individual final result shown above. This
-        event is configured for {basis === "National" ? "South African province" : "registered club"} teams;
-        federation is never used. Official Swiss team tiebreaks, when supplied,
-        remain separate below.
-      </p>
+      {hiddenCount > 0 && (
+        <p className="mt-2 text-right text-[11px] text-gray-500">
+          {hiddenCount} more team{hiddenCount === 1 ? "" : "s"} not shown
+        </p>
+      )}
     </section>
   );
 }
