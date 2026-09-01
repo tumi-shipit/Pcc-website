@@ -12,6 +12,7 @@ export type CartLine = {
   quantity: number;
   option?: string;
   maxQuantity?: number;
+  service?: boolean;
 };
 
 type CartContextValue = {

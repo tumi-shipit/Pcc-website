@@ -1,12 +1,9 @@
-import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
 import { currentProductPrice, formatRand, getStoreProducts, isEquipment, isMembership, isSaleActive, isService, type StoreProduct } from "@/lib/storeCatalogue";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "PCC Store | Chess Equipment and Clubwear", description: "Shop tournament chess equipment and official Polokwane Chess Club apparel." };
-
 export default async function StorePage() {
   const products = await getStoreProducts();
   const equipment = products.filter(isEquipment);

@@ -5,12 +5,17 @@ import { notFound } from "next/navigation";
 import PublicPageShell from "@/components/PublicPageShell";
 import AddToBag from "@/components/store/AddToBag";
 import { currentProductPrice, formatRand, getStoreProduct, getStoreProducts, isEquipment, isMembership, isSaleActive, isService } from "@/lib/storeCatalogue";
+import { publicPageMetadata } from "@/lib/publicMetadata";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: PageProps<"/store/[slug]">): Promise<Metadata> {
   const { slug } = await params; const product = await getStoreProduct(slug);
-  return product ? { title: `${product.name} | PCC Store`, description: product.description } : { title: "Product | PCC Store" };
+  if (!product) return { title: "Product | PCC Store" };
+  const title=`${product.name} | PCC Store`,description=product.description??"Shop this product securely from the Polokwane Chess Club online store.";
+  const base=publicPageMetadata({title,description,path:`/store/${slug}`,preview:"store"});
+  const image=product.primary_image_url||"/share-image?page=store";
+  return {...base,openGraph:{...base.openGraph,images:[{url:image,alt:product.name}]},twitter:{...base.twitter,images:[image]}};
 }
 
 export default async function ProductPage({ params }: PageProps<"/store/[slug]">) {

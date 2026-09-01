@@ -23,7 +23,7 @@ values (
   'Add a professionally presented portrait to your PCC player profile. After payment, PCC will contact you to collect and approve the correct image for your profile.',
   'PCC Profile Service',
   'Digital service',
-  504,
+  50,
   10,
   'September special',
   '2026-09-01 00:00:00+02',
