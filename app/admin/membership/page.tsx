@@ -21,6 +21,15 @@ const membershipTools = [
     accent: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
   },
   {
+    href: "/admin/membership-scanner",
+    eyebrow: "Session check-in",
+    title: "Membership scanner",
+    description:
+      "Scan digital membership-card QR codes and check live membership status at PCC sessions.",
+    action: "Open card scanner",
+    accent: "border-fuchsia-500/30 bg-fuchsia-500/10 text-fuchsia-200",
+  },
+  {
     href: "/membership",
     eyebrow: "Public experience",
     title: "Membership sales page",

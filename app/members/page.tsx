@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PlayerAvatar from "@/components/PlayerAvatar";
+import DigitalMembershipCard from "@/components/members/DigitalMembershipCard";
 import MemberGuard, {
   MemberMembership,
   MemberProfile,
@@ -529,6 +530,15 @@ function MemberDashboard({
               Contact PCC
             </Link>
           </div>
+        </section>
+
+        <section className="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm md:p-7">
+          <div className="mb-5">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-red-600">My digital membership</p>
+            <h2 className="mt-2 text-2xl font-black">PCC membership card</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">Show this card at PCC sessions. Officials can scan its QR code to check your membership live.</p>
+          </div>
+          <DigitalMembershipCard membership={membership} player={profilePlayer} displayName={displayName} />
         </section>
 
         <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
