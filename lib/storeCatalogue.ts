@@ -38,6 +38,10 @@ export function isEquipment(product: StoreProduct) {
   return ["chessboard", "chess clock", "equipment"].includes(product.category.toLowerCase());
 }
 
+export function isMembership(product: StoreProduct) {
+  return product.category.toLowerCase().includes("membership");
+}
+
 export function isSaleActive(product: StoreProduct) {
   if (product.sale_price === null || product.sale_price >= product.regular_price) return false;
   const now = Date.now();
