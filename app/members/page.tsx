@@ -155,7 +155,8 @@ function statusTone(status: string) {
   return "border-zinc-200 bg-zinc-50 text-zinc-700";
 }
 
-function renewalMessage(daysLeft: number | null) {
+function renewalMessage(daysLeft: number | null, membershipType: string) {
+  if (membershipType === "Lifetime") return "Your lifetime PCC membership is active and does not expire.";
   if (daysLeft === null) return "Your membership end date has not been recorded yet.";
   if (daysLeft < 0) return "Your membership has expired. Please contact PCC to renew access.";
   if (daysLeft <= 30) return `Your membership renews soon. ${daysLeft} day${daysLeft === 1 ? "" : "s"} remaining.`;
@@ -520,7 +521,7 @@ function MemberDashboard({
                 Membership Notice
               </p>
               <h2 className="mt-2 text-xl font-black">
-                {renewalMessage(daysLeft)}
+                {renewalMessage(daysLeft, membership.membership_type)}
               </h2>
             </div>
             <Link
@@ -585,10 +586,10 @@ function MemberDashboard({
               <div className="mt-5 space-y-3 text-sm text-zinc-700">
                 <SummaryRow label="Type" value={membership.membership_type} />
                 <SummaryRow label="Starts" value={formatDate(membership.start_date)} />
-                <SummaryRow label="Ends" value={formatDate(membership.end_date)} />
+                <SummaryRow label="Ends" value={membership.membership_type === "Lifetime" ? "No expiry" : formatDate(membership.end_date)} />
                 <SummaryRow
                   label="Days left"
-                  value={daysLeft === null ? "Not recorded" : daysLeft < 0 ? "Expired" : `${daysLeft}`}
+                  value={membership.membership_type === "Lifetime" ? "Forever" : daysLeft === null ? "Not recorded" : daysLeft < 0 ? "Expired" : `${daysLeft}`}
                 />
                 <SummaryRow
                   label="Last payment"

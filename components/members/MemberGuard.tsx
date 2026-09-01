@@ -30,7 +30,9 @@ export type MemberMembership = {
   amount_paid: number | null;
   payment_reference: string | null;
   payment_date: string | null;
+  payment_method: string | null;
   notes: string | null;
+  verification_token: string;
   players: MemberProfile | MemberProfile[] | null;
 };
 
@@ -105,7 +107,7 @@ export default function MemberGuard({
       const { data, error } = await supabase
         .from("member_memberships")
         .select(
-          "id, user_id, player_id, chess_sa_id, member_email, membership_type, membership_status, start_date, end_date, amount_paid, payment_reference, payment_date, notes, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url, verification_status)"
+          "id, user_id, player_id, chess_sa_id, member_email, membership_type, membership_status, start_date, end_date, amount_paid, payment_reference, payment_date, payment_method, notes, verification_token, players(id, full_name, chess_sa_id, fide_id, rating, club, province, profile_photo_url, verification_status)"
         )
         .or(`user_id.eq.${user.id},member_email.eq.${userEmail}`)
         .order("end_date", { ascending: false, nullsFirst: false })

@@ -26,6 +26,7 @@ type MemberRow = {
   amount_paid: number | null;
   payment_reference: string | null;
   payment_date: string | null;
+  payment_method: string | null;
   created_at: string;
   players: Player | Player[] | null;
 };
@@ -58,6 +59,7 @@ export default function AdminMembersPage() {
   const [amountPaid, setAmountPaid] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -72,7 +74,7 @@ export default function AdminMembersPage() {
     const { data: memberData, error: memberError } = await supabase
       .from("member_memberships")
       .select(
-        "id, user_id, player_id, chess_sa_id, member_email, membership_type, membership_status, start_date, end_date, amount_paid, payment_reference, payment_date, created_at, players(id, full_name, chess_sa_id, rating)"
+        "id, user_id, player_id, chess_sa_id, member_email, membership_type, membership_status, start_date, end_date, amount_paid, payment_reference, payment_date, payment_method, created_at, players(id, full_name, chess_sa_id, rating)"
       )
       .order("end_date", { ascending: true, nullsFirst: false });
 
@@ -130,6 +132,12 @@ export default function AdminMembersPage() {
       return;
     }
 
+    if (membershipStatus === "Active" && membershipType !== "Lifetime" && !endDate) {
+      setMessage("Active memberships need an end date. Choose Lifetime only for approved permanent cards.");
+      setSaving(false);
+      return;
+    }
+
     const { error } = await supabase.from("member_memberships").upsert(
       {
         member_email: email,
@@ -138,10 +146,11 @@ export default function AdminMembersPage() {
         membership_type: membershipType,
         membership_status: membershipStatus,
         start_date: startDate || null,
-        end_date: endDate || null,
+        end_date: membershipType === "Lifetime" ? null : endDate || null,
         amount_paid: amountPaid ? Number(amountPaid) : null,
         payment_reference: paymentReference.trim() || null,
         payment_date: paymentDate || null,
+        payment_method: paymentMethod,
         notes: notes.trim() || null,
         updated_at: new Date().toISOString(),
       },
@@ -161,8 +170,9 @@ export default function AdminMembersPage() {
     setAmountPaid("");
     setPaymentReference("");
     setPaymentDate("");
+    setPaymentMethod("Cash");
     setNotes("");
-    setMessage("Membership saved.");
+    setMessage("Membership saved and its secure digital card issued.");
     setSaving(false);
     await loadMembers();
   }
@@ -226,6 +236,7 @@ export default function AdminMembersPage() {
     setAmountPaid(member.amount_paid?.toString() ?? "");
     setPaymentReference("");
     setPaymentDate(getSouthAfricaDateKey() ?? "");
+    setPaymentMethod(member.payment_method ?? "Cash");
     setNotes(member.payment_reference ? `Previous ref: ${member.payment_reference}` : "");
   }
 
@@ -309,6 +320,7 @@ export default function AdminMembersPage() {
                       <option>Junior</option>
                       <option>Family</option>
                       <option>Honorary</option>
+                      <option>Lifetime</option>
                     </select>
                   </label>
                   <label className="block">
@@ -341,13 +353,25 @@ export default function AdminMembersPage() {
                     <input
                       type="date"
                       value={endDate}
+                      disabled={membershipType === "Lifetime"}
                       onChange={(event) => setEndDate(event.target.value)}
                       className={inputClass}
                     />
+                    {membershipType === "Lifetime" && <span className="mt-2 block text-xs text-emerald-300">Lifetime cards do not expire.</span>}
                   </label>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
+                  <label className="block">
+                    <span className="text-sm font-semibold">Payment method</span>
+                    <select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} className={inputClass}>
+                      <option>Cash</option>
+                      <option>EFT / bank transfer</option>
+                      <option>Yoco</option>
+                      <option>Complimentary</option>
+                      <option>Other</option>
+                    </select>
+                  </label>
                   <label className="block">
                     <span className="text-sm font-semibold">Amount paid</span>
                     <input
@@ -357,7 +381,7 @@ export default function AdminMembersPage() {
                       className={inputClass}
                     />
                   </label>
-                  <label className="block">
+                  <label className="block md:col-start-2">
                     <span className="text-sm font-semibold">Payment date</span>
                     <input
                       type="date"
@@ -391,7 +415,7 @@ export default function AdminMembersPage() {
                   disabled={saving}
                   className="w-full rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
                 >
-                  {saving ? "Saving..." : "Save Membership"}
+                  {saving ? "Issuing card..." : "Save and issue digital card"}
                 </button>
               </form>
             </section>
@@ -460,7 +484,7 @@ export default function AdminMembersPage() {
                             {formatDate(member.start_date)}
                           </p>
                           <p className="text-sm text-zinc-300">
-                            {formatDate(member.end_date)}
+                            {member.membership_type === "Lifetime" ? "No expiry" : formatDate(member.end_date)}
                           </p>
                           <span className="w-fit rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-zinc-200">
                             {member.membership_status}

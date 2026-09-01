@@ -42,9 +42,17 @@ export default function DigitalMembershipCard({ membership, player, displayName 
         .limit(1)
         .maybeSingle();
       const cardOrder=(data as CardOrder | null) ?? null;
-      setOrder(cardOrder);
-      if(cardOrder){
-        const url=`${window.location.origin}/membership/verify/${cardOrder.verification_token}`;
+      const digitalCard=cardOrder??{
+        order_number:`PCC-MEMBER-${membership.id.slice(0,8).toUpperCase()}`,
+        plan_name:membership.membership_type,
+        verification_token:membership.verification_token,
+        starts_on:membership.start_date,
+        expires_on:membership.end_date,
+        membership_plans:null,
+      };
+      setOrder(digitalCard);
+      if(digitalCard.verification_token){
+        const url=`${window.location.origin}/membership/verify/${digitalCard.verification_token}`;
         setVerifyUrl(url);
         setQrImage(await QRCode.toDataURL(url,{width:320,margin:1,errorCorrectionLevel:"M"}));
       }
@@ -54,7 +62,7 @@ export default function DigitalMembershipCard({ membership, player, displayName 
   }, [membership.id]);
 
   if (loading) return <div className="grid aspect-[1.586/1] place-items-center rounded-2xl bg-zinc-900 text-sm font-bold text-zinc-400">Preparing digital card…</div>;
-  if (!order) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">Your membership is active, but no digital purchase card is linked yet. PCC can link older or manually-created memberships from Admin.</div>;
+  if (!order) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">Your digital membership card could not be prepared.</div>;
 
   const image = planImage(order);
 
@@ -69,7 +77,7 @@ export default function DigitalMembershipCard({ membership, player, displayName 
             <span className="rounded-full bg-emerald-500 px-3 py-1 text-[clamp(.55rem,1.2vw,.7rem)] font-black uppercase">{membership.membership_status}</span>
           </div>
           <div className="flex items-end justify-between gap-4">
-            <div className="min-w-0"><p className="truncate text-[clamp(1rem,3.5vw,2.2rem)] font-black">{displayName}</p><p className="mt-1 text-[clamp(.55rem,1.5vw,.85rem)] text-zinc-200">{order.plan_name} · Expires {date(order.expires_on ?? membership.end_date)}</p><p className="mt-1 text-[clamp(.5rem,1.2vw,.7rem)] font-bold text-zinc-300">{player?.chess_sa_id ? `Chess SA ${player.chess_sa_id}` : order.order_number}</p></div>
+            <div className="min-w-0"><p className="truncate text-[clamp(1rem,3.5vw,2.2rem)] font-black">{displayName}</p><p className="mt-1 text-[clamp(.55rem,1.5vw,.85rem)] text-zinc-200">{order.plan_name} · {order.expires_on ?? membership.end_date ? `Expires ${date(order.expires_on ?? membership.end_date)}` : "No expiry"}</p><p className="mt-1 text-[clamp(.5rem,1.2vw,.7rem)] font-bold text-zinc-300">{player?.chess_sa_id ? `Chess SA ${player.chess_sa_id}` : order.order_number}</p></div>
             <div className="relative h-[clamp(4.5rem,16vw,7.5rem)] w-[clamp(4.5rem,16vw,7.5rem)] shrink-0 overflow-hidden rounded-lg bg-white p-1">{qrImage&&<Image src={qrImage} alt="Scan to verify membership" fill sizes="120px" className="object-contain p-1" />}</div>
           </div>
         </div>
