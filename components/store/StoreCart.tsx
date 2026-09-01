@@ -11,6 +11,7 @@ export type CartLine = {
   imageUrl: string | null;
   quantity: number;
   option?: string;
+  maxQuantity?: number;
 };
 
 type CartContextValue = {
@@ -53,13 +54,14 @@ export function StoreCartProvider({ children }: { children: React.ReactNode }) {
     add(line, quantity = 1) {
       setLines((current) => {
         const found = current.find((item) => sameLine(item, line));
-        if (!found) return [...current, { ...line, quantity: Math.min(20, Math.max(1, quantity)) }];
-        return current.map((item) => sameLine(item, line) ? { ...item, quantity: Math.min(20, item.quantity + quantity) } : item);
+        const maximum = Math.min(20, Math.max(1, line.maxQuantity ?? 20));
+        if (!found) return [...current, { ...line, quantity: Math.min(maximum, Math.max(1, quantity)) }];
+        return current.map((item) => sameLine(item, line) ? { ...item, quantity: Math.min(maximum, item.quantity + quantity) } : item);
       });
     },
     update(productId, option, quantity) {
       if (quantity <= 0) setLines((current) => current.filter((line) => !sameLine(line, { productId, option })));
-      else setLines((current) => current.map((line) => sameLine(line, { productId, option }) ? { ...line, quantity: Math.min(20, quantity) } : line));
+      else setLines((current) => current.map((line) => sameLine(line, { productId, option }) ? { ...line, quantity: Math.min(line.maxQuantity ?? 20, 20, quantity) } : line));
     },
     remove(productId, option) { setLines((current) => current.filter((line) => !sameLine(line, { productId, option }))); },
     clear() { setLines([]); },
