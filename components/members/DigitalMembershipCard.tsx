@@ -16,7 +16,23 @@ type CardOrder = {
   membership_plans: { card_image_url: string | null } | { card_image_url: string | null }[] | null;
 };
 
+const cardTemplates: Record<string, string> = {
+  monthly: "/membership-card-templates/monthly.png",
+  "1 month": "/membership-card-templates/monthly.png",
+  "3-month": "/membership-card-templates/three-months.png",
+  "3 months": "/membership-card-templates/three-months.png",
+  "6-month": "/membership-card-templates/six-months.png",
+  "6 months": "/membership-card-templates/six-months.png",
+  yearly: "/membership-card-templates/yearly.png",
+  annual: "/membership-card-templates/yearly.png",
+  "12 months": "/membership-card-templates/yearly.png",
+  lifetime: "/membership-card-templates/lifetime.png",
+};
+
 function planImage(order: CardOrder) {
+  const planName = order.plan_name.trim().toLowerCase();
+  const template = Object.entries(cardTemplates).find(([name]) => planName.includes(name));
+  if (template) return template[1];
   const plan = Array.isArray(order.membership_plans) ? order.membership_plans[0] : order.membership_plans;
   return plan?.card_image_url ?? null;
 }
@@ -61,32 +77,27 @@ export default function DigitalMembershipCard({ membership, player, displayName 
     void load();
   }, [membership.card_image_url, membership.end_date, membership.id, membership.membership_type, membership.start_date, membership.verification_token]);
 
-  if (loading) return <div className="grid aspect-[1.586/1] place-items-center rounded-2xl bg-zinc-900 text-sm font-bold text-zinc-400">Preparing digital card…</div>;
+  if (loading) return <div className="mx-auto grid aspect-[1.56/1] w-full max-w-[30rem] place-items-center rounded-2xl bg-zinc-900 text-sm font-bold text-zinc-400">Preparing digital card…</div>;
   if (!order) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">Your digital membership card could not be prepared.</div>;
 
   const image = planImage(order);
 
   return (
-    <section>
-      <div className="relative aspect-[1.586/1] overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 to-red-900 text-white shadow-2xl">
-        {image && <Image src={image} alt={`${order.plan_name} membership card`} fill sizes="(min-width:1024px) 700px,100vw" className="object-cover" />}
-        <div className={`absolute inset-0 ${image ? "bg-gradient-to-t from-black/95 via-black/25 to-transparent" : "bg-gradient-to-r from-black/85 via-black/50 to-black/20"}`} />
-        <div className="absolute inset-0 flex flex-col justify-between p-[5%]">
-          <div className="flex items-start justify-between gap-4">
-            {!image&&<div><p className="text-[clamp(.55rem,1.4vw,.75rem)] font-black uppercase tracking-[.25em] text-red-300">Polokwane Chess Club</p><p className="mt-1 text-[clamp(1rem,3vw,2rem)] font-black">Digital Membership</p></div>}
-            <span className="ml-auto rounded-full bg-emerald-500 px-3 py-1 text-[clamp(.55rem,1.2vw,.7rem)] font-black uppercase shadow-lg">{membership.membership_status}</span>
-          </div>
-          <div className="flex items-end justify-between gap-4">
-            <div className="min-w-0"><p className="truncate text-[clamp(1rem,3.5vw,2.2rem)] font-black">{displayName}</p><p className="mt-1 text-[clamp(.55rem,1.5vw,.85rem)] text-zinc-200">{order.plan_name} · {order.expires_on ?? membership.end_date ? `Expires ${date(order.expires_on ?? membership.end_date)}` : "No expiry"}</p><p className="mt-1 text-[clamp(.5rem,1.2vw,.7rem)] font-bold text-zinc-300">{player?.chess_sa_id ? `Chess SA ${player.chess_sa_id}` : order.order_number}</p></div>
-            <div className="relative h-[clamp(4.5rem,16vw,7.5rem)] w-[clamp(4.5rem,16vw,7.5rem)] shrink-0 overflow-hidden rounded-lg bg-white p-1">{qrImage&&<Image src={qrImage} alt="Scan to verify membership" fill sizes="120px" className="object-contain p-1" />}</div>
-          </div>
-        </div>
+    <section className="mx-auto w-full max-w-[30rem]">
+      <div className="relative aspect-[1.56/1] overflow-hidden rounded-[clamp(.75rem,3vw,1.5rem)] bg-zinc-950 text-white shadow-xl ring-1 ring-black/10">
+        {image && <Image src={image} alt={`${order.plan_name} membership card`} fill sizes="(min-width:520px) 480px,calc(100vw - 32px)" className="object-cover" priority />}
+        {!image&&<div className="absolute inset-0 bg-gradient-to-br from-zinc-950 to-red-900 p-[6%]"><p className="text-xs font-black uppercase tracking-[.25em] text-red-300">Polokwane Chess Club</p><p className="mt-2 text-2xl font-black">Digital Membership</p></div>}
+        <p className="absolute left-[13.7%] top-[52.5%] max-w-[29%] truncate text-[clamp(.42rem,2.1vw,.78rem)] font-black uppercase tracking-wide text-white drop-shadow-md">{displayName}</p>
+        <p className="absolute left-[13.7%] top-[66%] max-w-[29%] truncate text-[clamp(.4rem,1.85vw,.7rem)] font-bold tracking-wide text-white drop-shadow-md">{order.order_number}</p>
+        <p className="absolute left-[13.7%] top-[79.5%] max-w-[29%] truncate text-[clamp(.4rem,1.85vw,.7rem)] font-bold tracking-wide text-white drop-shadow-md">{order.expires_on ?? membership.end_date ? date(order.expires_on ?? membership.end_date) : "NO EXPIRY"}</p>
+        <div className="absolute left-[77.2%] top-[50%] aspect-square w-[17.5%] overflow-hidden rounded-[8%] bg-white">{qrImage&&<Image src={qrImage} alt="Scan to verify membership" fill sizes="90px" className="object-contain p-[3%]" />}</div>
       </div>
-      <div className="mt-4 flex flex-wrap items-start gap-3">{process.env.NEXT_PUBLIC_GOOGLE_WALLET_ENABLED==="true"&&<GoogleWalletButton verificationToken={order.verification_token}/>} {qrImage&&<a href={qrImage} download={`PCC-${order.order_number}-QR.png`} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white">Save QR code</a>}<a href={verifyUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-zinc-300 px-5 py-3 text-sm font-black">Verify my card</a><LinkButton href="/membership">Renew membership</LinkButton></div>
+      <div className="mt-3 flex items-center justify-between gap-3"><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-800">{membership.membership_status}</span><span className="text-xs font-bold text-zinc-500">{player?.chess_sa_id ? `Chess SA ${player.chess_sa_id}` : order.plan_name}</span></div>
+      <div className="mt-4 flex flex-wrap items-start gap-2">{process.env.NEXT_PUBLIC_GOOGLE_WALLET_ENABLED==="true"&&<GoogleWalletButton verificationToken={order.verification_token}/>} {qrImage&&<a href={qrImage} download={`PCC-${order.order_number}-QR.png`} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-xs font-black text-white">Save QR</a>}<a href={verifyUrl} target="_blank" rel="noreferrer" className="rounded-lg border border-zinc-300 px-4 py-2.5 text-xs font-black">Verify card</a><LinkButton href="/membership">Renew</LinkButton></div>
     </section>
   );
 }
 
 function LinkButton({ href, children }: { href: string; children: React.ReactNode }) {
-  return <a href={href} className="rounded-xl border border-zinc-300 px-5 py-3 text-sm font-black">{children}</a>;
+  return <a href={href} className="rounded-lg border border-zinc-300 px-4 py-2.5 text-xs font-black">{children}</a>;
 }
