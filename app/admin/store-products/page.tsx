@@ -29,6 +29,8 @@ type StoreProduct = {
   published: boolean;
   featured: boolean;
   display_order: number;
+  available_options: string[];
+  variant_stock: Record<string, number>;
 };
 
 type ProductForm = {
@@ -49,6 +51,8 @@ type ProductForm = {
   published: boolean;
   featured: boolean;
   display_order: string;
+  available_options: string;
+  variant_stock: string;
 };
 
 const emptyForm: ProductForm = {
@@ -69,6 +73,8 @@ const emptyForm: ProductForm = {
   published: false,
   featured: false,
   display_order: "0",
+  available_options: "",
+  variant_stock: "",
 };
 
 const inputClass =
@@ -159,6 +165,8 @@ export default function StoreProductsAdminPage() {
       published: product.published,
       featured: product.featured,
       display_order: String(product.display_order),
+      available_options: (product.available_options ?? []).join(", "),
+      variant_stock: Object.entries(product.variant_stock ?? {}).map(([option, quantity]) => `${option}:${quantity}`).join(", "),
     });
     setMessage("");
     setError("");
@@ -235,6 +243,8 @@ export default function StoreProductsAdminPage() {
       published: form.published,
       featured: form.featured,
       display_order: Number(form.display_order) || 0,
+      available_options: form.available_options.split(",").map((value) => value.trim()).filter(Boolean),
+      variant_stock: Object.fromEntries(form.variant_stock.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => { const [option, quantity] = entry.split(":"); return [option.trim(), Math.max(0, Number(quantity) || 0)]; })),
     };
 
     const result = editingId
@@ -334,6 +344,8 @@ export default function StoreProductsAdminPage() {
               <Field label="Special ends"><input type="datetime-local" className={inputClass} value={form.sale_ends_at} onChange={(event) => updateField("sale_ends_at", event.target.value)} /></Field>
               <Field label="Stock quantity (optional)"><input type="number" min="0" step="1" className={inputClass} value={form.stock_quantity} onChange={(event) => updateField("stock_quantity", event.target.value)} /></Field>
               <Field label="Display order"><input type="number" step="1" className={inputClass} value={form.display_order} onChange={(event) => updateField("display_order", event.target.value)} /></Field>
+              <Field label="Options (comma separated)"><input className={inputClass} value={form.available_options} onChange={(event) => updateField("available_options", event.target.value)} placeholder="XS, S, M, L, XL" /></Field>
+              <Field label="Stock per option"><input className={inputClass} value={form.variant_stock} onChange={(event) => updateField("variant_stock", event.target.value)} placeholder="XS:2, S:5, M:8" /><span className="mt-2 block text-xs text-zinc-500">Leave blank if you track only the total stock quantity.</span></Field>
               <ImageField label="Main product image" url={form.primary_image_url} uploading={uploading === "primary"} onUpload={(event) => void uploadImage(event, "primary")} onRemove={() => updateField("primary_image_url", "")} />
               <ImageField label="Second image (optional)" url={form.secondary_image_url} uploading={uploading === "secondary"} onUpload={(event) => void uploadImage(event, "secondary")} onRemove={() => updateField("secondary_image_url", "")} />
             </div>

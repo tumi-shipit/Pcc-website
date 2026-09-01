@@ -9,6 +9,7 @@ const primaryNav = [
   { href: "/admin/home", label: "Overview" },
   { href: "/admin/tournaments", label: "Tournaments" },
   { href: "/admin/players", label: "Players" },
+  { href: "/admin/officials", label: "Officials" },
   { href: "/admin/membership", label: "Membership" },
   { href: "/admin/organisations", label: "Organisations" },
   { href: "/admin/registrations", label: "Entries" },

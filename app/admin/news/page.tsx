@@ -545,7 +545,7 @@ export default function AdminNewsPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function useTemplate(template: (typeof quickTemplates)[number]) {
+  function applyTemplate(template: (typeof quickTemplates)[number]) {
     setForm({
       title: template.title,
       excerpt: template.excerpt,
@@ -1236,7 +1236,7 @@ export default function AdminNewsPage() {
                           <button
                             key={template.title}
                             type="button"
-                            onClick={() => useTemplate(template)}
+                            onClick={() => applyTemplate(template)}
                             className="rounded-2xl border border-white/10 bg-zinc-950 p-4 text-left transition hover:border-red-500"
                           >
                             <p className="font-bold text-white">

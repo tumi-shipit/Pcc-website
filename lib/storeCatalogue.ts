@@ -20,9 +20,11 @@ export type StoreProduct = {
   secondary_image_url: string | null;
   featured: boolean;
   display_order: number;
+  available_options?: string[];
+  variant_stock?: Record<string, number>;
 };
 
-export const storeProductFields = "id,name,slug,description,category,colour,regular_price,sale_price,sale_label,sale_starts_at,sale_ends_at,stock_status,stock_quantity,primary_image_url,secondary_image_url,featured,display_order";
+export const storeProductFields = "id,name,slug,description,category,colour,regular_price,sale_price,sale_label,sale_starts_at,sale_ends_at,stock_status,stock_quantity,primary_image_url,secondary_image_url,featured,display_order,available_options,variant_stock";
 
 const fallbackProducts: StoreProduct[] = [
   { id: "mat", name: "PCC Tournament Chess Mat", slug: "pcc-tournament-chess-mat", description: "A faux-leather tournament chess mat for club, school and competition play.", category: "Chessboard", colour: "Faux leather", regular_price: 160, sale_price: null, sale_label: null, sale_starts_at: null, sale_ends_at: null, stock_status: "available", stock_quantity: null, primary_image_url: null, secondary_image_url: null, featured: false, display_order: 1 },
@@ -34,6 +36,11 @@ const fallbackProducts: StoreProduct[] = [
   { id: "jacket", name: "PCC Tournament Jacket", slug: "pcc-tournament-jacket", description: "A black zip-up jacket featuring PCC branding and a tournament-ready finish.", category: "Jacket", colour: "Black", regular_price: 1200, sale_price: null, sale_label: null, sale_starts_at: null, sale_ends_at: null, stock_status: "out-of-stock", stock_quantity: null, primary_image_url: "/images/store/pcc-tournament-jacket.png", secondary_image_url: null, featured: false, display_order: 7 },
   { id: "profile-photo", name: "PCC Player Profile Photo Upgrade", slug: "pcc-player-profile-photo-upgrade", description: "Add a professionally presented portrait to your PCC player profile. After payment, PCC will contact you to collect and approve the correct image for your profile.", category: "PCC Profile Service", colour: "Digital service", regular_price: 50, sale_price: 10, sale_label: "September special", sale_starts_at: "2026-08-31T22:00:00.000Z", sale_ends_at: "2026-09-30T22:00:00.000Z", stock_status: "available", stock_quantity: null, primary_image_url: "/images/store/pcc-profile-photo-upgrade.png", secondary_image_url: null, featured: true, display_order: 8 },
 ];
+
+for (const product of fallbackProducts) {
+  product.available_options = ["polo", "hoodie", "jacket"].includes(product.id) ? ["XS", "S", "M", "L", "XL"] : [];
+  product.variant_stock = {};
+}
 
 export function isEquipment(product: StoreProduct) {
   return ["chessboard", "chess clock", "equipment"].includes(product.category.toLowerCase());

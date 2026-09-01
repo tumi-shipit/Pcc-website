@@ -1,5 +1,6 @@
 import { createSign } from "node:crypto";
 import { createServerSupabase } from "@/lib/serverSupabase";
+import { allowRequest, rateLimitResponse } from "@/lib/serverRateLimit";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,7 @@ function signWalletJwt(payload: object, privateKey: string) {
 }
 
 export async function POST(request: Request) {
+  if (!await allowRequest(request, "google-wallet", 10, 600)) return rateLimitResponse();
   let body: { verificationToken?: unknown };
   try {
     body = await request.json();

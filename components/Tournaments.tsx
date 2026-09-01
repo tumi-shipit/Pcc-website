@@ -399,9 +399,7 @@ export default async function Tournaments({
             Tournaments
           </p>
 
-          <h2 className="text-3xl font-bold md:text-5xl">
-            Find your next tournament
-          </h2>
+          {fullPage ? <h1 className="text-3xl font-bold md:text-5xl">Find your next tournament</h1> : <h2 className="text-3xl font-bold md:text-5xl">Find your next tournament</h2>}
 
           <p className="mt-4 text-sm leading-6 text-gray-400 md:text-lg md:leading-8">
             Check the date, venue, sections and entry fee before you register.

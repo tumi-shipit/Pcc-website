@@ -266,7 +266,7 @@ export default function AdminPlayerNewsPage({
     setEditingPostId(null);
   }
 
-  function useTemplate(template: (typeof quickTemplates)[number]) {
+  function applyTemplate(template: (typeof quickTemplates)[number]) {
     setForm({
       title: `${template.title}: ${player?.full_name ?? ""}`,
       excerpt: template.excerpt,
@@ -637,7 +637,7 @@ export default function AdminPlayerNewsPage({
                     <button
                       key={template.title}
                       type="button"
-                      onClick={() => useTemplate(template)}
+                      onClick={() => applyTemplate(template)}
                       className="rounded-xl border border-white/10 bg-zinc-950 p-3 text-left text-sm transition hover:border-red-500"
                     >
                       <p className="font-bold text-white">{template.title}</p>
