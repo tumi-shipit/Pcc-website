@@ -66,8 +66,9 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServerSupabase();
+  const orderKind = event.payload?.metadata?.orderKind === "membership" ? "membership" : "store";
   if (event.type === "payment.succeeded") {
-    const { data, error } = await supabase.rpc("complete_store_order", {
+    const { data, error } = await supabase.rpc(orderKind === "membership" ? "complete_membership_order" : "complete_store_order", {
       p_order_id: orderId,
       p_payment_id: event.payload?.id ?? "",
       p_mode: event.payload?.mode ?? "test",
@@ -75,12 +76,12 @@ export async function POST(request: Request) {
       p_currency: event.payload?.currency ?? "",
     });
     if (error || data !== true) {
-      console.error("Store order payment validation failed", event.id, error?.message);
+      console.error(`${orderKind} payment validation failed`, event.id, error?.message);
       return new Response("Order validation failed", { status: 409 });
     }
   } else if (event.type === "payment.failed") {
     const { error } = await supabase
-      .from("store_orders")
+      .from(orderKind === "membership" ? "membership_orders" : "store_orders")
       .update({ status: "failed", yoco_payment_id: event.payload?.id ?? null })
       .eq("id", orderId)
       .neq("status", "paid");

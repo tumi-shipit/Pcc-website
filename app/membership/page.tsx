@@ -1,0 +1,8 @@
+import type { Metadata } from "next";
+import PublicPageShell from "@/components/PublicPageShell";
+import MembershipPlanCard from "@/components/membership/MembershipPlanCard";
+import { publicSupabase } from "@/lib/publicSupabase";
+export const dynamic="force-dynamic";
+export const metadata:Metadata={title:"PCC Membership",description:"Choose and pay for Polokwane Chess Club membership securely online."};
+type Plan={id:string;name:string;duration_months:number;price:number;description:string|null;card_image_url:string|null};
+export default async function MembershipPage(){const {data}=await publicSupabase.from("membership_plans").select("id,name,duration_months,price,description,card_image_url").eq("published",true).order("display_order");const plans=(data??[]) as Plan[];return <PublicPageShell><main className="min-h-screen bg-[#f5f5f3] pb-24 pt-28 text-slate-950"><section className="px-5 py-16 text-center"><p className="text-xs font-black uppercase tracking-[.25em] text-red-700">Join Polokwane Chess Club</p><h1 className="mx-auto mt-4 max-w-4xl text-5xl font-black tracking-tight sm:text-7xl">Membership that moves with you.</h1><p className="mx-auto mt-6 max-w-2xl leading-7 text-slate-600">Choose your period, pay securely through Yoco and receive a time-limited PCC digital membership card after confirmation.</p></section><section className="mx-auto grid max-w-6xl gap-7 px-5 md:grid-cols-2">{plans.length?plans.map(plan=><MembershipPlanCard key={plan.id} plan={plan}/>):<div className="md:col-span-2 rounded-3xl bg-white p-10 text-center"><h2 className="text-2xl font-black">Membership plans are being prepared.</h2><p className="mt-3 text-slate-600">PCC will publish prices and card designs here soon.</p></div>}</section></main></PublicPageShell>}

@@ -4,9 +4,6 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-const whatsappJoinLink =
-  "https://wa.me/27728787894?text=Hi%20Polokwane%20Chess%20Club%20%F0%9F%91%8B%0A%0AI%20would%20like%20to%20become%20a%20member.%0A%0AMy%20details%20are%3A%0A%0A%E2%80%A2%20Full%20Name%3A%0A%E2%80%A2%20Age%3A%0A%E2%80%A2%20School%20%2F%20Club%3A%0A%E2%80%A2%20Chess%20SA%20ID%20(if%20available)%3A%0A%E2%80%A2%20Playing%20Strength%3A%0A%E2%80%A2%20Parent%2FGuardian%20Name%20(if%20junior)%3A%0A%E2%80%A2%20Contact%20Number%3A%0A%0AI%20would%20like%20more%20information%20about%20membership.";
-
 export default function Navbar() {
   const [open, setOpen] = useState(false);
   const links = [
@@ -14,6 +11,7 @@ export default function Navbar() {
     { href: "/tournaments", label: "Tournaments" },
     { href: "/players", label: "Players" },
     { href: "/store", label: "Store" },
+    { href: "/membership", label: "Membership" },
     { href: "/news", label: "News" },
     { href: "/contact", label: "Contact" },
     { href: "/admin", label: "Admin" },
@@ -51,14 +49,12 @@ export default function Navbar() {
           >
             Register
           </Link>
-          <a
-            href={whatsappJoinLink}
-            target="_blank"
-            rel="noopener noreferrer"
+          <Link
+            href="/membership"
             className="rounded-lg bg-green-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-green-700"
           >
             Join
-          </a>
+          </Link>
         </div>
 
         <button
@@ -96,15 +92,13 @@ export default function Navbar() {
               Register for a Tournament
             </Link>
 
-            <a
-              href={whatsappJoinLink}
-              target="_blank"
-              rel="noopener noreferrer"
+            <Link
+              href="/membership"
               onClick={() => setOpen(false)}
               className="rounded-lg bg-green-600 px-4 py-3 text-center text-sm font-bold"
             >
               Become a Member
-            </a>
+            </Link>
           </div>
         </div>
       )}
