@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 export const runtime = "edge";
 
 const previews: Record<string, { eyebrow: string; title: string; description: string; accent: string }> = {
-  store: { eyebrow: "Official PCC online store", title: "Chess gear. Clubwear. PCC services.", description: "Shop securely online with Yoco. Equipment, apparel and player-profile services in one place.", accent: "#dc2626" },
+  store: { eyebrow: "Official PCC online store", title: "Chess gear. Clubwear. PCC services.", description: "Shop securely online. Equipment, apparel and player-profile services in one place.", accent: "#dc2626" },
   membership: { eyebrow: "Join Polokwane Chess Club", title: "PCC Membership", description: "Choose a membership period and pay securely online.", accent: "#059669" },
   tournaments: { eyebrow: "Events and registration", title: "PCC Tournaments", description: "Find chess events, tournament information and online registration.", accent: "#dc2626" },
   players: { eyebrow: "Player centre", title: "PCC Player Profiles", description: "Find player profiles, ratings and verified tournament records.", accent: "#2563eb" },

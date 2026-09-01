@@ -44,8 +44,8 @@ export default function CheckoutForm({ productId, maxQuantity }: { productId: st
         <label className="text-sm font-bold">Quantity<input name="quantity" type="number" min="1" max={maxQuantity} defaultValue="1" required className="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-red-600" /></label>
       </div>
       {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 px-4 py-3 text-sm font-bold text-red-800">{error}</p>}
-      <button type="submit" disabled={submitting} className="mt-6 w-full rounded-xl bg-slate-950 px-5 py-3.5 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Opening secure payment..." : "Continue to secure Yoco payment"}</button>
-      <p className="mt-4 text-center text-xs leading-5 text-slate-500">Payment is completed on Yoco’s secure hosted checkout. PCC does not receive or store your card details.</p>
+      <button type="submit" disabled={submitting} className="mt-6 w-full rounded-xl bg-slate-950 px-5 py-3.5 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? "Opening secure payment..." : "Pay securely online"}</button>
+      <p className="mt-4 text-center text-xs leading-5 text-slate-500">PCC does not receive or keep your card details.</p>
     </form>
   );
 }
