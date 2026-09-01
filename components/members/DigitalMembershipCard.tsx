@@ -41,6 +41,11 @@ function date(value: string | null) {
   return value ? new Intl.DateTimeFormat("en-ZA", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T12:00:00`)) : "Pending";
 }
 
+function memberId(reference: string) {
+  const compact = reference.replace(/^PCC-(?:MEMBER|MEM)-/i, "PCC-");
+  return compact.length <= 18 ? compact : `PCC-${compact.slice(-8)}`;
+}
+
 export default function DigitalMembershipCard({ membership, player, displayName }: { membership: MemberMembership; player: MemberProfile | null; displayName: string }) {
   const [order, setOrder] = useState<CardOrder | null>(null);
   const [verifyUrl, setVerifyUrl] = useState("");
@@ -81,6 +86,7 @@ export default function DigitalMembershipCard({ membership, player, displayName 
   if (!order) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">Your digital membership card could not be prepared.</div>;
 
   const image = planImage(order);
+  const cardMemberId = memberId(order.order_number);
 
   return (
     <section className="mx-auto w-full max-w-[30rem]">
@@ -88,8 +94,8 @@ export default function DigitalMembershipCard({ membership, player, displayName 
         {image && <Image src={image} alt={`${order.plan_name} membership card`} fill sizes="(min-width:520px) 480px,calc(100vw - 32px)" className="object-cover" priority />}
         {!image&&<div className="absolute inset-0 bg-gradient-to-br from-zinc-950 to-red-900 p-[6%]"><p className="text-xs font-black uppercase tracking-[.25em] text-red-300">Polokwane Chess Club</p><p className="mt-2 text-2xl font-black">Digital Membership</p></div>}
         <p className="absolute left-[13.7%] top-[52.5%] max-w-[29%] truncate text-[clamp(.42rem,2.1vw,.78rem)] font-black uppercase tracking-wide text-white drop-shadow-md">{displayName}</p>
-        <p className="absolute left-[13.7%] top-[66%] max-w-[29%] truncate text-[clamp(.4rem,1.85vw,.7rem)] font-bold tracking-wide text-white drop-shadow-md">{order.order_number}</p>
-        <p className="absolute left-[13.7%] top-[79.5%] max-w-[29%] truncate text-[clamp(.4rem,1.85vw,.7rem)] font-bold tracking-wide text-white drop-shadow-md">{order.expires_on ?? membership.end_date ? date(order.expires_on ?? membership.end_date) : "NO EXPIRY"}</p>
+        <p className="absolute left-[13.7%] top-[66%] max-w-[31%] truncate text-[clamp(.4rem,1.85vw,.7rem)] font-bold tracking-wide text-white drop-shadow-md">{cardMemberId}</p>
+        <p className="absolute left-[13.7%] top-[78%] max-w-[31%] truncate text-[clamp(.38rem,1.7vw,.66rem)] font-bold tracking-wide text-white drop-shadow-md">{order.expires_on ?? membership.end_date ? date(order.expires_on ?? membership.end_date) : "NO EXPIRY"}</p>
         <div className="absolute left-[77.2%] top-[50%] aspect-square w-[17.5%] overflow-hidden rounded-[8%] bg-white">{qrImage&&<Image src={qrImage} alt="Scan to verify membership" fill sizes="90px" className="object-contain p-[3%]" />}</div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3"><span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black uppercase text-emerald-800">{membership.membership_status}</span><span className="text-xs font-bold text-zinc-500">{player?.chess_sa_id ? `Chess SA ${player.chess_sa_id}` : order.plan_name}</span></div>
