@@ -236,8 +236,8 @@ export default function AdminMembersPage() {
           <Link href="/admin/home" className="text-sm font-semibold text-red-300">
             Back to Command Centre
           </Link>
-          <Link href="/admin/membership-plans" className="ml-5 text-sm font-semibold text-red-300">
-            Membership plans and card designs
+          <Link href="/admin/membership" className="ml-5 text-sm font-semibold text-red-300">
+            Membership centre
           </Link>
 
           <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-6 md:p-8">
