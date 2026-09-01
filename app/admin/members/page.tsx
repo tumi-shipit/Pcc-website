@@ -27,9 +27,12 @@ type MemberRow = {
   payment_reference: string | null;
   payment_date: string | null;
   payment_method: string | null;
+  card_image_url: string | null;
   created_at: string;
   players: Player | Player[] | null;
 };
+
+type MembershipPlan = { id:string; name:string; duration_months:number; card_image_url:string|null };
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-red-500";
@@ -50,6 +53,7 @@ function formatDate(value: string | null) {
 export default function AdminMembersPage() {
   const [members, setMembers] = useState<MemberRow[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
+  const [cardDesigns, setCardDesigns] = useState<MembershipPlan[]>([]);
   const [memberEmail, setMemberEmail] = useState("");
   const [chessSaId, setChessSaId] = useState("");
   const [membershipType, setMembershipType] = useState("Annual");
@@ -60,6 +64,7 @@ export default function AdminMembersPage() {
   const [paymentReference, setPaymentReference] = useState("");
   const [paymentDate, setPaymentDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [cardImageUrl, setCardImageUrl] = useState("");
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -74,7 +79,7 @@ export default function AdminMembersPage() {
     const { data: memberData, error: memberError } = await supabase
       .from("member_memberships")
       .select(
-        "id, user_id, player_id, chess_sa_id, member_email, membership_type, membership_status, start_date, end_date, amount_paid, payment_reference, payment_date, payment_method, created_at, players(id, full_name, chess_sa_id, rating)"
+        "id, user_id, player_id, chess_sa_id, member_email, membership_type, membership_status, start_date, end_date, amount_paid, payment_reference, payment_date, payment_method, card_image_url, created_at, players(id, full_name, chess_sa_id, rating)"
       )
       .order("end_date", { ascending: true, nullsFirst: false });
 
@@ -83,6 +88,13 @@ export default function AdminMembersPage() {
       .select("id, full_name, chess_sa_id, rating")
       .order("full_name", { ascending: true })
       .limit(20000);
+
+    const { data: planData } = await supabase
+      .from("membership_plans")
+      .select("id,name,duration_months,card_image_url")
+      .not("card_image_url", "is", null)
+      .order("display_order");
+    setCardDesigns((planData ?? []) as MembershipPlan[]);
 
     if (memberError) {
       setMessage("Could not load memberships. Run the member centre SQL setup first.");
@@ -151,6 +163,7 @@ export default function AdminMembersPage() {
         payment_reference: paymentReference.trim() || null,
         payment_date: paymentDate || null,
         payment_method: paymentMethod,
+        card_image_url: cardImageUrl || null,
         notes: notes.trim() || null,
         updated_at: new Date().toISOString(),
       },
@@ -171,6 +184,7 @@ export default function AdminMembersPage() {
     setPaymentReference("");
     setPaymentDate("");
     setPaymentMethod("Cash");
+    setCardImageUrl("");
     setNotes("");
     setMessage("Membership saved and its secure digital card issued.");
     setSaving(false);
@@ -237,6 +251,7 @@ export default function AdminMembersPage() {
     setPaymentReference("");
     setPaymentDate(getSouthAfricaDateKey() ?? "");
     setPaymentMethod(member.payment_method ?? "Cash");
+    setCardImageUrl(member.card_image_url ?? "");
     setNotes(member.payment_reference ? `Previous ref: ${member.payment_reference}` : "");
   }
 
@@ -391,6 +406,15 @@ export default function AdminMembersPage() {
                     />
                   </label>
                 </div>
+
+                <label className="block">
+                  <span className="text-sm font-semibold">Digital card design</span>
+                  <select value={cardImageUrl} onChange={(event) => setCardImageUrl(event.target.value)} className={inputClass} required>
+                    <option value="">Choose an uploaded membership card</option>
+                    {cardDesigns.map((plan)=><option key={plan.id} value={plan.card_image_url??""}>{plan.name}</option>)}
+                  </select>
+                  <span className="mt-2 block text-xs text-zinc-400">Uses the card images uploaded under Membership cards and plans.</span>
+                </label>
 
                 <label className="block">
                   <span className="text-sm font-semibold">Payment reference</span>

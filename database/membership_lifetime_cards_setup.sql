@@ -6,6 +6,9 @@ add column if not exists verification_token uuid not null default gen_random_uui
 alter table public.member_memberships
 add column if not exists payment_method text;
 
+alter table public.member_memberships
+add column if not exists card_image_url text;
+
 update public.member_memberships
 set payment_method = 'Yoco'
 where payment_method is null and notes ilike '%purchased through PCC membership checkout%';
@@ -19,6 +22,10 @@ set membership_type = 'Lifetime',
     membership_status = 'Active',
     end_date = null,
     payment_method = 'Complimentary',
+    card_image_url = coalesce(
+      (select card_image_url from public.membership_plans where code = 'yearly' limit 1),
+      card_image_url
+    ),
     notes = concat_ws(E'\n', nullif(notes, ''), 'Lifetime PCC membership'),
     updated_at = now()
 where chess_sa_id = '198045799';

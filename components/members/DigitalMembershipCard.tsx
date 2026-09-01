@@ -48,7 +48,7 @@ export default function DigitalMembershipCard({ membership, player, displayName 
         verification_token:membership.verification_token,
         starts_on:membership.start_date,
         expires_on:membership.end_date,
-        membership_plans:null,
+        membership_plans:{card_image_url:membership.card_image_url},
       };
       setOrder(digitalCard);
       if(digitalCard.verification_token){
@@ -59,7 +59,7 @@ export default function DigitalMembershipCard({ membership, player, displayName 
       setLoading(false);
     }
     void load();
-  }, [membership.id]);
+  }, [membership.card_image_url, membership.end_date, membership.id, membership.membership_type, membership.start_date, membership.verification_token]);
 
   if (loading) return <div className="grid aspect-[1.586/1] place-items-center rounded-2xl bg-zinc-900 text-sm font-bold text-zinc-400">Preparing digital card…</div>;
   if (!order) return <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">Your digital membership card could not be prepared.</div>;
@@ -70,11 +70,11 @@ export default function DigitalMembershipCard({ membership, player, displayName 
     <section>
       <div className="relative aspect-[1.586/1] overflow-hidden rounded-2xl bg-gradient-to-br from-zinc-950 to-red-900 text-white shadow-2xl">
         {image && <Image src={image} alt={`${order.plan_name} membership card`} fill sizes="(min-width:1024px) 700px,100vw" className="object-cover" />}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/50 to-black/20" />
+        <div className={`absolute inset-0 ${image ? "bg-gradient-to-t from-black/95 via-black/25 to-transparent" : "bg-gradient-to-r from-black/85 via-black/50 to-black/20"}`} />
         <div className="absolute inset-0 flex flex-col justify-between p-[5%]">
           <div className="flex items-start justify-between gap-4">
-            <div><p className="text-[clamp(.55rem,1.4vw,.75rem)] font-black uppercase tracking-[.25em] text-red-300">Polokwane Chess Club</p><p className="mt-1 text-[clamp(1rem,3vw,2rem)] font-black">Digital Membership</p></div>
-            <span className="rounded-full bg-emerald-500 px-3 py-1 text-[clamp(.55rem,1.2vw,.7rem)] font-black uppercase">{membership.membership_status}</span>
+            {!image&&<div><p className="text-[clamp(.55rem,1.4vw,.75rem)] font-black uppercase tracking-[.25em] text-red-300">Polokwane Chess Club</p><p className="mt-1 text-[clamp(1rem,3vw,2rem)] font-black">Digital Membership</p></div>}
+            <span className="ml-auto rounded-full bg-emerald-500 px-3 py-1 text-[clamp(.55rem,1.2vw,.7rem)] font-black uppercase shadow-lg">{membership.membership_status}</span>
           </div>
           <div className="flex items-end justify-between gap-4">
             <div className="min-w-0"><p className="truncate text-[clamp(1rem,3.5vw,2.2rem)] font-black">{displayName}</p><p className="mt-1 text-[clamp(.55rem,1.5vw,.85rem)] text-zinc-200">{order.plan_name} · {order.expires_on ?? membership.end_date ? `Expires ${date(order.expires_on ?? membership.end_date)}` : "No expiry"}</p><p className="mt-1 text-[clamp(.5rem,1.2vw,.7rem)] font-bold text-zinc-300">{player?.chess_sa_id ? `Chess SA ${player.chess_sa_id}` : order.order_number}</p></div>
