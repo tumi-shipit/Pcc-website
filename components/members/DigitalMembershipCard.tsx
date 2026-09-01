@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import type { MemberMembership, MemberProfile } from "@/components/members/MemberGuard";
+import GoogleWalletButton from "@/components/members/GoogleWalletButton";
 
 type CardOrder = {
   order_number: string;
@@ -73,7 +74,7 @@ export default function DigitalMembershipCard({ membership, player, displayName 
           </div>
         </div>
       </div>
-      <div className="mt-4 flex flex-wrap gap-3">{qrImage&&<a href={qrImage} download={`PCC-${order.order_number}-QR.png`} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white">Save QR code</a>}<a href={verifyUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-zinc-300 px-5 py-3 text-sm font-black">Verify my card</a><LinkButton href="/membership">Renew membership</LinkButton></div>
+      <div className="mt-4 flex flex-wrap items-start gap-3">{process.env.NEXT_PUBLIC_GOOGLE_WALLET_ENABLED==="true"&&<GoogleWalletButton verificationToken={order.verification_token}/>} {qrImage&&<a href={qrImage} download={`PCC-${order.order_number}-QR.png`} className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-black text-white">Save QR code</a>}<a href={verifyUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-zinc-300 px-5 py-3 text-sm font-black">Verify my card</a><LinkButton href="/membership">Renew membership</LinkButton></div>
     </section>
   );
 }
