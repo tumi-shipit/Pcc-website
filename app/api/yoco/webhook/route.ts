@@ -66,9 +66,11 @@ export async function POST(request: Request) {
   }
 
   const supabase = createServerSupabase();
-  const orderKind = event.payload?.metadata?.orderKind === "membership" ? "membership" : "store";
+  const requestedKind = event.payload?.metadata?.orderKind;
+  const orderKind = requestedKind === "membership" ? "membership" : requestedKind === "registration" ? "registration" : "store";
   if (event.type === "payment.succeeded") {
-    const { data, error } = await supabase.rpc(orderKind === "membership" ? "complete_membership_order" : "complete_store_order", {
+    const completionFunction = orderKind === "membership" ? "complete_membership_order" : orderKind === "registration" ? "complete_registration_payment_order" : "complete_store_order";
+    const { data, error } = await supabase.rpc(completionFunction, {
       p_order_id: orderId,
       p_payment_id: event.payload?.id ?? "",
       p_mode: event.payload?.mode ?? "test",
@@ -81,7 +83,7 @@ export async function POST(request: Request) {
     }
   } else if (event.type === "payment.failed") {
     const { error } = await supabase
-      .from(orderKind === "membership" ? "membership_orders" : "store_orders")
+      .from(orderKind === "membership" ? "membership_orders" : orderKind === "registration" ? "registration_payment_orders" : "store_orders")
       .update({ status: "failed", yoco_payment_id: event.payload?.id ?? null })
       .eq("id", orderId)
       .neq("status", "paid");

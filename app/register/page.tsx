@@ -73,6 +73,7 @@ type Tournament = {
   province: string | null;
   entry_fee: number;
   payment_details: string | null;
+  online_payment_enabled: boolean;
   poster_image_url: string | null;
   registration_status?: string | null;
   rating_type?: TournamentRatingType | null;
@@ -425,7 +426,7 @@ export default function RegisterPage() {
   const [loadingSections, setLoadingSections] = useState(false);
   const [selectedSectionId, setSelectedSectionId] = useState("");
 
-  const [paymentChoice, setPaymentChoice] = useState<"later" | "proof">(
+  const [paymentChoice, setPaymentChoice] = useState<"later" | "proof" | "online">(
     "later"
   );
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -527,7 +528,9 @@ export default function RegisterPage() {
     selectedSectionId && !selectedSectionEligibilityMessage
   );
   const hasPaymentChoice =
-    paymentChoice === "later" || (paymentChoice === "proof" && Boolean(proofFile));
+    paymentChoice === "later" ||
+    (paymentChoice === "proof" && Boolean(proofFile)) ||
+    (paymentChoice === "online" && Boolean(selectedTournament?.online_payment_enabled) && entryFee > 0);
   const readinessItems = useMemo<Array<[boolean, string]>>(
     () => [
       [hasSelectedPlayer, "Player confirmed"],
@@ -566,7 +569,7 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, poster_image_url, registration_status"
+          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, online_payment_enabled, poster_image_url, registration_status"
         )
         .eq("registration_status", "Open")
         .order("start_date", { ascending: true });
@@ -1250,6 +1253,16 @@ export default function RegisterPage() {
         return;
       }
 
+      if (paymentChoice === "online") {
+        const { data: createdRegistration } = await supabase.from("registration_details").select("registration_id").eq("tournament_id", selectedTournamentId).eq("section_id", selectedSectionId).eq("email", email.trim().toLowerCase()).eq("full_name", newPlayerFullName || selectedChessSaPlayer?.full_name || "").order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if (!createdRegistration?.registration_id) throw new Error("Your entry was saved, but secure payment could not be linked. It remains pending.");
+        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ registrationId: createdRegistration.registration_id }) });
+        const checkout = await response.json().catch(() => null) as { redirectUrl?: string; error?: string } | null;
+        if (!response.ok || !checkout?.redirectUrl) throw new Error(checkout?.error || "Secure payment could not be started. Your entry remains pending.");
+        window.location.assign(checkout.redirectUrl);
+        return;
+      }
+
       setRegistrationMessage(
         "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
       );
@@ -1260,8 +1273,7 @@ export default function RegisterPage() {
         tournamentId: selectedTournamentId,
         tournamentName: selectedTournament?.tournament_name ?? "Tournament",
         sectionName: selectedSection?.section_name ?? "Section pending",
-        paymentStatus:
-          paymentChoice === "proof" ? "Proof submitted for review" : "Pay later",
+        paymentStatus: paymentChoice === "proof" ? "Proof submitted for review" : "Pay later",
         contact: `${email.trim()} / ${phone.trim()}`,
       });
       setRegistrationSubmitted(true);
@@ -2076,12 +2088,15 @@ export default function RegisterPage() {
 
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
               <h3 className="text-xl font-bold md:text-2xl">4. Payment option</h3>
-              <p className="mt-2 text-sm leading-6 text-gray-400">
-                You can submit the entry first and pay later, or upload proof if
-                payment has already been made.
-              </p>
+              <p className="mt-2 text-sm leading-6 text-gray-400">Choose how you want the organiser to handle this entry&apos;s payment.</p>
 
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <div className={`mt-4 grid gap-3 ${selectedTournament?.online_payment_enabled && entryFee > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                {selectedTournament?.online_payment_enabled && entryFee > 0 && (
+                  <button type="button" onClick={() => { setPaymentChoice("online"); setProofFile(null); }} className={`rounded-lg border p-4 text-left transition ${paymentChoice === "online" ? "border-green-500 bg-green-600/20" : "border-white/10 bg-zinc-950 hover:border-green-500/60"}`}>
+                    <span className="font-semibold">Pay securely online</span>
+                    <span className="mt-1 block text-sm text-gray-400">Submit the entry, then continue to secure online payment.</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -2164,7 +2179,9 @@ export default function RegisterPage() {
                   </p>
                   <p>
                     <span className="font-semibold text-white">Payment:</span>{" "}
-                    {paymentChoice === "proof"
+                    {paymentChoice === "online"
+                      ? "Secure online payment"
+                      : paymentChoice === "proof"
                       ? "Proof uploaded for review"
                       : "Pay later"}
                   </p>

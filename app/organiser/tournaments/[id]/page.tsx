@@ -20,6 +20,7 @@ type Tournament = {
   start_date: string;
   venue: string | null;
   registration_status: string | null;
+  online_payment_enabled: boolean;
 };
 
 type RegistrationRow = {
@@ -160,7 +161,7 @@ function TournamentEntries({
 
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
-      .select("id, tournament_name, start_date, venue, registration_status")
+      .select("id, tournament_name, start_date, venue, registration_status, online_payment_enabled")
       .eq("id", tournamentId)
       .single();
 
@@ -416,6 +417,20 @@ function TournamentEntries({
     );
   }
 
+  async function toggleOnlinePayment() {
+    if (!tournament) return;
+    setUpdating(true);
+    setMessage("");
+    const next = !tournament.online_payment_enabled;
+    const { error } = await supabase.rpc("set_tournament_online_payment", { p_tournament_id: tournament.id, p_enabled: next });
+    if (error) setMessage(`Could not change online payment: ${error.message}`);
+    else {
+      setTournament({ ...tournament, online_payment_enabled: next });
+      setMessage(`Secure online payment ${next ? "enabled" : "disabled"} for this tournament.`);
+    }
+    setUpdating(false);
+  }
+
   async function readBulkTemplate(file: File | undefined) {
     if (!file) return;
 
@@ -608,6 +623,13 @@ function TournamentEntries({
           <StatCard label="Approved" value={stats.approved} />
           <StatCard label="Paid" value={stats.paid} />
           <StatCard label="Pending" value={stats.pending} />
+        </section>
+
+        <section className="mt-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div><p className="text-xs font-black uppercase tracking-[0.2em] text-emerald-300">Registration payments</p><h2 className="mt-2 text-xl font-black">Secure online payment is {tournament?.online_payment_enabled ? "enabled" : "disabled"}</h2><p className="mt-2 text-sm text-zinc-400">When enabled, players can pay the tournament or section fee immediately after submitting their entry.</p></div>
+            <button type="button" disabled={updating || !tournament} onClick={toggleOnlinePayment} className={`rounded-xl px-5 py-3 text-sm font-black ${tournament?.online_payment_enabled ? "border border-red-500/40 text-red-200" : "bg-emerald-600 text-white"}`}>{updating ? "Saving..." : tournament?.online_payment_enabled ? "Disable online payment" : "Enable online payment"}</button>
+          </div>
         </section>
 
         <section className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/5 p-5 md:p-6">
