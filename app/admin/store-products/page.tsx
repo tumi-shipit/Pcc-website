@@ -283,6 +283,31 @@ export default function StoreProductsAdminPage() {
     else await loadProducts();
   }
 
+  async function setStorefrontLead(product: StoreProduct) {
+    setError("");
+    setMessage("");
+    const { error: selectError } = await supabase
+      .from("store_products")
+      .update({ featured: true })
+      .eq("id", product.id);
+    if (selectError) {
+      setError(selectError.message);
+      return;
+    }
+
+    const { error: clearError } = await supabase
+      .from("store_products")
+      .update({ featured: false })
+      .neq("id", product.id)
+      .eq("featured", true);
+    if (clearError) {
+      setError(`The opening product was selected, but older selections could not be cleared: ${clearError.message}`);
+    } else {
+      setMessage(`${product.name} will now be the first product visitors see.`);
+    }
+    await loadProducts();
+  }
+
   const discount = form.sale_price && Number(form.regular_price) > 0
     ? Math.round((1 - Number(form.sale_price) / Number(form.regular_price)) * 100)
     : 0;
@@ -296,7 +321,7 @@ export default function StoreProductsAdminPage() {
               <p className="text-xs font-black uppercase tracking-[0.22em] text-red-300">Store manager</p>
               <h1 className="mt-3 text-4xl font-black tracking-tight">Products, stock and specials</h1>
               <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-400">
-                Add product images, update prices, schedule specials, control stock and choose what appears publicly.
+                Add product images, update prices, schedule specials, control stock and choose the first product visitors see.
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
@@ -352,7 +377,6 @@ export default function StoreProductsAdminPage() {
 
             <div className="mt-6 flex flex-wrap gap-5 rounded-2xl border border-white/10 bg-zinc-950 p-4">
               <Check label="Published on public store" checked={form.published} onChange={(value) => updateField("published", value)} />
-              <Check label="Featured product" checked={form.featured} onChange={(value) => updateField("featured", value)} />
             </div>
             <button type="submit" disabled={saving || Boolean(uploading)} className="mt-6 rounded-xl bg-red-600 px-6 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50">
               {saving ? "Saving..." : editingId ? "Save changes" : "Create product"}
@@ -372,6 +396,7 @@ export default function StoreProductsAdminPage() {
                       <div className="p-5">
                         <div className="flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-wide">
                           <span className={`rounded-full px-2.5 py-1 ${product.published ? "bg-emerald-500/15 text-emerald-300" : "bg-zinc-800 text-zinc-400"}`}>{product.published ? "Published" : "Hidden"}</span>
+                          {product.featured && <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-amber-200">Shown first</span>}
                           <span className="rounded-full bg-white/10 px-2.5 py-1 text-zinc-300">{product.stock_status.replaceAll("-", " ")}</span>
                           {isSaleActive(product) && <span className="rounded-full bg-red-500/20 px-2.5 py-1 text-red-200">{product.sale_label || "Special"}</span>}
                         </div>
@@ -385,6 +410,7 @@ export default function StoreProductsAdminPage() {
                     <div className="flex flex-wrap gap-2 border-t border-white/10 p-4">
                       <button type="button" onClick={() => startEdit(product)} className="rounded-lg bg-white px-4 py-2 text-sm font-black text-zinc-950">Edit</button>
                       <button type="button" onClick={() => void togglePublished(product)} className="rounded-lg border border-white/15 px-4 py-2 text-sm font-bold">{product.published ? "Hide" : "Publish"}</button>
+                      <button type="button" disabled={product.featured || !product.published} onClick={() => void setStorefrontLead(product)} className="rounded-lg border border-amber-400/40 px-4 py-2 text-sm font-bold text-amber-200 disabled:cursor-not-allowed disabled:opacity-40">{product.featured ? "Shown first" : "Show first"}</button>
                       <button type="button" onClick={() => void deleteProduct(product)} className="ml-auto rounded-lg border border-red-500/40 px-4 py-2 text-sm font-bold text-red-300">Delete</button>
                     </div>
                   </article>
