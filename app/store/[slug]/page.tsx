@@ -31,7 +31,14 @@ export default async function ProductPage({ params }: PageProps<"/store/[slug]">
   const sale = isSaleActive(product);
   const price = currentProductPrice(product);
   const apparel = !isEquipment(product) && !isMembership(product) && !service;
-  const images = [product.primary_image_url, product.secondary_image_url].filter(Boolean) as string[];
+  const images = product.slug === "pcc-chess-pieces-polo"
+    ? [
+        "/images/store/pcc-white-polo-front.png",
+        "/images/store/pcc-white-polo-left.png",
+        "/images/store/pcc-white-polo-back-fixed.png",
+        "/images/store/pcc-white-polo-right.png",
+      ]
+    : [product.primary_image_url, product.secondary_image_url].filter(Boolean) as string[];
 
   return <PublicPageShell><main className="min-h-screen bg-white px-5 pb-20 pt-32 text-slate-950 sm:px-8"><div className="mx-auto max-w-7xl">
     <nav className="mb-7 flex gap-2 text-xs font-bold text-slate-500"><Link href="/store">Store</Link><span>/</span><span>{product.category}</span></nav>
