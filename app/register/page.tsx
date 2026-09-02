@@ -1323,72 +1323,24 @@ export default function RegisterPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {[
-              [
-                "1",
-                "Find the player",
-                "Search first so we do not create duplicate player records.",
-              ],
-              [
-                "2",
-                "Choose event",
-                "Select the tournament and the correct section for the player.",
-              ],
-              [
-                "3",
-                "Send the entry",
-                "Add contact details, choose payment option and submit.",
-              ],
-            ].map(([number, title, description]) => (
-              <div
-                key={number}
-                className="rounded-xl border border-white/10 bg-zinc-900 p-4"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
-                  {number}
-                </span>
-
-                <h2 className="mt-3 text-base font-bold">{title}</h2>
-                <p className="mt-1.5 text-xs leading-5 text-gray-400">
-                  {description}
-                </p>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-5">
-            <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-red-400">
-                  School and coach helper
-                </p>
-
-                <h2 className="mt-2 text-xl font-black text-white">
-                  Register many players from one Excel sheet
-                </h2>
-
-                <p className="mt-2 text-sm leading-6 text-gray-400">
-                  Schools, teachers, coaches, chess clubs and chess
-                  organisations can use this template to register a large
-                  number of players. The completed list can be sent to the
-                  tournament organiser.
-                </p>
-              </div>
-
-              <a
-                href="/templates/pcc-bulk-registration-template.xlsx"
-                download
-                className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200"
-              >
-                Download Excel template
-              </a>
-            </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            <a href="#single-player" className="group rounded-2xl border border-red-500/30 bg-red-500/10 p-5 transition hover:border-red-400 hover:bg-red-500/15">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-red-300">Most registrations</p>
+              <h2 className="mt-2 text-xl font-black">Register one player</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-300">Find or create the player, choose the event and submit the entry online.</p>
+              <span className="mt-4 inline-flex font-bold text-white group-hover:underline">Start individual entry →</span>
+            </a>
+            <a href="#bulk-registration" className="group rounded-2xl border border-white/15 bg-zinc-900 p-5 transition hover:border-white/30">
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-300">Schools and organisations</p>
+              <h2 className="mt-2 text-xl font-black">Register multiple players</h2>
+              <p className="mt-2 text-sm leading-6 text-gray-400">Use the PCC Excel template when entering a team, school or larger group.</p>
+              <span className="mt-4 inline-flex font-bold text-white group-hover:underline">Open bulk registration →</span>
+            </a>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
+      <section id="single-player" className="mx-auto max-w-5xl scroll-mt-24 px-4 py-8 md:px-6 md:py-12">
         <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
           <h2 className="text-xl font-bold md:text-2xl">
             1. Find the player profile
@@ -2268,28 +2220,18 @@ export default function RegisterPage() {
           </form>
         )}
 
-        <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
-          <h2 className="text-xl font-bold md:text-2xl">How registration works</h2>
-
-          <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {[
-              ["1", "Search", "Use Chess SA ID, or surname with date of birth."],
-              ["2", "Confirm", "Confirm that the player found is you."],
-              ["3", "Choose", "Select the tournament and section."],
-              ["4", "Submit", "Submit your entry for admin review."],
-            ].map(([number, title, text]) => (
-              <div
-                key={number}
-                className="rounded-xl border border-white/10 bg-zinc-950 p-5"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-red-600 text-sm font-bold">
-                  {number}
-                </span>
-
-                <h3 className="mt-4 font-bold">{title}</h3>
-                <p className="mt-1.5 text-xs leading-5 text-gray-400">{text}</p>
-              </div>
-            ))}
+        <div id="bulk-registration" className="mt-6 scroll-mt-24 rounded-2xl border border-blue-500/20 bg-zinc-900 p-5 md:p-7">
+          <div className="grid gap-5 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-300">Bulk registration</p>
+              <h2 className="mt-2 text-xl font-black md:text-2xl">Register a school, team or group</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-400">
+                Schools, coaches, clubs and organisations can complete one Excel template for multiple players and send it to the tournament organiser.
+              </p>
+            </div>
+            <a href="/templates/pcc-bulk-registration-template.xlsx" download className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200">
+              Download Excel template
+            </a>
           </div>
         </div>
       </section>
