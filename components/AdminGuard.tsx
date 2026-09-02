@@ -124,7 +124,9 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   const visibleToolNav =
     currentRole === "super_admin" || currentRole === "admin"
       ? toolNav
-      : toolNav.filter((item) => item.href === "/admin/search");
+      : currentRole === "organisation_admin"
+        ? toolNav.filter((item) => ["/admin/search", "/admin/store-products"].includes(item.href))
+        : toolNav.filter((item) => item.href === "/admin/search");
   const roleLabel =
     currentRole === "super_admin"
       ? "Super Admin"

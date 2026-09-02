@@ -31,7 +31,11 @@ type StoreProduct = {
   display_order: number;
   available_options: string[];
   variant_stock: Record<string, number>;
+  organisation_id: string | null;
+  organisations?: { name: string } | null;
 };
+
+type Organisation = { id: string; name: string };
 
 type ProductForm = {
   name: string;
@@ -53,6 +57,7 @@ type ProductForm = {
   display_order: string;
   available_options: string;
   variant_stock: string;
+  organisation_id: string;
 };
 
 const emptyForm: ProductForm = {
@@ -75,6 +80,7 @@ const emptyForm: ProductForm = {
   display_order: "0",
   available_options: "",
   variant_stock: "",
+  organisation_id: "",
 };
 
 const inputClass =
@@ -104,6 +110,7 @@ function isSaleActive(product: StoreProduct) {
 
 export default function StoreProductsAdminPage() {
   const [products, setProducts] = useState<StoreProduct[]>([]);
+  const [organisations, setOrganisations] = useState<Organisation[]>([]);
   const [form, setForm] = useState<ProductForm>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,11 +122,15 @@ export default function StoreProductsAdminPage() {
   const loadProducts = useCallback(async () => {
     setLoading(true);
     setError("");
-    const { data, error: loadError } = await supabase
-      .from("store_products")
-      .select("*")
-      .order("display_order", { ascending: true })
-      .order("created_at", { ascending: true });
+    const [productResult, organisationResult] = await Promise.all([
+      supabase
+        .from("store_products")
+        .select("*, organisations(name)")
+        .order("display_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+      supabase.from("organisations").select("id,name").order("name"),
+    ]);
+    const { data, error: loadError } = productResult;
 
     if (loadError) {
       setError(
@@ -129,6 +140,9 @@ export default function StoreProductsAdminPage() {
       );
     } else {
       setProducts((data ?? []) as StoreProduct[]);
+    }
+    if (!organisationResult.error) {
+      setOrganisations((organisationResult.data ?? []) as Organisation[]);
     }
     setLoading(false);
   }, []);
@@ -167,6 +181,7 @@ export default function StoreProductsAdminPage() {
       display_order: String(product.display_order),
       available_options: (product.available_options ?? []).join(", "),
       variant_stock: Object.entries(product.variant_stock ?? {}).map(([option, quantity]) => `${option}:${quantity}`).join(", "),
+      organisation_id: product.organisation_id ?? "",
     });
     setMessage("");
     setError("");
@@ -185,12 +200,17 @@ export default function StoreProductsAdminPage() {
     event.target.value = "";
     if (!file) return;
 
+    if (!form.organisation_id) {
+      setError("Select the seller organisation before uploading product images.");
+      return;
+    }
+
     setUploading(target);
     setError("");
     try {
       const uploadFile = await resizeImageForUpload(file, { maxDimension: 1800, quality: 0.86 });
       const extension = uploadFile.name.split(".").pop()?.toLowerCase() || "jpg";
-      const path = `${editingId ?? "new"}/${Date.now()}-${target}.${extension}`;
+      const path = `${form.organisation_id}/${editingId ?? "new"}/${Date.now()}-${target}.${extension}`;
       const { error: uploadError } = await supabase.storage
         .from("product-images")
         .upload(path, uploadFile, { cacheControl: "3600", upsert: false });
@@ -214,8 +234,8 @@ export default function StoreProductsAdminPage() {
 
     const regularPrice = Number(form.regular_price);
     const salePrice = form.sale_price ? Number(form.sale_price) : null;
-    if (!form.name.trim() || !Number.isFinite(regularPrice) || regularPrice < 0) {
-      setError("A product name and valid regular price are required.");
+    if (!form.name.trim() || !Number.isFinite(regularPrice) || regularPrice < 0 || !form.organisation_id) {
+      setError("A product name, seller organisation and valid regular price are required.");
       setSaving(false);
       return;
     }
@@ -245,6 +265,7 @@ export default function StoreProductsAdminPage() {
       display_order: Number(form.display_order) || 0,
       available_options: form.available_options.split(",").map((value) => value.trim()).filter(Boolean),
       variant_stock: Object.fromEntries(form.variant_stock.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => { const [option, quantity] = entry.split(":"); return [option.trim(), Math.max(0, Number(quantity) || 0)]; })),
+      organisation_id: form.organisation_id,
     };
 
     const result = editingId
@@ -358,6 +379,7 @@ export default function StoreProductsAdminPage() {
             <div className="mt-6 grid gap-5 lg:grid-cols-2">
               <Field label="Product name"><input className={inputClass} value={form.name} onChange={(event) => { updateField("name", event.target.value); if (!editingId) updateField("slug", slugify(event.target.value)); }} required /></Field>
               <Field label="Web address"><input className={inputClass} value={form.slug} onChange={(event) => updateField("slug", slugify(event.target.value))} placeholder="automatic-from-product-name" /></Field>
+              <Field label="Sold by"><select className={inputClass} value={form.organisation_id} onChange={(event) => updateField("organisation_id", event.target.value)} required><option value="">Select organisation</option>{organisations.map((organisation) => <option key={organisation.id} value={organisation.id}>{organisation.name}</option>)}</select><span className="mt-2 block text-xs text-zinc-500">The seller appears on the public product card and controls who can manage this item.</span></Field>
               <Field label="Category"><input className={inputClass} value={form.category} onChange={(event) => updateField("category", event.target.value)} placeholder="Chess clock, Apparel, Chessboard" /></Field>
               <Field label="Colour / model"><input className={inputClass} value={form.colour} onChange={(event) => updateField("colour", event.target.value)} /></Field>
               <div className="lg:col-span-2"><Field label="Description"><textarea className={`${inputClass} min-h-28`} value={form.description} onChange={(event) => updateField("description", event.target.value)} /></Field></div>
@@ -402,6 +424,7 @@ export default function StoreProductsAdminPage() {
                         </div>
                         <p className="mt-3 text-xs font-bold uppercase tracking-wide text-zinc-500">{product.category}</p>
                         <h3 className="mt-1 text-xl font-black">{product.name}</h3>
+                        <p className="mt-1 text-xs font-semibold text-zinc-400">Sold by {product.organisations?.name ?? "Seller not assigned"}</p>
                         <div className="mt-3 flex items-baseline gap-2">
                           {isSaleActive(product) ? <><span className="text-xl font-black text-red-300">R{product.sale_price?.toLocaleString("en-ZA")}</span><span className="text-sm font-bold text-zinc-500 line-through">R{product.regular_price.toLocaleString("en-ZA")}</span></> : <span className="text-xl font-black">R{product.regular_price.toLocaleString("en-ZA")}</span>}
                         </div>

@@ -433,6 +433,7 @@ export default function RegisterPage() {
   const [submittingRegistration, setSubmittingRegistration] = useState(false);
   const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState("");
+  const [paymentReturnStatus, setPaymentReturnStatus] = useState("");
   const [registrationReceipt, setRegistrationReceipt] =
     useState<RegistrationReceipt | null>(null);
   const [openPoster, setOpenPoster] = useState<Tournament | null>(null);
@@ -560,6 +561,7 @@ export default function RegisterPage() {
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
     setRequestedTournamentId(query.get("tournament") ?? "");
+    setPaymentReturnStatus(query.get("payment") ?? "");
   }, []);
 
   useEffect(() => {
@@ -1353,6 +1355,7 @@ export default function RegisterPage() {
       </section>
 
       <section id="single-player" className="mx-auto max-w-5xl scroll-mt-24 px-4 py-8 md:px-6 md:py-12">
+        {paymentReturnStatus && <div className={`mb-6 rounded-2xl border p-5 text-sm font-bold ${paymentReturnStatus === "success" ? "border-green-500/40 bg-green-500/10 text-green-200" : "border-amber-500/40 bg-amber-500/10 text-amber-100"}`}>{paymentReturnStatus === "success" ? "Payment received. Your registration will show as paid once the secure confirmation is processed." : "Payment was not completed. Your registration is still saved and remains pending."}</div>}
         <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
           <h2 className="text-xl font-bold md:text-2xl">
             1. Find the player profile
