@@ -44,6 +44,8 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Linking writes run as a separate POST, never inside a read-only RLS check.
+      await supabase.rpc("link_current_admin_account");
       const { data: roleData } = await supabase.rpc("current_admin_role");
       let isAdmin = typeof roleData === "string" && roleData.length > 0;
       const resolvedRole = isAdmin ? (roleData as string) : null;

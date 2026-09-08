@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
+import TournamentOnlinePayment from "@/components/admin/TournamentOnlinePayment";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
   chunkItems,
@@ -708,6 +709,7 @@ export default function AdminTournamentDashboardPage() {
            Back to Admin Dashboard
         </Link>
 
+        <TournamentOnlinePayment tournamentId={tournamentId} />
         <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">
             <div className="relative aspect-[3/4]">

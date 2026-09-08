@@ -486,6 +486,22 @@ export default function RegisterPage() {
 
   const entryFee =
     selectedSection?.entry_fee_override ?? selectedTournament?.entry_fee ?? 0;
+
+  useEffect(() => {
+    if (!selectedTournamentId) return;
+    let cancelled = false;
+    async function refreshPaymentSetting() {
+      const { data, error } = await supabase.from("tournaments")
+        .select("online_payment_enabled").eq("id", selectedTournamentId).single();
+      if (cancelled || error || !data) return;
+      setTournaments(current => current.map(event => event.id === selectedTournamentId
+        ? { ...event, online_payment_enabled: data.online_payment_enabled === true } : event));
+    }
+    void refreshPaymentSetting();
+    window.addEventListener("focus", refreshPaymentSetting);
+    const timer = window.setInterval(refreshPaymentSetting, 30000);
+    return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", refreshPaymentSetting); };
+  }, [selectedTournamentId]);
   const selectedFeeText = selectedSection
     ? formatMoney(entryFee)
     : selectedTournament
@@ -1217,7 +1233,7 @@ export default function RegisterPage() {
       const tournamentRating = selectedPlayerRating;
       const newPlayerFullName = getNewPlayerFullName(newPlayer);
 
-      const { error } = await supabase.rpc("submit_tournament_registration", {
+      const { data: savedRegistrationId, error } = await supabase.rpc("submit_tournament_registration", {
         p_full_name: selectedChessSaPlayer
           ? selectedChessSaPlayer.full_name
           : newPlayerFullName,
@@ -1256,9 +1272,8 @@ export default function RegisterPage() {
       }
 
       if (paymentChoice === "online") {
-        const { data: createdRegistration } = await supabase.from("registration_details").select("registration_id").eq("tournament_id", selectedTournamentId).eq("section_id", selectedSectionId).eq("email", email.trim().toLowerCase()).eq("full_name", newPlayerFullName || selectedChessSaPlayer?.full_name || "").order("created_at", { ascending: false }).limit(1).maybeSingle();
-        if (!createdRegistration?.registration_id) throw new Error("Your entry was saved, but secure payment could not be linked. It remains pending.");
-        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ registrationId: createdRegistration.registration_id }) });
+        if (typeof savedRegistrationId !== "string" || !/^[0-9a-f-]{36}$/i.test(savedRegistrationId)) throw new Error("Your entry was saved, but secure payment could not be linked. It remains pending.");
+        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ registrationId: savedRegistrationId }) });
         const checkout = await response.json().catch(() => null) as { redirectUrl?: string; error?: string } | null;
         if (!response.ok || !checkout?.redirectUrl) throw new Error(checkout?.error || "Secure payment could not be started. Your entry remains pending.");
         window.location.assign(checkout.redirectUrl);
@@ -2091,6 +2106,7 @@ export default function RegisterPage() {
 
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
               <h3 className="text-xl font-bold md:text-2xl">4. Payment option</h3>
+              {selectedTournament?.online_payment_enabled && entryFee <= 0 && <p className="mt-3 text-sm text-amber-200">Secure online payment is enabled for this event. {selectedSection ? "This section has a R0 entry fee, so no online payment is required. If a fee is expected, contact the organiser to correct it." : "Choose a section with an entry fee to pay online."}</p>}
               <p className="mt-2 text-sm leading-6 text-gray-400">Choose how you want the organiser to handle this entry&apos;s payment.</p>
 
               <div className={`mt-4 grid gap-3 ${selectedTournament?.online_payment_enabled && entryFee > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
