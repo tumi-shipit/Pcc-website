@@ -2111,9 +2111,9 @@ export default function RegisterPage() {
 
               <div className={`mt-4 grid gap-3 ${selectedTournament?.online_payment_enabled && entryFee > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
                 {selectedTournament?.online_payment_enabled && entryFee > 0 && (
-                  <button type="button" onClick={() => { setPaymentChoice("online"); setProofFile(null); }} className={`rounded-lg border p-4 text-left transition ${paymentChoice === "online" ? "border-green-500 bg-green-600/20" : "border-white/10 bg-zinc-950 hover:border-green-500/60"}`}>
-                    <span className="font-semibold">Pay securely online</span>
-                    <span className="mt-1 block text-sm text-gray-400">Submit the entry, then continue to secure online payment.</span>
+                  <button type="button" aria-pressed={paymentChoice === "online"} onClick={() => { setPaymentChoice("online"); setProofFile(null); }} className={`rounded-lg border border-green-500 bg-green-800 p-4 text-left text-white transition hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${paymentChoice === "online" ? "ring-2 ring-green-300 ring-offset-2 ring-offset-zinc-900" : ""}`}>
+                    <span className="font-semibold">Pay now</span>
+                    <span className="mt-1 block text-sm text-green-100">Submit the entry, then continue to secure online payment.</span>
                   </button>
                 )}
                 <button
@@ -2199,7 +2199,7 @@ export default function RegisterPage() {
                   <p>
                     <span className="font-semibold text-white">Payment:</span>{" "}
                     {paymentChoice === "online"
-                      ? "Secure online payment"
+                      ? "Pay now"
                       : paymentChoice === "proof"
                       ? "Proof uploaded for review"
                       : "Pay later"}
