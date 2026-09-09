@@ -1233,7 +1233,7 @@ export default function RegisterPage() {
       const tournamentRating = selectedPlayerRating;
       const newPlayerFullName = getNewPlayerFullName(newPlayer);
 
-      const { data: savedRegistrationId, error } = await supabase.rpc("submit_tournament_registration", {
+      const { data: savedRegistrationId, error } = await supabase.rpc(paymentChoice === "online" ? "submit_tournament_registration_with_receipt" : "submit_tournament_registration", {
         p_full_name: selectedChessSaPlayer
           ? selectedChessSaPlayer.full_name
           : newPlayerFullName,
