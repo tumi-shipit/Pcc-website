@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
+import RegistrationRecovery, { recoveryStorageKey, type RecoveryReceipt } from "@/components/RegistrationRecovery";
 import {
   formatCalendarDate,
   getCalendarYear,
@@ -432,8 +433,10 @@ export default function RegisterPage() {
   const [proofFile, setProofFile] = useState<File | null>(null);
   const [submittingRegistration, setSubmittingRegistration] = useState(false);
   const [registrationSubmitted, setRegistrationSubmitted] = useState(false);
+  const [showRegistrationConfirmation, setShowRegistrationConfirmation] = useState(false);
   const [registrationMessage, setRegistrationMessage] = useState("");
   const [paymentReturnStatus, setPaymentReturnStatus] = useState("");
+  const [recoveryReceipt, setRecoveryReceipt] = useState<RecoveryReceipt | null>(null);
   const [registrationReceipt, setRegistrationReceipt] =
     useState<RegistrationReceipt | null>(null);
   const [openPoster, setOpenPoster] = useState<Tournament | null>(null);
@@ -578,6 +581,16 @@ export default function RegisterPage() {
     const query = new URLSearchParams(window.location.search);
     setRequestedTournamentId(query.get("tournament") ?? "");
     setPaymentReturnStatus(query.get("payment") ?? "");
+    try {
+      const fragment = new URLSearchParams(window.location.hash.slice(1));
+      const saved = fragment.has("recovery")
+        ? { registrationId: fragment.get("entry"), recoveryToken: fragment.get("recovery") }
+        : JSON.parse(localStorage.getItem(recoveryStorageKey) || "null");
+      if (saved && /^[0-9a-f-]{36}$/i.test(saved.registrationId) && /^[0-9a-f]{64}$/i.test(saved.recoveryToken)) {
+        setRecoveryReceipt(saved);
+        localStorage.setItem(recoveryStorageKey, JSON.stringify(saved));
+      }
+    } catch { /* Recovery links also work when browser storage is unavailable. */ }
   }, []);
 
   useEffect(() => {
@@ -1207,6 +1220,7 @@ export default function RegisterPage() {
 
     setSubmittingRegistration(true);
     setRegistrationMessage("");
+    let entryWasSaved = false;
 
     try {
       let proofOfPaymentUrl: string | null = null;
@@ -1233,7 +1247,7 @@ export default function RegisterPage() {
       const tournamentRating = selectedPlayerRating;
       const newPlayerFullName = getNewPlayerFullName(newPlayer);
 
-      const { data: savedRegistrationId, error } = await supabase.rpc(paymentChoice === "online" ? "submit_tournament_registration_with_receipt" : "submit_tournament_registration", {
+      const { data: savedReceipt, error } = await supabase.rpc("submit_tournament_registration_recoverable", {
         p_full_name: selectedChessSaPlayer
           ? selectedChessSaPlayer.full_name
           : newPlayerFullName,
@@ -1271,9 +1285,13 @@ export default function RegisterPage() {
         return;
       }
 
+      entryWasSaved = true;
+      if (!savedReceipt || !/^[0-9a-f-]{36}$/i.test(savedReceipt.registrationId) || !/^[0-9a-f]{64}$/i.test(savedReceipt.recoveryToken)) throw new Error("Your entry was saved, but its recovery link could not be created. Contact the organiser; do not register again.");
+      setRecoveryReceipt(savedReceipt);
+      setRegistrationSubmitted(true);
+      try { localStorage.setItem(recoveryStorageKey, JSON.stringify(savedReceipt)); } catch { /* The recovery panel still provides a copyable link. */ }
       if (paymentChoice === "online") {
-        if (typeof savedRegistrationId !== "string" || !/^[0-9a-f-]{36}$/i.test(savedRegistrationId)) throw new Error("Your entry was saved, but secure payment could not be linked. It remains pending.");
-        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ registrationId: savedRegistrationId }) });
+        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(savedReceipt) });
         const checkout = await response.json().catch(() => null) as { redirectUrl?: string; error?: string } | null;
         if (!response.ok || !checkout?.redirectUrl) throw new Error(checkout?.error || "Secure payment could not be started. Your entry remains pending.");
         window.location.assign(checkout.redirectUrl);
@@ -1294,11 +1312,12 @@ export default function RegisterPage() {
         contact: `${email.trim()} / ${phone.trim()}`,
       });
       setRegistrationSubmitted(true);
+      setShowRegistrationConfirmation(true);
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error.";
 
-      setRegistrationMessage(`Your registration could not be completed: ${errorMessage}`);
+      setRegistrationMessage(entryWasSaved ? `Your entry is saved. ${errorMessage} Use the saved registration panel above; do not register again.` : `Your registration could not be completed: ${errorMessage}`);
     } finally {
       setSubmittingRegistration(false);
     }
@@ -1370,7 +1389,8 @@ export default function RegisterPage() {
       </section>
 
       <section id="single-player" className="mx-auto max-w-5xl scroll-mt-24 px-4 py-8 md:px-6 md:py-12">
-        {paymentReturnStatus && <div className={`mb-6 rounded-2xl border p-5 text-sm font-bold ${paymentReturnStatus === "success" ? "border-green-500/40 bg-green-500/10 text-green-200" : "border-amber-500/40 bg-amber-500/10 text-amber-100"}`}>{paymentReturnStatus === "success" ? "Payment received. Your registration will show as paid once the secure confirmation is processed." : "Payment was not completed. Your registration is still saved and remains pending."}</div>}
+        {paymentReturnStatus && <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">You have returned from checkout. Check your saved entry’s payment status below; returning here does not confirm payment.</div>}
+        {recoveryReceipt && <RegistrationRecovery receipt={recoveryReceipt} />}
         <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
           <h2 className="text-xl font-bold md:text-2xl">
             1. Find the player profile
@@ -2307,7 +2327,7 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {registrationSubmitted && (
+      {showRegistrationConfirmation && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl border border-green-500/40 bg-zinc-950 p-6 text-center shadow-2xl shadow-green-950/30 md:p-8">
             <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-green-500 text-4xl font-black text-white shadow-lg shadow-green-500/30">
@@ -2357,7 +2377,7 @@ export default function RegisterPage() {
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
-                onClick={() => resetEntryForm(true)}
+                onClick={() => { setShowRegistrationConfirmation(false); resetEntryForm(true); }}
                 className="rounded-lg bg-green-600 px-4 py-3 font-semibold text-white transition hover:bg-green-700"
               >
                 Register another player
@@ -2365,7 +2385,7 @@ export default function RegisterPage() {
 
               <button
                 type="button"
-                onClick={() => setRegistrationSubmitted(false)}
+                onClick={() => setShowRegistrationConfirmation(false)}
                 className="rounded-lg border border-white/15 px-4 py-3 font-semibold text-white transition hover:border-white/40"
               >
                 Close
