@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
-import { IdentityMatch, IdentityPlayer, buildDuplicateMatches, makePairKey, identityConflicts } from "@/lib/identityResolver";
+import { IdentityMatch, IdentityPlayer, buildDuplicateMatchesInBatches, makePairKey, identityConflicts } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 type IgnoreRow = { player_a: string; player_b: string };
@@ -65,20 +65,23 @@ export default function PlayerDuplicatesPage() {
     () => new Set()
   );
   const [message, setMessage] = useState("");
+  const [matches, setMatches] = useState<IdentityMatch[]>([]);
+  const [scanning, setScanning] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(50);
 
   async function loadData() {
     setLoading(true);
-    setMessage("");
+    try {
 
     const { data: playerData, error: playerError } = await supabase
       .from("players")
       .select("id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, verification_status")
       .order("full_name", { ascending: true })
-      .limit(10000);
+      .limit(10000).abortSignal(AbortSignal.timeout(30000));
 
     const { data: ignoreData } = await supabase
       .from("player_duplicate_ignores")
-      .select("player_a, player_b");
+      .select("player_a, player_b").abortSignal(AbortSignal.timeout(30000));
 
     if (playerError) setMessage(`Could not load players: ${playerError.message}`);
     else {
@@ -86,7 +89,8 @@ export default function PlayerDuplicatesPage() {
       setIgnoredRows((ignoreData ?? []) as unknown as IgnoreRow[]);
     }
 
-    setLoading(false);
+    } catch { setMessage("Could not refresh duplicate records. Check your connection and refresh again."); }
+    finally { setLoading(false); }
   }
 
   useEffect(() => {
@@ -94,7 +98,16 @@ export default function PlayerDuplicatesPage() {
   }, []);
 
   const ignoredPairs = useMemo(() => new Set(ignoredRows.map((row) => makePairKey(row.player_a, row.player_b))), [ignoredRows]);
-  const matches = useMemo(() => buildDuplicateMatches(players, ignoredPairs, minimumScore), [players, ignoredPairs, minimumScore]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setScanning(true);
+    setMatches([]);
+    buildDuplicateMatchesInBatches(players, ignoredPairs, minimumScore, controller.signal)
+      .then(result => { if (!controller.signal.aborted) setMatches(result); })
+      .catch(() => { if (!controller.signal.aborted) setMessage("Duplicate scan failed. Please refresh."); })
+      .finally(() => { if (!controller.signal.aborted) setScanning(false); });
+    return () => controller.abort();
+  }, [players, ignoredPairs, minimumScore]);
 
   const filteredMatches = useMemo(() => {
     const text = search.trim().toLowerCase();
@@ -136,7 +149,7 @@ export default function PlayerDuplicatesPage() {
   function selectFilteredMatches() {
     setSelectedPairKeys(
       new Set(
-        filteredMatches.map((match) =>
+        filteredMatches.slice(0, visibleCount).map((match) =>
           makePairKey(match.playerA.id, match.playerB.id)
         )
       )
@@ -170,15 +183,15 @@ export default function PlayerDuplicatesPage() {
 
     setMergingKey(makePairKey(primaryId, duplicateId));
     setMessage("");
-
+    try {
     const { error } = await supabase.rpc("merge_players", {
       primary_player_id: primaryId,
       duplicate_player_id: duplicateId,
       reason: `Duplicate Centre merge. Score: ${match.score}. Reasons: ${match.reasons.join(", ")}`,
-    });
+    }).abortSignal(AbortSignal.timeout(30000));
 
     if (error) {
-      setMessage(`Could not merge players: ${error.message}`);
+      setMessage(`Merge was not confirmed: ${error.message}. Refresh and check both profile IDs before retrying.`);
       setMergingKey("");
       return;
     }
@@ -187,6 +200,9 @@ export default function PlayerDuplicatesPage() {
     setMergingKey("");
     setSelectedPairKeys(new Set());
     await loadData();
+    } catch {
+      setMessage("The merge response was interrupted. Its outcome is unknown: refresh and check both profile IDs before retrying.");
+    } finally { setMergingKey(""); }
   }
 
   async function ignorePair(match: IdentityMatch) {
@@ -288,13 +304,14 @@ export default function PlayerDuplicatesPage() {
     setMessage(`Bulk merging ${mergePlan.length} pair(s)...`);
 
     let merged = 0;
-
+    try {
     for (const item of mergePlan) {
+      setMessage(`Merging pair ${merged + 1} of ${mergePlan.length}...`);
       const { error } = await supabase.rpc("merge_players", {
         primary_player_id: item.primary.id,
         duplicate_player_id: item.duplicate.id,
         reason: `Duplicate Centre bulk merge. Score: ${item.match.score}. Reasons: ${item.match.reasons.join(", ")}`,
-      });
+      }).abortSignal(AbortSignal.timeout(30000));
 
       if (error) {
         setMessage(
@@ -312,6 +329,9 @@ export default function PlayerDuplicatesPage() {
     setSelectedPairKeys(new Set());
     setMergingKey("");
     await loadData();
+    } catch {
+      setMessage(`Stopped after ${merged} confirmed merge(s). The last request's outcome is unknown. Refresh before retrying.`);
+    } finally { setMergingKey(""); }
   }
 
   return (
@@ -327,6 +347,7 @@ export default function PlayerDuplicatesPage() {
             <h1 className="mt-3 text-4xl font-black md:text-6xl">Duplicate Player Centre</h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-gray-300 md:text-base md:leading-8">
               Find possible duplicate profiles using IDs, contacts, date of birth, name similarity, province and club.
+              Names can repeat across several separate profiles. Compare the profile IDs: each distinct pair is shown once.
             </p>
           </section>
 
@@ -360,7 +381,7 @@ export default function PlayerDuplicatesPage() {
                     Bulk Options
                   </p>
                   <p className="mt-2 text-sm text-gray-400">
-                    {selectedMatches.length} selected from {filteredMatches.length} visible suggestion{filteredMatches.length === 1 ? "" : "s"}
+                    {selectedMatches.length} selected · Showing {Math.min(visibleCount, filteredMatches.length)} of {filteredMatches.length} matching suggestions
                   </p>
                 </div>
 
@@ -410,13 +431,13 @@ export default function PlayerDuplicatesPage() {
             </section>
           )}
 
-          {loading ? (
+          {loading || scanning ? (
             <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">Scanning player database...</p>
           ) : filteredMatches.length === 0 ? (
             <p className="mt-8 rounded-2xl border border-white/10 bg-zinc-900 p-6 text-sm text-gray-400">No duplicate suggestions found.</p>
           ) : (
             <section className="mt-8 space-y-5">
-              {filteredMatches.map((match) => {
+              {filteredMatches.slice(0, visibleCount).map((match) => {
                 const pairKey = makePairKey(match.playerA.id, match.playerB.id);
                 const selected = selectedPairKeys.has(pairKey);
 
@@ -460,6 +481,7 @@ export default function PlayerDuplicatesPage() {
                   </article>
                 );
               })}
+              {filteredMatches.length > visibleCount && <button type="button" onClick={() => setVisibleCount(count => count + 50)} className="rounded-xl border border-white/20 p-3">Show next 50 pairs ({filteredMatches.length - visibleCount} remaining)</button>}
             </section>
           )}
         </div>
@@ -474,6 +496,7 @@ function PlayerMergeCard({ player, other, disabled, merging, onMerge }: { player
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <Link href={`/admin/players/${player.id}`} className="text-2xl font-black text-white transition hover:text-red-300">{player.full_name}</Link>
+          <p className="mt-2 break-all text-xs text-gray-400">Profile ID: {player.id}</p>
           <div className="mt-4 grid gap-2 text-sm text-gray-400 sm:grid-cols-2">
             <p>Chess SA: {valueOrDash(player.chess_sa_id)}</p>
             <p>FIDE: {valueOrDash(player.fide_id)}</p>

@@ -35,3 +35,19 @@ test('separate Names and Surname columns preserve full name', () => assert.equal
 test('quoted surname-first names parse correctly', () => assert.equal(sync.parseChessSaCsv('Full Name,CHESSA ID,DOB\n"Mokoena, Thabo",123456,2012-04-05')[0].full_name, 'Mokoena, Thabo'));
 test('impossible February date is rejected', () => assert.equal(sync.parseChessSaCsv('Full Name,CHESSA ID,DOB\nThabo Mokoena,123456,2012-02-31')[0].date_of_birth, null));
 test('valid leap day is retained', () => assert.equal(sync.parseChessSaCsv('Full Name,CHESSA ID,DOB\nThabo Mokoena,123456,2012-02-29')[0].date_of_birth, '2012-02-29'));
+test('repeated input rows never create self-pairs or repeat the same pair', () => {
+  const a = player(); const b = player({ id: 'other-profile' });
+  const results = identity.buildDuplicateMatches([a, a, b, b], new Set(), 70);
+  assert.equal(results.length, 1);
+  assert.notEqual(results[0].playerA.id, results[0].playerB.id);
+});
+test('three same-name profiles are three distinct pairs, not repeated pair IDs', () => {
+  const results = identity.buildDuplicateMatches([player(), player({ id: 'b' }), player({ id: 'c' })], new Set(), 70);
+  assert.equal(results.length, 3);
+  assert.equal(new Set(results.map(r => identity.makePairKey(r.playerA.id, r.playerB.id))).size, 3);
+});
+test('batched duplicate scanning agrees with synchronous scanning', async () => {
+  const players = [player(), player(), player({ id: 'b' })];
+  const result = await identity.buildDuplicateMatchesInBatches(players, new Set(), 70, new AbortController().signal);
+  assert.equal(result.length, 1);
+});

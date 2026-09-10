@@ -164,6 +164,8 @@ function RegistrationsPageContent() {
     useState<RegistrationDetail | null>(null);
   const [selectedRegistrationIds, setSelectedRegistrationIds] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
+  const [deleteIds, setDeleteIds] = useState<string[]>([]);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [exportFormat, setExportFormat] =
     useState<TournamentExportFormat>("swiss");
   const [stats, setStats] = useState<RegistrationStats>(emptyStats);
@@ -654,52 +656,36 @@ function RegistrationsPageContent() {
   }
 
   async function deleteSelectedRegistrations() {
-    if (selectedRegistrationIds.length === 0) {
-      setMessage("Select at least one registration first.");
+    if (updating || !deleteIds.length) return;
+    if (deleteConfirmation.trim().toUpperCase() !== `DELETE ${deleteIds.length}`) {
+      setMessage(`Nothing deleted. Enter DELETE ${deleteIds.length} to confirm.`);
       return;
     }
-
-    const deletePhrase = `DELETE ${selectedRegistrationIds.length}`;
-    const typed = window.prompt(
-      `Delete ${selectedRegistrationIds.length} selected registration${
-        selectedRegistrationIds.length === 1 ? "" : "s"
-      }?\n\nThis action cannot be undone. Type exactly: ${deletePhrase}`
-    );
-
-    if (typed !== deletePhrase) {
-      setMessage("Bulk delete cancelled.");
-      return;
-    }
-
+    const targets = [...deleteIds];
+    const deleted: string[] = [];
     setUpdating(true);
     setMessage("");
-
-    const selectedIds = [...selectedRegistrationIds];
-
-    for (const registrationId of selectedIds) {
-      const { error } = await supabase.rpc("admin_delete_registration", {
-        p_registration_id: registrationId,
-      });
-
-      if (error) {
-        setMessage(`Could not delete selected registrations: ${error.message}`);
-        setUpdating(false);
-        return;
+    try {
+      for (const registrationId of targets) {
+        setMessage(`Deleting ${deleted.length + 1} of ${targets.length} selected entries...`);
+        const { error } = await supabase.rpc("admin_delete_registration", {
+          p_registration_id: registrationId,
+        }).abortSignal(AbortSignal.timeout(30000));
+        if (error) throw new Error(error.message);
+        deleted.push(registrationId);
       }
+      setMessage(`Deleted ${deleted.length} registration(s). This cannot be undone.`);
+    } catch (error) {
+      setMessage(`Stopped after ${deleted.length} confirmed deletion(s) out of ${targets.length}. ${error instanceof Error ? error.message : "Request interrupted."} Refresh to verify remaining entries before retrying; an interrupted request may still have completed.`);
+    } finally {
+      const completed = new Set(deleted);
+      setRegistrations(current => current.filter(row => !completed.has(row.registration_id)));
+      setSelectedRegistrationIds(current => current.filter(id => !completed.has(id)));
+      setSelectedRegistration(current => current && completed.has(current.registration_id) ? null : current);
+      setDeleteIds([]);
+      setDeleteConfirmation("");
+      setUpdating(false);
     }
-
-    setSelectedRegistration((current) =>
-      current && selectedIds.includes(current.registration_id) ? null : current
-    );
-    setSelectedRegistrationIds([]);
-
-    await loadRegistrations();
-    setMessage(
-      `Deleted ${selectedIds.length} selected registration${
-        selectedIds.length === 1 ? "" : "s"
-      }.`
-    );
-    setUpdating(false);
   }
 
   async function fetchAllFilteredRegistrations() {
@@ -958,6 +944,19 @@ function RegistrationsPageContent() {
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
+        {deleteIds.length > 0 && <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-4">
+          <section role="alertdialog" aria-modal="true" aria-labelledby="delete-entries-title" className="w-full max-w-lg rounded-2xl border border-red-500/40 bg-zinc-950 p-6">
+            <h2 id="delete-entries-title" className="text-xl font-bold">Delete {deleteIds.length} selected registrations?</h2>
+            <p className="mt-3 text-sm text-gray-300">This cannot be undone. Only the entries selected when you opened this confirmation will be deleted.</p>
+            <label htmlFor="delete-entries-confirm" className="mt-4 block text-sm">Type DELETE {deleteIds.length} to confirm</label>
+            <input id="delete-entries-confirm" autoFocus autoComplete="off" disabled={updating} value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} className="mt-2 w-full rounded-lg border border-white/20 bg-zinc-900 p-3" />
+            <p role="status" className="mt-3 text-sm text-amber-200">{updating ? message : "No entries have been deleted yet."}</p>
+            <div className="mt-4 flex gap-3">
+              <button type="button" disabled={updating} onClick={() => setDeleteIds([])} className="rounded-lg border border-white/20 px-4 py-3">Cancel</button>
+              <button type="button" disabled={updating || deleteConfirmation.trim().toUpperCase() !== `DELETE ${deleteIds.length}`} onClick={deleteSelectedRegistrations} className="rounded-lg bg-red-700 px-4 py-3 font-bold disabled:opacity-40">{updating ? "Deleting…" : "Confirm deletion"}</button>
+            </div>
+          </section>
+        </div>}
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
             PCC Admin
@@ -1251,7 +1250,7 @@ function RegistrationsPageContent() {
 
                 <button
                   type="button"
-                  onClick={deleteSelectedRegistrations}
+                  onClick={() => { setDeleteIds([...new Set(selectedRegistrationIds)]); setDeleteConfirmation(""); }}
                   disabled={updating || selectedRegistrationIds.length === 0}
                   className="rounded-lg border border-red-600 px-4 py-2 text-sm font-semibold text-red-300 transition hover:bg-red-600/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >

@@ -197,6 +197,7 @@ export function buildDuplicateMatches(
   ignoredPairs: Set<string> = new Set(),
   minimumScore = 70
 ) {
+  players = [...new Map(players.filter(player => player.id).map(player => [player.id, player])).values()];
   const matches: IdentityMatch[] = [];
 
   for (let i = 0; i < players.length; i += 1) {
@@ -213,5 +214,24 @@ export function buildDuplicateMatches(
     }
   }
 
+  return matches.sort((a, b) => b.score - a.score);
+}
+
+export async function buildDuplicateMatchesInBatches(
+  players: IdentityPlayer[], ignoredPairs: Set<string>, minimumScore: number, signal: AbortSignal
+) {
+  const unique = [...new Map(players.filter(player => player.id).map(player => [player.id, player])).values()];
+  const matches: IdentityMatch[] = [];
+  let comparisons = 0;
+  for (let i = 0; i < unique.length; i++) {
+    for (let j = i + 1; j < unique.length; j++) {
+      if (signal.aborted) return [];
+      if (!ignoredPairs.has(makePairKey(unique[i].id, unique[j].id))) {
+        const match = calculateIdentityScore(unique[i], unique[j]);
+        if (match.score >= minimumScore) matches.push(match);
+      }
+      if (++comparisons % 1000 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  }
   return matches.sort((a, b) => b.score - a.score);
 }
