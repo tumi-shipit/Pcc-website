@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import AdminGuard from "@/components/AdminGuard";
-import { IdentityMatch, IdentityPlayer, buildDuplicateMatches, makePairKey } from "@/lib/identityResolver";
+import { IdentityMatch, IdentityPlayer, buildDuplicateMatches, makePairKey, identityConflicts } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 type IgnoreRow = { player_a: string; player_b: string };
@@ -158,6 +158,10 @@ export default function PlayerDuplicatesPage() {
   }
 
   async function mergePlayers(match: IdentityMatch, primaryId: string, duplicateId: string) {
+    if (identityConflicts(match.playerA, match.playerB).length) {
+      setMessage("Conflicting birth dates or federation IDs: verify and correct the identity records before merging.");
+      return;
+    }
     const primary = match.playerA.id === primaryId ? match.playerA : match.playerB;
     const duplicate = match.playerA.id === duplicateId ? match.playerA : match.playerB;
 
@@ -247,6 +251,10 @@ export default function PlayerDuplicatesPage() {
 
   async function mergeSelectedPairs() {
     if (selectedMatches.length === 0 || mergingKey) return;
+    if (selectedMatches.some(match => identityConflicts(match.playerA, match.playerB).length || match.score < 100)) {
+      setMessage("Bulk merge requires non-conflicting, exact identity matches. Review uncertain pairs individually.");
+      return;
+    }
 
     const seenPlayerIds = new Set<string>();
     const overlappingMatches = selectedMatches.filter((match) => {

@@ -4,6 +4,7 @@ import {
   normalizeId,
   normalizeText,
   tokenSimilarity,
+  identityConflicts,
 } from "@/lib/identityResolver";
 
 export type ChessSaSyncRow = {
@@ -115,7 +116,8 @@ function normalizeDate(value: string | undefined) {
     const numericDay = Number(day);
     if (numericMonth < 1 || numericMonth > 12) return false;
     if (numericDay < 1 || numericDay > 31) return false;
-    return true;
+    const parsed = new Date(Date.UTC(Number(year), numericMonth - 1, numericDay));
+    return parsed.getUTCFullYear() === Number(year) && parsed.getUTCMonth() === numericMonth - 1 && parsed.getUTCDate() === numericDay;
   };
 
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
@@ -330,7 +332,7 @@ export function parseChessSaCsv(text: string): ChessSaSyncRow[] {
           raw.surname_names ||
           raw.surname_first_names ||
           raw.surname_firstname ||
-          raw.names
+          (raw.surname ? undefined : raw.names)
       ) ??
       joinNameParts(raw.firstname || raw.first_name || raw.names, raw.surname) ??
       joinNameParts(raw.surname, raw.firstname || raw.first_name || raw.names) ??
@@ -381,7 +383,20 @@ export function analyseChessSaRows(
 ): ChessSaSyncDecision[] {
   const context = createAnalysisContext(rows, existingPlayers);
 
-  return rows.map((row) => analyseChessSaRow(row, context));
+  return flagCompetingLinks(rows.map((row) => analyseChessSaRow(row, context)));
+}
+
+function flagCompetingLinks(decisions: ChessSaSyncDecision[]) {
+  const targets = new Map<string, Set<string>>();
+  for (const decision of decisions) {
+    if (decision.action !== "update_existing" || !decision.matched_player_id) continue;
+    const ids = targets.get(decision.matched_player_id) || new Set<string>();
+    ids.add(normalizeId(decision.row.chess_sa_id));
+    targets.set(decision.matched_player_id, ids);
+  }
+  return decisions.map(decision => decision.matched_player_id && (targets.get(decision.matched_player_id)?.size || 0) > 1
+    ? { ...decision, action: "review" as const, reasons: [...decision.reasons, "Different imported Chess SA IDs target the same PCC profile — review required"] }
+    : decision);
 }
 
 function analyseChessSaRow(
@@ -454,7 +469,8 @@ function analyseChessSaRow(
       const match = calculateIdentityScore(importedIdentity, player);
       const nameOnlyScore = tokenSimilarity(row.full_name, player.full_name);
 
-      if (row.full_name && nameOnlyScore < 35 && match.score < 100) {
+      const conflicts = identityConflicts(importedIdentity, player);
+      if (conflicts.length || (row.full_name && nameOnlyScore < 35)) {
         return {
           row,
           matched_player_id: player.id,
@@ -463,7 +479,8 @@ function analyseChessSaRow(
           confidence_label: "Exact",
           action: "review",
           reasons: [
-            "Chess SA ID matches, but the imported name is very different from the Player Centre name",
+            ...conflicts,
+            ...(row.full_name && nameOnlyScore < 35 ? ["Chess SA ID matches, but the imported name is very different from the Player Centre name"] : []),
           ],
           matched_player: player,
         };
@@ -574,5 +591,5 @@ export async function analyseChessSaRowsInBatches(
     await yieldToBrowser();
   }
 
-  return decisions;
+  return flagCompetingLinks(decisions);
 }

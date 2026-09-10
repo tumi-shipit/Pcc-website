@@ -119,7 +119,7 @@ export function calculateIdentityScore(
     playerA.date_of_birth &&
     playerB.date_of_birth &&
     playerA.date_of_birth === playerB.date_of_birth &&
-    nameScore >= 60
+    exactNameAndBirthMatch(playerA, playerB)
   ) {
     score += 100;
     reasons.push("Name and date of birth match");
@@ -158,10 +158,12 @@ export function calculateIdentityScore(
     playerA.date_of_birth &&
     playerB.date_of_birth &&
     playerA.date_of_birth === playerB.date_of_birth &&
-    nameScore >= 60;
+    exactNameAndBirthMatch(playerA, playerB);
   const maximumScore =
     hasExactPlayerId || hasPlayerSpecificBiographicalMatch ? 100 : 85;
-  const finalScore = Math.min(score, maximumScore);
+  const conflicts = identityConflicts(playerA, playerB);
+  reasons.push(...conflicts);
+  const finalScore = Math.min(score, conflicts.length ? 85 : maximumScore);
 
   return {
     playerA,
@@ -170,6 +172,24 @@ export function calculateIdentityScore(
     reasons,
     confidence: finalScore >= 90 ? "High" : finalScore >= 70 ? "Medium" : "Low",
   };
+}
+
+export function identityConflicts(a: IdentityPlayer, b: IdentityPlayer): string[] {
+  const conflicts: string[] = [];
+  for (const [key, label] of [["chess_sa_id", "Chess SA IDs"], ["fide_id", "FIDE IDs"]] as const) {
+    const left = normalizeId(a[key]); const right = normalizeId(b[key]);
+    if (left && right && left !== right) conflicts.push(`${label} conflict — review required`);
+  }
+  if (a.date_of_birth && b.date_of_birth && a.date_of_birth !== b.date_of_birth) conflicts.push("Dates of birth conflict — review required");
+  return conflicts;
+}
+
+export function exactNameAndBirthMatch(a: IdentityPlayer, b: IdentityPlayer) {
+  if (!a.date_of_birth || a.date_of_birth !== b.date_of_birth) return false;
+  const tokens = (name: string) => normalizeText(name).split(" ").filter(Boolean).sort();
+  const left = tokens(a.full_name); const right = tokens(b.full_name);
+  // Name order can differ in CHESSA exports; initials and partial names are not automatic matches.
+  return left.length >= 2 && left.every(token => token.length > 1) && left.join(" ") === right.join(" ");
 }
 
 export function buildDuplicateMatches(

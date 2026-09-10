@@ -15,111 +15,12 @@ import {
   createImportSession,
   createImportSessionRows,
 } from "@/lib/importSummary";
-import { normalizeId, normalizeText, tokenSimilarity, type IdentityPlayer } from "@/lib/identityResolver";
+import { type IdentityPlayer } from "@/lib/identityResolver";
 import { supabase } from "@/lib/supabase";
 
 const inputClass =
   "w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none transition placeholder:text-gray-600 focus:border-red-500";
 
-function nameVariants(...names: Array<string | null | undefined>) {
-  const variants = new Set<string>();
-
-  names.forEach((name) => {
-    const cleanName = String(name ?? "").trim().replace(/\s+/g, " ");
-    if (!cleanName) return;
-
-    variants.add(cleanName);
-    const parts = cleanName.split(" ");
-    if (parts.length > 1) variants.add(`${parts.slice(1).join(" ")} ${parts[0]}`);
-  });
-
-  return Array.from(variants);
-}
-
-function nameTokens(name: string | null | undefined) {
-  return normalizeText(name)
-    .split(" ")
-    .filter((token) => token.length > 1);
-}
-
-function sharedNameTokenCount(left: string | null | undefined, right: string | null | undefined) {
-  const leftTokens = new Set(nameTokens(left));
-  const rightTokens = new Set(nameTokens(right));
-  return [...leftTokens].filter((token) => rightTokens.has(token)).length;
-}
-
-function sameOptionalValue(left: string | null | undefined, right: string | null | undefined) {
-  const cleanLeft = String(left ?? "").trim().toLowerCase();
-  const cleanRight = String(right ?? "").trim().toLowerCase();
-  if (!cleanLeft || !cleanRight) return true;
-  return cleanLeft === cleanRight;
-}
-
-async function relinkImportedTournamentHistory(
-  row: ChessSaSyncRow,
-  playerId: string,
-  matchedPlayerName: string | null
-) {
-  const variants = nameVariants(row.full_name, matchedPlayerName);
-  if (variants.length === 0) return 0;
-
-  const { data, error } = await supabase
-    .from("tournament_results")
-    .update({ player_id: playerId })
-    .is("player_id", null)
-    .in("imported_name", variants)
-    .select("id");
-
-  if (error) throw error;
-  return data?.length ?? 0;
-}
-
-async function mergeSafeImportedDuplicateProfiles(
-  row: ChessSaSyncRow,
-  primaryPlayerId: string,
-  matchedPlayerName: string | null
-) {
-  const { data, error } = await supabase
-    .from("players")
-    .select("id, full_name, chess_sa_id, fide_id, date_of_birth, verification_status")
-    .or("chess_sa_id.is.null,chess_sa_id.eq.")
-    .neq("id", primaryPlayerId)
-    .limit(10000);
-
-  if (error) throw error;
-
-  const candidates = ((data ?? []) as IdentityPlayer[]).filter((candidate) => {
-    if (candidate.verification_status === "Verified") return false;
-    if (!sameOptionalValue(candidate.fide_id, row.fide_id)) return false;
-    if (!sameOptionalValue(candidate.date_of_birth, row.date_of_birth)) return false;
-
-    const score = Math.max(
-      tokenSimilarity(candidate.full_name, row.full_name),
-      tokenSimilarity(candidate.full_name, matchedPlayerName ?? "")
-    );
-    const sharedTokens = Math.max(
-      sharedNameTokenCount(candidate.full_name, row.full_name),
-      sharedNameTokenCount(candidate.full_name, matchedPlayerName)
-    );
-
-    return score >= 50 && sharedTokens >= 2;
-  });
-
-  let merged = 0;
-
-  for (const candidate of candidates) {
-    const { error: mergeError } = await supabase.rpc("merge_players", {
-      primary_player_id: primaryPlayerId,
-      duplicate_player_id: candidate.id,
-      reason: `Chess SA Sync merged imported duplicate after verified identity match. Chess SA ID: ${normalizeId(row.chess_sa_id)}.`,
-    });
-
-    if (mergeError) throw mergeError;
-    merged += 1;
-  }
-
-  return merged;
-}
 
 export default function AdminPlayersSyncPage() {
   const [fileName, setFileName] = useState("");
@@ -251,8 +152,8 @@ export default function AdminPlayersSyncPage() {
     const ignoredRows = decisions.filter((decision) => decision.action === "skip").length;
     let skippedRows = ignoredRows;
     let failedRows = 0;
-    let relinkedTournamentRows = 0;
-    let mergedImportedProfiles = 0;
+    const relinkedTournamentRows = 0;
+    const mergedImportedProfiles = 0;
 
     const historyRows: any[] = [];
     const failureMessages: string[] = [];
@@ -291,7 +192,7 @@ export default function AdminPlayersSyncPage() {
 
         if (decision.action === "update_existing" && decision.matched_player_id) {
           const current = decision.matched_player;
-          const { error } = await supabase
+          let update = supabase
             .from("players")
             .update({
               chess_sa_id: row.chess_sa_id ?? current?.chess_sa_id ?? null,
@@ -306,19 +207,15 @@ export default function AdminPlayersSyncPage() {
               updated_at: new Date().toISOString(),
             })
             .eq("id", decision.matched_player_id);
-
+          update = current?.chess_sa_id == null ? update.is("chess_sa_id", null) : update.eq("chess_sa_id", current.chess_sa_id);
+          update = current?.date_of_birth == null ? update.is("date_of_birth", null) : update.eq("date_of_birth", current.date_of_birth);
+          const { data: changed, error } = await update.select("id");
           if (error) throw error;
+          if (!changed?.length) throw new Error("The player's identity changed after analysis. Analyse the file again before updating this player.");
 
-          relinkedTournamentRows += await relinkImportedTournamentHistory(
-            row,
-            decision.matched_player_id,
-            decision.matched_player_name
-          );
-          mergedImportedProfiles += await mergeSafeImportedDuplicateProfiles(
-            row,
-            decision.matched_player_id,
-            decision.matched_player_name
-          );
+          // Linking a CHESSA ID preserves this profile's ID and existing history.
+          // Do not merge other children or claim unlinked results by name alone.
+          // Separate duplicate profiles must be reviewed in the Duplicate Centre.
 
           updatedRows += 1;
 
@@ -400,11 +297,7 @@ export default function AdminPlayersSyncPage() {
         ? `Chess SA sync finished with ${failedRows} failed row${
             failedRows === 1 ? "" : "s"
           }. ${failureMessages.slice(0, 3).join(" ")}`
-        : `Chess SA synchronization complete. ${relinkedTournamentRows} imported tournament ranking row${
-            relinkedTournamentRows === 1 ? "" : "s"
-          } relinked, no new Player Centre records created, and ${mergedImportedProfiles} imported duplicate profile${
-            mergedImportedProfiles === 1 ? "" : "s"
-          } merged.`
+        : "Chess SA synchronization complete. Existing profiles updated; no new profiles created. Duplicate profiles and unlinked tournament history require separate review."
     );
   }
 
