@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { createServerSupabase } from "@/lib/serverSupabase";
+import { notifyTelegramPayment } from "@/lib/telegramPayments";
 
 export const runtime = "nodejs";
 
@@ -80,6 +81,15 @@ export async function POST(request: Request) {
     if (error || data !== true) {
       console.error(`${orderKind} payment validation failed`, event.id, error?.message);
       return new Response("Order validation failed", { status: 409 });
+    }
+    // Payment is already committed. A delivery failure requests a webhook retry;
+    // existing completion functions are idempotent and the alert has a unique order key.
+    try {
+      const delivered = await notifyTelegramPayment(orderKind, orderId, event.payload?.amount ?? 0, event.payload?.currency ?? "", event.payload?.mode ?? "test");
+      if (!delivered) return new Response("Payment recorded; notification retry required", { status: 503 });
+    } catch {
+      console.error("Payment recorded; Telegram notification could not be delivered", event.id);
+      return new Response("Payment recorded; notification retry required", { status: 503 });
     }
   } else if (event.type === "payment.failed") {
     const { error } = await supabase
