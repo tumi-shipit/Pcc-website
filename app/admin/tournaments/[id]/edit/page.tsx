@@ -33,6 +33,7 @@ type TournamentForm = {
   province: string;
   registration_open_date: string;
   registration_close_date: string;
+  registration_schedule_enabled: boolean;
   registration_status: TournamentStatus;
   tournament_type: TournamentType;
   rating_type: TournamentRatingType;
@@ -76,6 +77,7 @@ const emptyForm: TournamentForm = {
   province: "Limpopo",
   registration_open_date: "",
   registration_close_date: "",
+  registration_schedule_enabled: true,
   registration_status: "Draft",
   tournament_type: "Club",
   rating_type: "standard",
@@ -223,7 +225,7 @@ export default function EditTournamentPage() {
     useState<RatingImportSummary | null>(null);
   const [loadingRatingImport, setLoadingRatingImport] = useState(false);
 
-  function updateField(field: keyof TournamentForm, value: string) {
+  function updateField(field: keyof TournamentForm, value: string | boolean) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -400,7 +402,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, tournament_type, team_standings_basis, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, tournament_type, team_standings_basis, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -409,7 +411,7 @@ export default function EditTournamentPage() {
         const fallback = await supabase
           .from("tournaments")
           .select(
-            "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_status, entry_fee, poster_image_url, payment_details"
+            "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, entry_fee, poster_image_url, payment_details"
           )
           .eq("id", tournamentId)
           .single();
@@ -433,6 +435,7 @@ export default function EditTournamentPage() {
           province: fallback.data.province ?? "Limpopo",
           registration_open_date: fallback.data.registration_open_date ?? "",
           registration_close_date: fallback.data.registration_close_date ?? "",
+          registration_schedule_enabled: fallback.data.registration_schedule_enabled ?? true,
           registration_status: fallback.data.registration_status ?? "Draft",
           tournament_type: "Club",
           rating_type: "standard",
@@ -461,6 +464,7 @@ export default function EditTournamentPage() {
           province: data.province ?? "Limpopo",
           registration_open_date: data.registration_open_date ?? "",
           registration_close_date: data.registration_close_date ?? "",
+          registration_schedule_enabled: data.registration_schedule_enabled ?? true,
           registration_status: data.registration_status ?? "Draft",
           tournament_type:
             data.tournament_type === "District" ||
@@ -612,6 +616,7 @@ export default function EditTournamentPage() {
       province: form.province || null,
       registration_open_date: form.registration_open_date || form.start_date,
       registration_close_date: form.registration_close_date || form.start_date,
+      registration_schedule_enabled: form.registration_schedule_enabled,
       registration_status: form.registration_status,
       tournament_type: form.tournament_type,
       team_standings_basis: teamStandingsBasisForTournamentType(form.tournament_type),
@@ -977,6 +982,11 @@ export default function EditTournamentPage() {
                   className={inputClass}
                 />
               </div>
+
+              <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-zinc-950 p-4 text-sm">
+                <input type="checkbox" checked={form.registration_schedule_enabled} onChange={(event) => updateField("registration_schedule_enabled", event.target.checked)} className="mt-1" />
+                <span><span className="font-semibold text-white">Open and close registration automatically</span><span className="mt-1 block text-xs leading-5 text-gray-500">Uses the dates above in South African time. Disable this for manual control.</span></span>
+              </label>
 
               <div>
                 <label className="mb-2 block text-sm font-semibold">

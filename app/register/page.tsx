@@ -11,6 +11,7 @@ import {
 } from "@/lib/dateHelpers";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 import { uniqueLookupPlayers } from "@/lib/registrationSearch";
+import { registrationStatusAt } from "@/lib/registrationSchedule";
 import {
   normalizeTournamentRatingType,
   tournamentRatingLabel,
@@ -78,6 +79,9 @@ type Tournament = {
   online_payment_enabled: boolean;
   poster_image_url: string | null;
   registration_status?: string | null;
+  registration_open_date?: string | null;
+  registration_close_date?: string | null;
+  registration_schedule_enabled?: boolean | null;
   rating_type?: TournamentRatingType | null;
   rating_import_id?: string | null;
   fee_summary_label?: string;
@@ -579,7 +583,7 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, online_payment_enabled, poster_image_url, registration_status"
+          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, online_payment_enabled, poster_image_url, registration_status, registration_open_date, registration_close_date, registration_schedule_enabled"
         )
         .eq("registration_status", "Open")
         .order("start_date", { ascending: true });
@@ -587,7 +591,9 @@ export default function RegisterPage() {
       if (error) {
         setSearchMessage("Could not load open tournaments. Please try again.");
       } else {
-        let openTournaments = (data ?? []) as unknown as Tournament[];
+        let openTournaments = ((data ?? []) as unknown as Tournament[]).filter(
+          (tournament) => registrationStatusAt(tournament) === "Open"
+        );
         const tournamentIds = openTournaments.map((tournament) => tournament.id);
 
         if (tournamentIds.length > 0) {

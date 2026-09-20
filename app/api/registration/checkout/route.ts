@@ -1,6 +1,7 @@
 import { createServerSupabase } from "@/lib/serverSupabase";
 import { allowRequest, rateLimitResponse } from "@/lib/serverRateLimit";
 import { authorizeRegistrationRecovery } from "@/lib/registrationRecovery";
+import { registrationStatusAt } from "@/lib/registrationSchedule";
 
 export const runtime = "nodejs";
 
@@ -13,13 +14,13 @@ export async function POST(request: Request) {
   if (!/^[0-9a-f-]{36}$/i.test(registrationId)) return Response.json({ error: "Invalid registration." }, { status: 400 });
   if (!await authorizeRegistrationRecovery(registrationId, body?.recoveryToken)) return Response.json({ error: "Use your private registration recovery link, or contact the organiser." }, { status: 403 });
   const supabase = createServerSupabase();
-  const { data: registration } = await supabase.from("registrations").select("id,tournament_id,section_id,payment_status,registration_status,players(full_name),tournaments(tournament_name,entry_fee,online_payment_enabled,registration_status),tournament_sections(section_name,entry_fee_override)").eq("id", registrationId).single();
+  const { data: registration } = await supabase.from("registrations").select("id,tournament_id,section_id,payment_status,registration_status,players(full_name),tournaments(tournament_name,entry_fee,online_payment_enabled,registration_status,registration_open_date,registration_close_date,registration_schedule_enabled),tournament_sections(section_name,entry_fee_override)").eq("id", registrationId).single();
   if (!registration) return Response.json({ error: "Registration was not found." }, { status: 404 });
-  const tournament = registration.tournaments as unknown as { tournament_name:string;entry_fee:number;online_payment_enabled:boolean;registration_status:string };
+  const tournament = registration.tournaments as unknown as { tournament_name:string;entry_fee:number;online_payment_enabled:boolean;registration_status:string;registration_open_date:string|null;registration_close_date:string|null;registration_schedule_enabled:boolean|null };
   const section = registration.tournament_sections as unknown as { section_name:string;entry_fee_override:number|null };
   const player = registration.players as unknown as { full_name:string };
   if (!tournament || !section || !player || ["Rejected", "Withdrawn"].includes(registration.registration_status)) return Response.json({ error: "This entry cannot accept online payment. Contact the organiser." }, { status: 409 });
-  if (!tournament.online_payment_enabled || tournament.registration_status !== "Open") return Response.json({ error: "Online payment is not enabled for this tournament." }, { status: 403 });
+  if (!tournament.online_payment_enabled || registrationStatusAt(tournament) !== "Open") return Response.json({ error: "Online payment is not enabled for this tournament." }, { status: 403 });
   if (registration.payment_status === "Paid") return Response.json({ error: "This registration is already paid." }, { status: 409 });
   const amount = section.entry_fee_override ?? tournament.entry_fee;
   const amountCents = Math.round(Number(amount) * 100);

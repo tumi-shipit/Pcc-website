@@ -31,6 +31,7 @@ type TournamentForm = {
   province: string;
   registration_open_date: string;
   registration_close_date: string;
+  registration_schedule_enabled: boolean;
   registration_status: TournamentStatus;
   tournament_type: TournamentType;
   rating_type: TournamentRatingType;
@@ -74,6 +75,7 @@ const emptyForm: TournamentForm = {
   province: "Limpopo",
   registration_open_date: "",
   registration_close_date: "",
+  registration_schedule_enabled: true,
   registration_status: "Draft",
   tournament_type: "Club",
   rating_type: "standard",
@@ -234,7 +236,7 @@ export default function NewTournamentPage() {
     loadLatestRatingImport();
   }, [form.rating_type]);
 
-  function updateField(field: keyof TournamentForm, value: string) {
+  function updateField(field: keyof TournamentForm, value: string | boolean) {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
@@ -421,6 +423,7 @@ export default function NewTournamentPage() {
       province: form.province || null,
       registration_open_date: registrationOpenDate,
       registration_close_date: registrationCloseDate,
+      registration_schedule_enabled: form.registration_schedule_enabled,
       registration_status: form.registration_status,
       tournament_type: form.tournament_type,
       team_standings_basis: teamStandingsBasisForTournamentType(form.tournament_type),
@@ -701,6 +704,11 @@ export default function NewTournamentPage() {
                   className={inputClass}
                 />
               </div>
+
+              <label className="flex items-start gap-3 rounded-lg border border-white/10 bg-zinc-950 p-4 text-sm">
+                <input type="checkbox" checked={form.registration_schedule_enabled} onChange={(event) => updateField("registration_schedule_enabled", event.target.checked)} className="mt-1" />
+                <span><span className="font-semibold text-white">Open and close registration automatically</span><span className="mt-1 block text-xs leading-5 text-gray-500">Uses the dates above in South African time. You can disable this for a manual event.</span></span>
+              </label>
 
               <div>
                 <label className="mb-2 block text-sm font-semibold">

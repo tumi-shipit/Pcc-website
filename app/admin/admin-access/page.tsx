@@ -115,6 +115,7 @@ export default function AdminAccessPage() {
   const [requests, setRequests] = useState<AdminActionRequest[]>([]);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
   const [requestStatus, setRequestStatus] = useState("Pending");
+  const [selectedRequestIds, setSelectedRequestIds] = useState<string[]>([]);
   const [adminSearch, setAdminSearch] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -237,9 +238,19 @@ export default function AdminAccessPage() {
   }, []);
 
   const filteredRequests = useMemo(() => {
-    if (requestStatus === "All") return requests;
-    return requests.filter((request) => request.request_status === requestStatus);
+    const deletionRequests = requests.filter((request) => request.action_type === "delete_registration");
+    if (requestStatus === "All") return deletionRequests;
+    return deletionRequests.filter((request) => request.request_status === requestStatus);
   }, [requests, requestStatus]);
+
+  const groupedPendingRequests = useMemo(() => {
+    const groups = new Map<string, AdminActionRequest[]>();
+    filteredRequests.forEach((request) => {
+      const key = request.request_status === "Pending" ? request.action_type : "history";
+      groups.set(key, [...(groups.get(key) ?? []), request]);
+    });
+    return Array.from(groups.entries());
+  }, [filteredRequests]);
 
   const filteredAdmins = useMemo(() => {
     const query = adminSearch.trim().toLowerCase();
@@ -298,6 +309,21 @@ export default function AdminAccessPage() {
 
     setMessage(`Request ${decision.toLowerCase()}.`);
     await loadAccess();
+    setUpdatingId("");
+  }
+
+  async function reviewSelectedRequests(decision: "Approved" | "Rejected") {
+    if (!selectedRequestIds.length) return;
+    setUpdatingId("bulk");
+    setMessage("");
+    const { error } = await supabase.rpc("admin_review_action_requests", {
+      p_request_ids: selectedRequestIds,
+      p_decision: decision,
+    });
+    if (error) setMessage(`Could not review selected requests: ${error.message}`);
+    else setMessage(`${selectedRequestIds.length} deletion request(s) ${decision.toLowerCase()}.`);
+    setSelectedRequestIds([]);
+    await loadAccess({ keepMessage: true });
     setUpdatingId("");
   }
 
@@ -881,10 +907,10 @@ export default function AdminAccessPage() {
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
-                  Approval Queue
+                  Deletion Queue
                 </p>
                 <h2 className="mt-2 text-2xl font-black">
-                  Restricted admin requests
+                  Super-admin deletion requests
                 </h2>
               </div>
               <select
@@ -902,17 +928,32 @@ export default function AdminAccessPage() {
 
             {filteredRequests.length === 0 ? (
               <p className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm text-gray-400">
-                No restricted requests found.
+                No deletion requests found.
               </p>
             ) : (
-              <div className="mt-5 grid gap-3">
-                {filteredRequests.map((request) => (
+              <div className="mt-5 grid gap-6">
+                {isSuperAdmin && requestStatus === "Pending" && filteredRequests.some((r) => r.action_type === "delete_registration") && (
+                  <div className="flex flex-wrap items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3">
+                    <span className="mr-auto text-sm text-amber-100">Deletion requests are grouped for review.</span>
+                    <button type="button" onClick={() => setSelectedRequestIds(filteredRequests.filter((r) => r.action_type === "delete_registration").map((r) => r.id))} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-white">Select all deletions</button>
+                    <button type="button" disabled={!selectedRequestIds.length || updatingId === "bulk"} onClick={() => reviewSelectedRequests("Approved")} className="rounded-lg bg-green-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Approve selected</button>
+                    <button type="button" disabled={!selectedRequestIds.length || updatingId === "bulk"} onClick={() => reviewSelectedRequests("Rejected")} className="rounded-lg border border-red-500/40 px-3 py-2 text-xs font-bold text-red-200 disabled:opacity-50">Reject selected</button>
+                  </div>
+                )}
+                {groupedPendingRequests.map(([group, groupRequests]) => (
+                  <div key={group}>
+                    {requestStatus === "Pending" && <h3 className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">{group === "delete_registration" ? "Deletion requests" : group.replaceAll("_", " ")}</h3>}
+                    <div className="grid gap-3">
+                {groupRequests.map((request) => (
                   <article
                     key={request.id}
                     className="rounded-xl border border-white/10 bg-zinc-950 p-4"
                   >
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
+                        {request.request_status === "Pending" && request.action_type === "delete_registration" && isSuperAdmin && (
+                          <label className="mb-3 flex items-center gap-2 text-xs text-zinc-400"><input type="checkbox" checked={selectedRequestIds.includes(request.id)} onChange={() => setSelectedRequestIds((current) => current.includes(request.id) ? current.filter((id) => id !== request.id) : [...current, request.id])} /> Select for bulk review</label>
+                        )}
                         <div className="flex flex-wrap gap-2">
                           <span
                             className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass(
@@ -952,7 +993,7 @@ export default function AdminAccessPage() {
                             onClick={() => reviewRequest(request.id, "Approved")}
                             className="rounded-lg bg-green-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-green-700 disabled:opacity-50"
                           >
-                            Approve
+                            {request.action_type === "delete_registration" ? "Approve deletion" : "Review"}
                           </button>
                           <button
                             type="button"
@@ -966,6 +1007,9 @@ export default function AdminAccessPage() {
                       )}
                     </div>
                   </article>
+                ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
