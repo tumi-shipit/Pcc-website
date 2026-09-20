@@ -10,6 +10,7 @@ import {
   getSouthAfricaDateParts,
 } from "@/lib/dateHelpers";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
+import { uniqueLookupPlayers } from "@/lib/registrationSearch";
 import {
   normalizeTournamentRatingType,
   tournamentRatingLabel,
@@ -361,28 +362,6 @@ function playerLookupKey(player: ChessSaPlayer) {
     player.chess_sa_id ||
     `${player.full_name}:${player.date_of_birth ?? ""}`
   );
-}
-
-function uniqueLookupPlayers(players: ChessSaPlayer[]) {
-  const playerMap = new Map<string, ChessSaPlayer>();
-
-  players.forEach((player) => {
-    const key = playerLookupKey(player);
-    const existing = playerMap.get(key);
-
-    playerMap.set(key, {
-      ...existing,
-      ...player,
-      pcc_id: existing?.pcc_id ?? player.pcc_id ?? null,
-      chess_sa_id: existing?.chess_sa_id ?? player.chess_sa_id ?? null,
-      email: existing?.email ?? player.email ?? null,
-      phone: existing?.phone ?? player.phone ?? null,
-      club: existing?.club ?? player.club ?? null,
-      province: existing?.province ?? player.province ?? null,
-    });
-  });
-
-  return Array.from(playerMap.values());
 }
 
 const southAfricanProvinces = [
@@ -1247,7 +1226,9 @@ export default function RegisterPage() {
       const tournamentRating = selectedPlayerRating;
       const newPlayerFullName = getNewPlayerFullName(newPlayer);
 
-      const { data: savedReceipt, error } = await supabase.rpc("submit_tournament_registration_recoverable", {
+      const { data: savedReceipt, error } = await supabase.rpc("submit_tournament_registration_named", {
+        p_first_names: selectedChessSaPlayer ? null : newPlayer.first_names.trim(),
+        p_surname: selectedChessSaPlayer ? null : newPlayer.surname.trim(),
         p_full_name: selectedChessSaPlayer
           ? selectedChessSaPlayer.full_name
           : newPlayerFullName,

@@ -3,6 +3,8 @@
 export type IdentityPlayer = {
   id: string;
   full_name: string;
+  first_names?: string | null;
+  surname?: string | null;
   chess_sa_id: string | null;
   fide_id: string | null;
   date_of_birth?: string | null;

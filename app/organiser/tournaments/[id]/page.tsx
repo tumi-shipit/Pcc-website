@@ -6,9 +6,13 @@ import { useParams } from "next/navigation";
 import * as XLSX from "xlsx";
 import OrganiserGuard, { OrganiserAccess } from "@/components/organiser/OrganiserGuard";
 import { supabase } from "@/lib/supabase";
+import { refreshRegistrationExportRows } from "@/lib/registrationExportIdentity";
 import {
   buildSwissTeamTieBreakTextFiles,
   buildTournamentWorkbook,
+  exportNameIssue,
+  cleanExportName,
+  exportFullName,
   tournamentExportFilePart,
   tournamentExportFormats,
   TournamentExportFormat,
@@ -31,6 +35,8 @@ type RegistrationRow = {
   proof_of_payment_url: string | null;
   registration_status: string | null;
   full_name: string;
+  first_names?: string | null;
+  surname?: string | null;
   chess_sa_id: string | null;
   date_of_birth: string | null;
   gender: string | null;
@@ -50,6 +56,8 @@ type TournamentSection = {
 
 type BulkEntry = {
   rowNumber: number;
+  firstNames: string;
+  surname: string;
   fullName: string;
   dateOfBirth: string;
   rating: number | null;
@@ -333,9 +341,14 @@ function TournamentEntries({
     setUpdating(false);
   }
 
-  function exportCsv() {
+  async function exportCsv() {
+    let exportRows: RegistrationRow[];
+    try { exportRows = await refreshRegistrationExportRows(filteredRows); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not refresh entries."); return; }
     const headers = [
       "Full Name",
+      "First Names",
+      "Surname",
       "Chess SA ID",
       "DOB",
       "Gender",
@@ -350,8 +363,10 @@ function TournamentEntries({
       "Registered At",
     ];
 
-    const rows = filteredRows.map((row) => [
-      row.full_name ?? "",
+    const rows = exportRows.map((row) => [
+      exportFullName(row),
+      cleanExportName(row.first_names),
+      cleanExportName(row.surname),
       row.chess_sa_id ?? "",
       row.date_of_birth ?? "",
       row.gender ?? "",
@@ -389,8 +404,11 @@ function TournamentEntries({
     URL.revokeObjectURL(url);
   }
 
-  function exportSwissManager() {
-    const approvedRows = filteredRows.filter(
+  async function exportSwissManager() {
+    let exportRows: RegistrationRow[];
+    try { exportRows = await refreshRegistrationExportRows(filteredRows); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "Could not refresh entries."); return; }
+    const approvedRows = exportRows.filter(
       (row) => row.registration_status === "Approved"
     );
 
@@ -399,6 +417,8 @@ function TournamentEntries({
       return;
     }
 
+    const nameIssue = exportFormat !== "round-robin" ? exportNameIssue(approvedRows) : null;
+    if (nameIssue) { setMessage(nameIssue); return; }
     const baseFileName = `${safeFileName(
       tournament?.tournament_name ?? "tournament"
     )}-${tournamentExportFilePart(exportFormat)}-approved-entries`;
@@ -449,18 +469,20 @@ function TournamentEntries({
         raw: true,
       });
       const headerRowIndex = rows.findIndex((row) =>
-        row.some((cell) => cellText(cell).toLowerCase() === "name") &&
+        row.some((cell) => ["first names", "first name", "given names"].includes(cellText(cell).toLowerCase())) &&
+        row.some((cell) => ["surname", "last name", "family name"].includes(cellText(cell).toLowerCase())) &&
         row.some((cell) => cellText(cell).toLowerCase() === "date of birth")
       );
 
       if (headerRowIndex === -1) {
         setBulkEntries([]);
-        setBulkIssues(["This does not look like the PCC bulk registration template. Keep its Name and Date of birth headers."]);
+        setBulkIssues(["This template must contain separate First names, Surname and Date of birth columns. Download the new PCC template; old Name-only files are not imported because their name order cannot be verified."]);
         return;
       }
 
       const headers = rows[headerRowIndex].map((cell) => cellText(cell).toLowerCase());
-      const nameIndex = headers.indexOf("name");
+      const firstNamesIndex = ["first names", "first name", "given names"].map((header) => headers.indexOf(header)).find((index) => index >= 0) ?? -1;
+      const surnameIndex = ["surname", "last name", "family name"].map((header) => headers.indexOf(header)).find((index) => index >= 0) ?? -1;
       const dobIndex = headers.indexOf("date of birth");
       const ratingIndex = headers.indexOf("rtg");
       const clubIndex = headers.indexOf("club/city");
@@ -469,19 +491,23 @@ function TournamentEntries({
       const issues: string[] = [];
 
       rows.slice(headerRowIndex + 1).forEach((row, index) => {
-        const fullName = cellText(row[nameIndex]);
+        const firstNames = cellText(row[firstNamesIndex]);
+        const surname = cellText(row[surnameIndex]);
+        const fullName = [firstNames, surname].filter(Boolean).join(" ");
         const dateOfBirth = templateDateToKey(row[dobIndex]);
         const sourceRow = headerRowIndex + index + 2;
 
         if (!fullName && !cellText(row[dobIndex])) return;
-        if (!fullName || !dateOfBirth) {
-          issues.push(`Row ${sourceRow}: Name and date of birth are required.`);
+        if (!firstNames || !surname || !dateOfBirth) {
+          issues.push(`Row ${sourceRow}: First names, surname and date of birth are required.`);
           return;
         }
 
         const parsedRating = Number(cellText(row[ratingIndex]).replace(/[^0-9.-]/g, ""));
         entries.push({
           rowNumber: sourceRow,
+          firstNames,
+          surname,
           fullName,
           dateOfBirth,
           rating: Number.isFinite(parsedRating) ? Math.round(parsedRating) : null,
@@ -518,8 +544,10 @@ function TournamentEntries({
     let imported = 0;
 
     for (const entry of bulkEntries) {
-      const { error } = await supabase.rpc("submit_tournament_registration", {
+      const { error } = await supabase.rpc("submit_tournament_registration_named", {
         p_full_name: entry.fullName,
+        p_first_names: entry.firstNames,
+        p_surname: entry.surname,
         p_pcc_id: "",
         p_chess_sa_id: "",
         p_date_of_birth: entry.dateOfBirth,
@@ -536,6 +564,10 @@ function TournamentEntries({
       });
 
       if (error) {
+        if (error.message.toLowerCase().includes("submit_tournament_registration_named") || error.message.toLowerCase().includes("schema cache")) {
+          failures.push(`Row ${entry.rowNumber}: install the structured registration names SQL migration before importing this template.`);
+          break;
+        }
         failures.push(`Row ${entry.rowNumber} (${entry.fullName}): ${error.message}`);
       } else {
         imported += 1;

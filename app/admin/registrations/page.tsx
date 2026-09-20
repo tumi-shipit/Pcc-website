@@ -9,6 +9,9 @@ import * as XLSX from "xlsx";
 import {
   buildSwissTeamTieBreakTextFiles,
   buildTournamentWorkbook,
+  exportNameIssue,
+  cleanExportName,
+  exportFullName,
   tournamentExportFilePart,
   tournamentExportFormats,
   TournamentExportFormat,
@@ -26,6 +29,8 @@ type RegistrationDetail = {
     | "Withdrawn"
     | string;
   full_name: string;
+  first_names?: string | null;
+  surname?: string | null;
   chess_sa_id: string | null;
   date_of_birth: string | null;
   gender: string | null;
@@ -735,6 +740,8 @@ function RegistrationsPageContent() {
 
     const headers = [
       "Full Name",
+      "First Names",
+      "Surname",
       "Chess SA ID",
       "DOB",
       "Gender",
@@ -751,7 +758,9 @@ function RegistrationsPageContent() {
     ];
 
     const rows = exportRows.map((item) => [
-      item.full_name,
+      exportFullName(item),
+      cleanExportName(item.first_names),
+      cleanExportName(item.surname),
       item.chess_sa_id ?? "",
       item.date_of_birth ?? "",
       item.gender ?? "",
@@ -838,6 +847,8 @@ function RegistrationsPageContent() {
       return;
     }
 
+    const nameIssue = exportFormat !== "round-robin" ? exportNameIssue(approvedPlayers) : null;
+    if (nameIssue) { setMessage(nameIssue); return; }
     if (!confirmMissingChessSaExport(approvedPlayers)) {
       setActiveTab("Needs Chess SA");
       setMessage("Export stopped. Review entries missing Chess SA IDs first.");
@@ -881,6 +892,8 @@ function RegistrationsPageContent() {
       return;
     }
 
+    const nameIssue = exportFormat !== "round-robin" ? exportNameIssue(approvedPlayers) : null;
+    if (nameIssue) { setMessage(nameIssue); return; }
     if (!confirmMissingChessSaExport(approvedPlayers)) {
       setActiveTab("Needs Chess SA");
       setMessage("Export stopped. Review entries missing Chess SA IDs first.");

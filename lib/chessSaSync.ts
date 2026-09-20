@@ -10,6 +10,8 @@ import {
 export type ChessSaSyncRow = {
   row_number: number;
   full_name: string;
+  first_names?: string | null;
+  surname?: string | null;
   chess_sa_id: string | null;
   fide_id: string | null;
   rating: number | null;
@@ -288,6 +290,7 @@ function syncReasons(row: ChessSaSyncRow, player: IdentityPlayer) {
   }
 
   if (!player.chess_sa_id && row.chess_sa_id) reasons.push("Missing Chess SA ID");
+  if (row.first_names && row.surname && (!player.first_names || !player.surname)) reasons.push("Missing structured export name");
   if (row.fide_id && !sameText(row.fide_id, player.fide_id)) reasons.push("FIDE ID differs");
   if (row.date_of_birth && !sameDate(row.date_of_birth, player.date_of_birth)) {
     reasons.push("Date of birth differs");
@@ -321,7 +324,9 @@ export function parseChessSaCsv(text: string): ChessSaSyncRow[] {
       raw[header] = values[i]?.trim() ?? "";
     });
 
-    const fullName =
+    const firstNames = cleanText(raw.first_names || raw.given_names || raw.firstname || raw.first_name || raw.names);
+    const surname = cleanText(raw.surname || raw.last_name || raw.lastname);
+    const fullName = (firstNames && surname ? joinNameParts(firstNames, surname) : null) ??
       cleanText(
         raw.full_name ||
           raw.name ||
@@ -349,6 +354,8 @@ export function parseChessSaCsv(text: string): ChessSaSyncRow[] {
     return {
       row_number: index + 2,
       full_name: fullName,
+      first_names: firstNames && surname ? firstNames : null,
+      surname: firstNames && surname ? surname : null,
       chess_sa_id: cleanChessSaId(
         raw.chess_sa_id ||
           raw.chessa_id ||
@@ -387,6 +394,16 @@ export function analyseChessSaRows(
 }
 
 function flagCompetingLinks(decisions: ChessSaSyncDecision[]) {
+  decisions = decisions.map(decision => {
+    const player = decision.matched_player;
+    const row = decision.row;
+    if (player && row.first_names && row.surname &&
+      ((player.first_names && !sameText(player.first_names, row.first_names)) ||
+       (player.surname && !sameText(player.surname, row.surname)))) {
+      return { ...decision, action: "review" as const, reasons: [...decision.reasons, "Recorded first names/surname differ from the CHESSA columns — confirm name order in Player Centre"] };
+    }
+    return decision;
+  });
   const targets = new Map<string, Set<string>>();
   for (const decision of decisions) {
     if (decision.action !== "update_existing" || !decision.matched_player_id) continue;
@@ -486,6 +503,17 @@ function analyseChessSaRow(
         };
       }
 
+      const unlinkedMatches = getCandidatePlayers(row, context).filter(candidate =>
+        candidate.id !== player.id && calculateIdentityScore(importedIdentity, candidate).score >= 100
+      );
+      if (unlinkedMatches.length) {
+        return {
+          row, matched_player_id: player.id, matched_player_name: player.full_name,
+          confidence_score: 100, confidence_label: "Exact", action: "review",
+          reasons: ["This CHESSA ID already belongs to a profile, but another unlinked profile also matches. Review these profiles in Duplicate Centre before syncing; registrations may belong to the other profile."],
+          matched_player: player,
+        };
+      }
       const reasons = syncReasons(row, player);
 
       return {

@@ -4,6 +4,8 @@ export type TournamentExportFormat = "swiss" | "team-tiebreaks" | "round-robin";
 
 export type TournamentExportPlayer = {
   full_name?: string | null;
+  first_names?: string | null;
+  surname?: string | null;
   chess_sa_id?: string | null;
   date_of_birth?: string | null;
   gender?: string | null;
@@ -44,17 +46,26 @@ export const tournamentExportFormats: {
   },
 ];
 
-function splitName(fullName: string) {
-  const parts = fullName.trim().replace(/\s+/g, " ").split(" ");
+// Clean only export values. Do not rewrite stored identity or infer name order.
+export function cleanExportName(value: string | null | undefined) {
+  return String(value ?? "").replace(/[,\uFF0C]/g, " ").replace(/\s+/g, " ").trim();
+}
 
-  if (parts.length === 1) {
-    return { firstName: fullName, surname: "" };
-  }
+export function exportFullName(player: TournamentExportPlayer) {
+  const firstNames = cleanExportName(player.first_names);
+  const surname = cleanExportName(player.surname);
+  return firstNames && surname ? `${firstNames} ${surname}` : cleanExportName(player.full_name);
+}
 
-  return {
-    firstName: parts.slice(0, -1).join(" "),
-    surname: parts[parts.length - 1],
-  };
+export function exportNameIssue(players: TournamentExportPlayer[]) {
+  const missing = players.filter(player => !cleanExportName(player.first_names) || !cleanExportName(player.surname));
+  return missing.length ? `Confirm first names and surname in Player Centre before exporting: ${missing.slice(0, 5).map(p => p.full_name || "Unnamed player").join("; ")}${missing.length > 5 ? ` and ${missing.length - 5} more` : ""}. Names will not be guessed from word order.` : null;
+}
+
+function splitName(player: TournamentExportPlayer) {
+  const issue = exportNameIssue([player]);
+  if (issue) throw new Error(issue);
+  return { firstName: cleanExportName(player.first_names), surname: cleanExportName(player.surname) };
 }
 
 function normalizeSex(gender: string | null | undefined) {
@@ -94,7 +105,7 @@ function buildSwissRows(players: TournamentExportPlayer[], includeTeamTieBreaks:
   ];
 
   const rows = players.map((player, index) => {
-    const { firstName, surname } = splitName(player.full_name ?? "");
+    const { firstName, surname } = splitName(player);
     const baseRow = [
       index + 1,
       firstName,
@@ -151,7 +162,7 @@ function buildRoundRobinRows(players: TournamentExportPlayer[]) {
 
   const rows = sortedPlayers.map((player, index) => [
     index + 1,
-    player.full_name ?? "",
+    exportFullName(player),
     player.chess_sa_id ?? "",
     player.rating ?? "",
     "RSA",
@@ -228,11 +239,11 @@ export function buildSwissTeamTieBreakTextFiles(
     const team = teamKey(player);
     const board = (boardCounters.get(team) ?? 0) + 1;
     boardCounters.set(team, board);
-    const { firstName, surname } = splitName(player.full_name ?? "");
+    const { firstName, surname } = splitName(player);
 
     return [
       index + 1,
-      player.full_name ?? "",
+      exportFullName(player),
       "",
       player.chess_sa_id ?? "",
       player.rating ?? "",

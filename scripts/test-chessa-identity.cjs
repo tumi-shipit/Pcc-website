@@ -31,6 +31,11 @@ test('two CHESSA IDs targeting one PCC child both require review', () => {
   assert.ok(results.every(result => result.action === 'review'));
 });
 test('duplicate CHESSA IDs in the file require review', () => assert.ok(sync.analyseChessSaRows([row(), row({ row_number: 3 })], [player()]).every(result => result.action === 'review')));
+test('existing CHESSA identity plus an unlinked registration profile is flagged, not silently skipped', () => {
+  const result = sync.analyseChessSaRows([row()], [player({ id: 'rated-profile', chess_sa_id: '123456' }), player()])[0];
+  assert.equal(result.action, 'review');
+  assert.ok(result.reasons.some(reason => reason.includes('Duplicate Centre')));
+});
 test('separate Names and Surname columns preserve full name', () => assert.equal(sync.parseChessSaCsv('Names,Surname,CHESSA ID,DOB\nThabo,Mokoena,123456,05/04/2012')[0].full_name, 'Thabo Mokoena'));
 test('quoted surname-first names parse correctly', () => assert.equal(sync.parseChessSaCsv('Full Name,CHESSA ID,DOB\n"Mokoena, Thabo",123456,2012-04-05')[0].full_name, 'Mokoena, Thabo'));
 test('impossible February date is rejected', () => assert.equal(sync.parseChessSaCsv('Full Name,CHESSA ID,DOB\nThabo Mokoena,123456,2012-02-31')[0].date_of_birth, null));

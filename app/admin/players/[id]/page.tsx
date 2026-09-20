@@ -13,6 +13,8 @@ type Player = {
   id: string;
   pcc_id: string | null;
   full_name: string;
+  first_names?: string | null;
+  surname?: string | null;
   chess_sa_id: string | null;
   fide_id: string | null;
   date_of_birth: string | null;
@@ -153,7 +155,7 @@ export default function AdminPlayerProfilePage({
     const { data: playerData, error: playerError } = await supabase
       .from("players")
       .select(
-        "id, pcc_id, full_name, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
+        "id, pcc_id, full_name, first_names, surname, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
       )
       .eq("id", playerId)
       .single();
@@ -235,6 +237,10 @@ export default function AdminPlayerProfilePage({
   }
 
   async function savePlayer() {
+    if (Boolean(form.first_names?.trim()) !== Boolean(form.surname?.trim())) {
+      setMessage("Enter both first names and surname, or leave both blank for later review.");
+      return;
+    }
     if (!form.full_name?.trim()) {
       setMessage("Full name is required.");
       return;
@@ -247,6 +253,8 @@ export default function AdminPlayerProfilePage({
       .from("players")
       .update({
         full_name: form.full_name.trim(),
+        first_names: form.first_names?.trim() || null,
+        surname: form.surname?.trim() || null,
         chess_sa_id: form.chess_sa_id?.trim() || null,
         fide_id: form.fide_id?.trim() || null,
         date_of_birth: form.date_of_birth || null,
@@ -556,7 +564,14 @@ export default function AdminPlayerProfilePage({
               <h2 className="text-2xl font-black">Edit Player Profile</h2>
 
               <div className="mt-6 grid gap-5 md:grid-cols-2">
-                <Field label="Full name">
+                <div className="md:col-span-2 text-sm text-gray-300">First names and surname below are used for Swiss exports. Confirm them against the player's official details; do not infer them from display-name order. The display name and aliases are preserved.</div>
+                <Field label="First names (for exports)">
+                  <input value={form.first_names ?? ""} onChange={event => updateField("first_names", event.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Surname (for exports)">
+                  <input value={form.surname ?? ""} onChange={event => updateField("surname", event.target.value)} className={inputClass} />
+                </Field>
+                <Field label="Display / full name">
                   <input
                     value={form.full_name ?? ""}
                     onChange={(event) => updateField("full_name", event.target.value)}

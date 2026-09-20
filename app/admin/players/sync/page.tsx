@@ -80,22 +80,32 @@ export default function AdminPlayersSyncPage() {
     setProgressPercent(15);
     setMessage("");
 
-    const { data, error } = await supabase
-      .from("players")
-      .select(
-        "id, full_name, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, gender, verification_status, title"
-      )
-      .limit(20000);
-
-    if (error) {
-      setMessage(`Could not load existing players: ${error.message}`);
+    const existingPlayers: IdentityPlayer[] = [];
+    try {
+      // Keyset pagination avoids the server row cap and includes newly registered
+      // children. Do not analyse a partial database if any page fails.
+      let lastId: string | null = null;
+      while (true) {
+        let query = supabase.from("players").select(
+          "id, full_name, first_names, surname, chess_sa_id, fide_id, date_of_birth, email, phone, club, province, rating, gender, verification_status, title"
+        ).order("id").limit(500);
+        if (lastId) query = query.gt("id", lastId);
+        const { data, error } = await query.abortSignal(AbortSignal.timeout(30000));
+        if (error) throw error;
+        if (!data?.length) break;
+        existingPlayers.push(...data as IdentityPlayer[]);
+        lastId = data[data.length - 1].id;
+        setProgressMessage(`Loaded ${existingPlayers.length} player profiles, including registration profiles...`);
+      }
+    } catch (error: any) {
+      setDecisions([]);
+      setMessage(`Could not load all existing players: ${error.message}`);
       setAnalysing(false);
       setProgressMessage("");
       setProgressPercent(0);
       return;
     }
 
-    const existingPlayers = (data ?? []) as IdentityPlayer[];
     const analysed = await analyseChessSaRowsInBatches(
       rowsToAnalyse,
       existingPlayers,
@@ -196,6 +206,8 @@ export default function AdminPlayersSyncPage() {
             .from("players")
             .update({
               chess_sa_id: row.chess_sa_id ?? current?.chess_sa_id ?? null,
+              ...((!current?.first_names || !current?.surname) && row.first_names && row.surname
+                ? { first_names: current?.first_names || row.first_names, surname: current?.surname || row.surname } : {}),
               fide_id: row.fide_id ?? current?.fide_id ?? null,
               club: current?.club || row.club || null,
               province: current?.province || row.province || null,
@@ -209,7 +221,11 @@ export default function AdminPlayersSyncPage() {
             .eq("id", decision.matched_player_id);
           update = current?.chess_sa_id == null ? update.is("chess_sa_id", null) : update.eq("chess_sa_id", current.chess_sa_id);
           update = current?.date_of_birth == null ? update.is("date_of_birth", null) : update.eq("date_of_birth", current.date_of_birth);
-          const { data: changed, error } = await update.select("id");
+          update = current?.fide_id == null ? update.is("fide_id", null) : update.eq("fide_id", current.fide_id);
+          update = update.eq("full_name", current!.full_name);
+          update = current?.first_names == null ? update.is("first_names", null) : update.eq("first_names", current.first_names);
+          update = current?.surname == null ? update.is("surname", null) : update.eq("surname", current.surname);
+          const { data: changed, error } = await update.select("id").abortSignal(AbortSignal.timeout(30000));
           if (error) throw error;
           if (!changed?.length) throw new Error("The player's identity changed after analysis. Analyse the file again before updating this player.");
 

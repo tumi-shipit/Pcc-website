@@ -80,7 +80,7 @@ set search_path = public
 as $$
 declare
   duplicate_record public.players%rowtype;
-  merge_history_id uuid;
+  v_merge_history_id uuid;
 begin
   if primary_player_id = duplicate_player_id then
     raise exception 'Primary and duplicate player cannot be the same.';
@@ -263,7 +263,7 @@ begin
     reason,
     auth.uid()
   )
-  returning id into merge_history_id;
+  returning id into v_merge_history_id;
 
   insert into public.player_aliases (
     player_id,
@@ -280,7 +280,7 @@ begin
     alias_values.alias_value,
     public.player_alias_normalized(alias_values.alias_value),
     duplicate_player_id,
-    merge_history_id,
+    v_merge_history_id,
     auth.uid()
   from (
     values
@@ -308,7 +308,7 @@ begin
     aliases.alias_value,
     aliases.normalized_alias,
     coalesce(aliases.source_player_id, duplicate_player_id),
-    coalesce(aliases.merge_history_id, merge_history_id),
+    coalesce(aliases.merge_history_id, v_merge_history_id),
     coalesce(aliases.created_by, auth.uid())
   from public.player_aliases aliases
   where aliases.player_id = duplicate_player_id
