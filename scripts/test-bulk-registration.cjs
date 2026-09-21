@@ -6,10 +6,34 @@ const vm = require('node:vm');
 const context = { exports: {}, require, Date };
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/bulkRegistration.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
 const {parseBulkRows,resolveBulkSection,bulkDate} = context.exports;
+test('shared download includes Section, instructions and event rules without sample players',()=>{
+  const XLSX = require('xlsx');
+  const book = context.exports.createBulkWorkbook([section('U14',2013,2016)],'Test event');
+  const read = XLSX.read(XLSX.write(book,{type:'buffer',bookType:'xlsx'}),{type:'buffer'});
+  assert.deepEqual(read.SheetNames,['Players','Instructions','Sections']);
+  const rows = XLSX.utils.sheet_to_json(read.Sheets.Players,{header:1});
+  assert.equal(rows.length,1);
+  assert.equal(rows[0][6],'Section');
+  assert.equal(XLSX.utils.sheet_to_json(read.Sheets.Sections,{header:1})[1][0],'U14');
+});
 const headers = ['First names','Surname','Date of birth','Gender','Rating','Club/City','Section'];
 const row = ['Test','Player','2014-04-05','F','','School','U14'];
 const entry = () => parseBulkRows([headers,row]).entries[0];
 const section = (id,min,max,extra={}) => ({id,section_name:id,minimum_birth_year:min,maximum_birth_year:max,minimum_rating:null,maximum_rating:null,gender_restriction:'All',...extra});
+
+test('archive importer preserves structured names, IDs and requested eligibility',()=>{
+  const source=ts.createSourceFile('archive.tsx',fs.readFileSync('app/admin/tournaments/[id]/archive/page.tsx','utf8'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+  const names=['parseStartingRankRows','chooseStartingRankSection','normalizeHeaderName','getFlexibleColumnIndex','cleanImportedId'];
+  const code=source.statements.filter(s=>ts.isFunctionDeclaration(s)&&names.includes(s.name?.text)).map(s=>s.getText(source)).join('\n');
+  const scope={parseBulkRows,resolveBulkSection};
+  vm.createContext(scope);
+  vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,scope);
+  const parsed=scope.parseStartingRankRows([[...headers,'Chess SA ID'],[...row,'12345']]);
+  assert.equal(parsed[0].name,'Test Player');
+  assert.equal(parsed[0].chess_sa_id,'12345');
+  assert.equal(scope.chooseStartingRankSection(parsed[0],[section('U14',2013,2016),section('Open',null,null)],'Open').section.id,'U14');
+  assert.throws(()=>scope.parseStartingRankRows([['Name','Section'],['Test Player','U14']]),/separate/);
+});
 test('valid requested section is preserved even when others qualify',()=>{
   assert.equal(resolveBulkSection(entry(),[section('U14',2013,2016),section('Open',null,null)]).section.id,'U14');
 });

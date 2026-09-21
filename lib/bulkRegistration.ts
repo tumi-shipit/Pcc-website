@@ -13,6 +13,32 @@ export type BulkSection = {
 const text = (value: unknown) => String(value ?? "").trim();
 const key = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
 
+export function createBulkWorkbook(sections: BulkSection[] = [], eventName = "PCC tournament") {
+  const book = XLSX.utils.book_new();
+  const players = XLSX.utils.aoa_to_sheet([["First names", "Surname", "Date of birth", "Gender", "Rating", "Club/City", "Section"]]);
+  players["!cols"] = [24,24,20,14,12,28,28].map(wch => ({wch}));
+  XLSX.utils.book_append_sheet(book, players, "Players");
+  const instructions = XLSX.utils.aoa_to_sheet([
+    ["PCC bulk entry", eventName],
+    ["Names", "Separate First names and Surname; no commas. Do not guess missing details."],
+    ["Date of birth", "YYYY-MM-DD or DD/MM/YYYY"],
+    ["Section", "Enter the exact event section name. Blank uses the importer's default or eligibility."],
+    ["Eligibility", "Eligible requests are kept. Ineligible requests move to the only eligible section. Multiple matches need review."],
+    ["Rating / Gender", "Required when section rules need them. Blank rating means unknown; zero means unrated."],
+    ["Import", "Maximum 200 players per batch. Review assignments and fix errors before importing."],
+  ]);
+  instructions["!cols"] = [{wch:24},{wch:110}];
+  XLSX.utils.book_append_sheet(book, instructions, "Instructions");
+  const rules = XLSX.utils.aoa_to_sheet([["Section","Born from","Born through","Minimum rating","Maximum rating","Gender"], ...sections.map(s => [s.section_name,s.minimum_birth_year,s.maximum_birth_year,s.minimum_rating,s.maximum_rating,s.gender_restriction || "All"])]);
+  rules["!cols"] = [28,18,18,18,18,18].map(wch => ({wch}));
+  XLSX.utils.book_append_sheet(book, rules, "Sections");
+  return book;
+}
+
+export function downloadBulkWorkbook(sections: BulkSection[] = [], eventName = "PCC tournament") {
+  XLSX.writeFile(createBulkWorkbook(sections, eventName), "pcc-bulk-registration-v2.xlsx");
+}
+
 export function bulkDate(value: unknown): string {
   let parts: number[] | undefined;
   if (value instanceof Date && !Number.isNaN(value.getTime())) parts = [value.getFullYear(), value.getMonth()+1, value.getDate()];

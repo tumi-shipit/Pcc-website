@@ -7,7 +7,7 @@ import * as XLSX from "xlsx";
 import OrganiserGuard, { OrganiserAccess } from "@/components/organiser/OrganiserGuard";
 import { supabase } from "@/lib/supabase";
 import { refreshRegistrationExportRows } from "@/lib/registrationExportIdentity";
-import { parseBulkRows, resolveBulkSection, type BulkEntry, type BulkSection } from "@/lib/bulkRegistration";
+import { downloadBulkWorkbook, parseBulkRows, resolveBulkSection, type BulkEntry, type BulkSection } from "@/lib/bulkRegistration";
 import {
   buildSwissTeamTieBreakTextFiles,
   buildTournamentWorkbook,
@@ -114,26 +114,6 @@ function TournamentEntries({
 
   const allowed = isAdmin || access.some((row) => row.tournament_id === tournamentId);
   const bulkAssignments = bulkEntries.map(entry => ({ entry, ...resolveBulkSection(entry,tournamentSections,bulkSectionId) }));
-
-  function downloadBulkTemplate() {
-    const book = XLSX.utils.book_new();
-    const sheet = XLSX.utils.aoa_to_sheet([["First names","Surname","Date of birth","Gender","Rating","Club/City","Section"]]);
-    sheet["!cols"] = [24,24,20,14,12,28,28].map(wch => ({wch}));
-    XLSX.utils.book_append_sheet(book,sheet,"Players");
-    XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
-      ["PCC bulk entry",tournament?.tournament_name ?? ""],
-      ["First names / Surname","Use separate columns, without commas."],
-      ["Date of birth","YYYY-MM-DD or DD/MM/YYYY. Do not guess missing birth dates."],
-      ["Section","Copy an exact name from Sections. Leave blank for automatic assignment or the selected default."],
-      ["Eligibility","A qualifying requested section is kept. Ineligible requests move to the only eligible section. Multiple matches need your choice."],
-      ["Rating / Gender","Supply these when required by section rules. Blank ratings are unknown; zero means unrated."],
-      ["Import","Check the preview. Up to 200 players per batch. Fix all listed issues before submitting."],
-    ]),"Instructions");
-    const sectionSheet = XLSX.utils.aoa_to_sheet([["Section","Born from","Born through","Minimum rating","Maximum rating","Gender"],...tournamentSections.map(s=>[s.section_name,s.minimum_birth_year,s.maximum_birth_year,s.minimum_rating,s.maximum_rating,s.gender_restriction || "All"])]);
-    sectionSheet["!cols"] = [28,18,18,18,18,18].map(wch=>({wch}));
-    XLSX.utils.book_append_sheet(book,sectionSheet,"Sections");
-    XLSX.writeFile(book,`pcc-bulk-${safeFileName(tournament?.tournament_name ?? "entries")}.xlsx`);
-  }
 
   async function loadEntries() {
     setLoading(true);
@@ -623,7 +603,7 @@ function TournamentEntries({
               </p>
             </div>
             <button
-              type="button" onClick={downloadBulkTemplate}
+              type="button" onClick={() => downloadBulkWorkbook(tournamentSections, tournament?.tournament_name)}
               className="shrink-0 rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:bg-white/5"
             >
               Download PCC template

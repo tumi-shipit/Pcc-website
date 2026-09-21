@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { downloadBulkWorkbook } from "@/lib/bulkRegistration";
 import PublicPageShell from "@/components/PublicPageShell";
 import RegistrationRecovery, { recoveryStorageKey, type RecoveryReceipt } from "@/components/RegistrationRecovery";
 import {
@@ -2272,9 +2273,9 @@ export default function RegisterPage() {
                 Schools, coaches, clubs and organisations can complete one Excel template for multiple players and send it to the tournament organiser.
               </p>
             </div>
-            <a href="/templates/pcc-bulk-registration-template.xlsx" download className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200">
+            <button type="button" onClick={() => downloadBulkWorkbook(sections, selectedTournament?.tournament_name)} className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200">
               Download Excel template
-            </a>
+            </button>
           </div>
         </div>
       </section>

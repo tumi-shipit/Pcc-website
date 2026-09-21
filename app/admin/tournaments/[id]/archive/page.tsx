@@ -4,6 +4,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import * as XLSX from "xlsx";
+import { downloadBulkWorkbook, parseBulkRows, resolveBulkSection, type BulkEntry } from "@/lib/bulkRegistration";
 import AdminGuard from "@/components/AdminGuard";
 import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import AdminImportSummaryPanel from "@/components/admin/AdminImportSummaryPanel";
@@ -22,6 +23,7 @@ type Tournament = {
 };
 
 type Section = {
+  gender_restriction: string | null;
   id: string;
   section_name: string;
   display_order: number | null;
@@ -40,6 +42,7 @@ type SectionCombination = {
 };
 
 type ImportedPlayer = {
+  bulkEntry?: BulkEntry;
   starting_number: number | null;
   name: string;
   rating: number | null;
@@ -408,6 +411,7 @@ function chooseStartingRankSection(
   sections: Section[],
   fallbackSectionId: string
 ) {
+  if (row.bulkEntry) return resolveBulkSection(row.bulkEntry, sections, fallbackSectionId);
   const fallbackSection =
     sections.find((section) => section.id === fallbackSectionId) ??
     sections[0] ??
@@ -635,6 +639,21 @@ async function readExcelRows(file: File) {
 }
 
 function parseStartingRankRows(rows: unknown[][]) {
+  const structuredHeader = rows.findIndex(row => row.some(cell => ["firstnames", "firstname", "givennames", "requestedsection", "section"].includes(normalizeHeaderName(String(cell ?? "")))));
+  if (structuredHeader >= 0) {
+    const parsed = parseBulkRows(rows);
+    if (parsed.issues.length) throw new Error(parsed.issues.join("\n"));
+    const headers = rows[structuredHeader].map(cell => String(cell ?? ""));
+    return parsed.entries.map((entry): ImportedPlayer => {
+      const source = rows[entry.rowNumber - 1];
+      const id = (...names: string[]) => cleanImportedId(source[getFlexibleColumnIndex(headers, names)]);
+      return {
+      bulkEntry: entry, name: entry.fullName, date_of_birth: entry.dateOfBirth,
+      rating: entry.rating, club: entry.club, starting_number: null,
+      federation: id("FED", "Federation"), chess_sa_id: id("Chess SA ID", "Chessa ID", "Unique No"), fide_id: id("FIDE ID"), player_id: null,
+      status: "Ready", message: "Review requested section and eligibility before importing.",
+    }; });
+  }
   const headerRowIndex = findHeaderRowByColumns(rows, [
     ["Name", "Player", "Full Name", "Surname"],
   ]);
@@ -1506,7 +1525,7 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data: sectionData, error: sectionError } = await supabase
       .from("tournament_sections")
-      .select("id, section_name, display_order, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating")
+      .select("id, section_name, display_order, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, gender_restriction")
       .eq("tournament_id", tournamentId)
       .order("display_order", { ascending: true, nullsFirst: false })
       .order("section_name", { ascending: true });
@@ -1973,10 +1992,11 @@ export default function TournamentArchiveContinuationPage() {
       .from("players")
       .insert({
         full_name: row.name,
+        ...(row.bulkEntry ? { first_names: row.bulkEntry.firstNames, surname: row.bulkEntry.surname } : {}),
         fide_id: cleanFideId,
         chess_sa_id: cleanChessSaId,
         date_of_birth: cleanDateOfBirth,
-        gender: "Not supplied",
+        gender: row.bulkEntry?.gender || "Not supplied",
         club: row.club,
         province: row.federation || null,
         rating: row.rating,
@@ -2209,6 +2229,11 @@ export default function TournamentArchiveContinuationPage() {
       return;
     }
 
+    if (playerRows.some(row => row.bulkEntry && !chooseStartingRankSection(row, sections, selectedSectionId).section)) {
+      setMessage("Resolve section issues in the preview before importing. Enter an eligible Section in the spreadsheet and upload it again.");
+      return;
+    }
+
     setImportingPlayers(true);
     setMessage("");
 
@@ -2216,7 +2241,6 @@ export default function TournamentArchiveContinuationPage() {
 
     for (const row of playerRows) {
       try {
-        const playerId = await findOrCreatePlayer(row);
         const targetSectionResult = chooseStartingRankSection(
           row,
           sections,
@@ -2225,8 +2249,9 @@ export default function TournamentArchiveContinuationPage() {
         const targetSection = targetSectionResult.section;
 
         if (!targetSection) {
-          throw new Error("No tournament section could be selected.");
+          throw new Error(targetSectionResult.reason);
         }
+        const playerId = await findOrCreatePlayer(row);
 
         const { data: existingRegistration, error: existingRegistrationError } =
           await supabase
@@ -3385,13 +3410,13 @@ export default function TournamentArchiveContinuationPage() {
                     organisations can send one list for the organiser to import.
                   </p>
 
-                  <a
-                    href="/templates/pcc-bulk-registration-template.xlsx"
-                    download
+                  <button
+                    type="button"
+                    onClick={() => downloadBulkWorkbook(sections, tournament?.tournament_name)}
                     className="mt-4 inline-flex rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
                   >
                     Download Excel template
-                  </a>
+                  </button>
                 </div>
 
                 <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
@@ -3411,7 +3436,7 @@ export default function TournamentArchiveContinuationPage() {
                 <button
                   type="button"
                   onClick={importPlayersForSection}
-                  disabled={!selectedSectionId || playerRows.length === 0 || importingPlayers}
+                  disabled={!selectedSectionId || playerRows.length === 0 || importingPlayers || playerRows.some(row => row.bulkEntry && !chooseStartingRankSection(row, sections, selectedSectionId).section)}
                   className="rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-60"
                 >
                   {importingPlayers ? "Importing..." : "Import Players"}
@@ -3464,7 +3489,7 @@ export default function TournamentArchiveContinuationPage() {
                   row.federation ?? "-",
                   row.club ?? "-",
                   row.status,
-                  row.message,
+                  row.bulkEntry && row.status === "Ready" ? `Requested: ${row.bulkEntry.requestedSection || "Default / automatic"}. ${chooseStartingRankSection(row, sections, selectedSectionId).reason}` : row.message,
                 ])}
               />
             </section>
