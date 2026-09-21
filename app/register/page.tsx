@@ -11,7 +11,7 @@ import {
   getSouthAfricaDateParts,
 } from "@/lib/dateHelpers";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
-import { uniqueLookupPlayers } from "@/lib/registrationSearch";
+import { matchesNewPlayerIdentity, uniqueLookupPlayers } from "@/lib/registrationSearch";
 import { registrationStatusAt } from "@/lib/registrationSchedule";
 import {
   normalizeTournamentRatingType,
@@ -1099,7 +1099,7 @@ export default function RegisterPage() {
       }
     }
 
-    return foundProfiles;
+    return uniqueLookupPlayers(foundProfiles.filter(profile => matchesNewPlayerIdentity(profile, newPlayer)));
   }
 
   function resetEntryForm(keepTournament = true) {
@@ -1175,7 +1175,7 @@ export default function RegisterPage() {
         setSelectedPlayerGender("");
         setNewPlayerMode(false);
         setSearchMessage(
-          "A Chess SA profile may already exist for this player. Please select the correct profile below instead of registering as a new player."
+          "An existing player profile matches these names and date of birth. Please review and select the correct profile below instead of creating a duplicate."
         );
         setRegistrationMessage("");
         return;
