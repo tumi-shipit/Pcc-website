@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "../../../lib/supabase";
 import { formatCalendarDate } from "@/lib/dateHelpers";
@@ -143,7 +143,7 @@ export default function RegistrationsPage() {
         </main>
       }
     >
-      <RegistrationsPageContent />
+      <AdminGuard><RegistrationsPageContent /></AdminGuard>
     </Suspense>
   );
 }
@@ -177,14 +177,22 @@ function RegistrationsPageContent() {
   const [totalCount, setTotalCount] = useState(0);
   const [tournaments, setTournaments] = useState<string[]>([]);
   const [sections, setSections] = useState<string[]>([]);
+  const [eventOptions, setEventOptions] = useState<{id: string; tournament_name: string; registration_status: string}[]>([]);
+  const [includeCompleted, setIncludeCompleted] = useState(false);
+  const [filtersReady, setFiltersReady] = useState(false);
+  const [statsLoaded, setStatsLoaded] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const loadVersion = useRef(0);
+  const loadAbort = useRef<AbortController | null>(null);
+
+  const visibleEvents = eventOptions.filter(event => includeCompleted || event.registration_status !== "Completed");
 
   function applyBaseFilters(query: any) {
     let filteredQuery = query;
     const searchText = search.trim().replace(/[,%]/g, " ");
 
-    if (tournamentFilter !== "All") {
-      filteredQuery = filteredQuery.eq("tournament_name", tournamentFilter);
-    }
+    const ids = visibleEvents.filter(event => tournamentFilter === "All" || event.tournament_name === tournamentFilter).map(event => event.id);
+    filteredQuery = filteredQuery.in("tournament_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
 
     if (sectionFilter === "No section") {
       filteredQuery = filteredQuery.is("section_name", null);
@@ -263,12 +271,15 @@ function RegistrationsPageContent() {
       tab
     );
 
-    const { count, error } = await query;
+    const { count, error } = await query.abortSignal(AbortSignal.timeout(15000));
     if (error) throw error;
     return count ?? 0;
   }
 
   async function loadStats() {
+    setStatsLoading(true);
+    const version = loadVersion.current;
+    try {
     const [
       all,
       pending,
@@ -291,6 +302,7 @@ function RegistrationsPageContent() {
       countForTab("Needs Chess SA"),
     ]);
 
+    if (version !== loadVersion.current) return;
     setStats({
       all,
       pending,
@@ -302,41 +314,50 @@ function RegistrationsPageContent() {
       approvedAwaitingPayment,
       needsChessSa,
     });
+    setStatsLoaded(true);
+    } catch {
+      if (version === loadVersion.current) setMessage("Entries are available, but counts could not be loaded. Try again when the connection improves.");
+    } finally { setStatsLoading(false); }
   }
 
   async function loadFilterOptions() {
+    try {
     const { data, error } = await supabase
-      .from("registration_details")
-      .select("tournament_name, section_name")
+      .from("tournaments")
+      .select("id, tournament_name, registration_status")
       .order("tournament_name", { ascending: true })
-      .range(0, 9999);
+      .limit(1000).abortSignal(AbortSignal.timeout(15000));
 
     if (error) {
       setMessage(`Could not load registration filters: ${error.message}`);
+      setLoading(false);
       return;
     }
 
-    const optionRows = (data ?? []) as Pick<
-      RegistrationDetail,
-      "tournament_name" | "section_name"
-    >[];
-
-    setTournaments(
-      Array.from(new Set(optionRows.map((item) => item.tournament_name))).sort()
-    );
+    setEventOptions(data ?? []);
+    if (requestedTournament) {
+      const requested = data?.find(event => event.id === requestedTournament || event.tournament_name === requestedTournament);
+      if (requested) {
+        setTournamentFilter(requested.tournament_name);
+        if (requested.registration_status === "Completed") setIncludeCompleted(true);
+      }
+    }
+    setFiltersReady(true);
+    } catch {
+      setMessage("Could not load registration filters. Please retry.");
+      setLoading(false);
+    }
   }
 
   async function loadSectionsForTournament() {
-    let query = supabase.from("registration_details").select("section_name");
-
-    if (tournamentFilter !== "All") {
-      query = query.eq("tournament_name", tournamentFilter);
-    }
+    const ids = visibleEvents.filter(event => tournamentFilter === "All" || event.tournament_name === tournamentFilter).map(event => event.id);
+    if (!ids.length) { setSections([]); return; }
+    const query = supabase.from("tournament_sections").select("section_name").in("tournament_id", ids);
 
     const { data, error } = await query.order("section_name", {
       ascending: true,
       nullsFirst: false,
-    }).range(0, 9999);
+    }).limit(1000).abortSignal(AbortSignal.timeout(15000));
 
     if (error) {
       setMessage(`Could not load sections: ${error.message}`);
@@ -346,17 +367,25 @@ function RegistrationsPageContent() {
     setSections(
       Array.from(
         new Set(
-          ((data ?? []) as Pick<RegistrationDetail, "section_name">[]).map(
+          ["No section", ...((data ?? []) as Pick<RegistrationDetail, "section_name">[]).map(
             (item) => item.section_name ?? "No section"
-          )
+          )]
         )
       ).sort()
     );
   }
 
   async function loadRegistrations() {
+    if (!filtersReady) return;
+    const version = ++loadVersion.current;
+    loadAbort.current?.abort();
+    const controller = new AbortController();
+    loadAbort.current = controller;
+    const timeout = setTimeout(() => controller.abort(), 20000);
     setLoading(true);
     setMessage("");
+    setStatsLoaded(false);
+    try {
 
     const start = (currentPage - 1) * pageSize;
     const end = start + pageSize - 1;
@@ -369,36 +398,32 @@ function RegistrationsPageContent() {
         ),
         activeTab
       )
-    ).range(start, end);
-
-    const [{ data, error, count }, statsResult] = await Promise.all([
-      query,
-      loadStats().then(
-        () => ({ error: null }),
-        (error) => ({ error })
-      ),
-    ]);
+    ).order("registration_id", { ascending: true }).range(start, end).abortSignal(controller.signal);
+    const { data, error, count } = await query;
+    if (version !== loadVersion.current) return;
 
     const loadedRegistrations = (data ?? []) as unknown as RegistrationDetail[];
 
     if (error) {
-      setMessage(`Could not load registrations: ${error.message}`);
+      setMessage(`Could not load registrations: ${error.message || "The request timed out. Please retry."}`);
+      setRegistrations([]);
+      setTotalCount(0);
       setPlayedStatusByRegistration({});
-    } else if (statsResult.error) {
-      setMessage(`Could not load registration counts: ${statsResult.error.message}`);
-      setRegistrations(loadedRegistrations);
-      setTotalCount(count ?? 0);
-      await loadPlayedRegistrationIds(loadedRegistrations);
     } else {
       setRegistrations(loadedRegistrations);
       setTotalCount(count ?? 0);
-      await loadPlayedRegistrationIds(loadedRegistrations);
+      setPlayedStatusByRegistration({});
     }
-
-    setLoading(false);
+    } catch {
+      if (version === loadVersion.current) setMessage("Could not load entries. Please retry.");
+    } finally {
+      clearTimeout(timeout);
+      if (version === loadVersion.current) setLoading(false);
+    }
   }
 
   async function loadPlayedRegistrationIds(rows: RegistrationDetail[]) {
+    const version = loadVersion.current;
     const registrationIds = rows.map((row) => row.registration_id).filter(Boolean);
 
     if (registrationIds.length === 0) {
@@ -409,7 +434,8 @@ function RegistrationsPageContent() {
     const { data: registrationRows, error: registrationError } = await supabase
       .from("registrations")
       .select("id, player_id, tournament_id")
-      .in("id", registrationIds);
+      .in("id", registrationIds).abortSignal(AbortSignal.timeout(15000));
+    if (version !== loadVersion.current) return;
 
     if (registrationError) {
       setPlayedStatusByRegistration({});
@@ -438,7 +464,8 @@ function RegistrationsPageContent() {
       .from("tournament_results")
       .select("player_id, tournament_id")
       .in("player_id", playerIds)
-      .in("tournament_id", tournamentIds);
+      .in("tournament_id", tournamentIds).abortSignal(AbortSignal.timeout(15000));
+    if (version !== loadVersion.current) return;
 
     if (resultError) {
       setPlayedStatusByRegistration({});
@@ -474,24 +501,22 @@ function RegistrationsPageContent() {
   }, []);
 
   useEffect(() => {
-    if (requestedTournament) {
-      setTournamentFilter(requestedTournament);
-      setSectionFilter("All");
-    }
-  }, [requestedTournament]);
+    setTournaments(Array.from(new Set(visibleEvents.map(event => event.tournament_name))).sort());
+  }, [eventOptions, includeCompleted]);
 
   useEffect(() => {
-    loadSectionsForTournament();
-  }, [tournamentFilter]);
+    if (filtersReady) loadSectionsForTournament();
+  }, [tournamentFilter, includeCompleted, filtersReady]);
 
   useEffect(() => {
-    loadRegistrations();
-  }, [activeTab, currentPage, pageSize, search, sectionFilter, sortBy, tournamentFilter]);
+    const timer = setTimeout(() => { void loadRegistrations(); }, 300);
+    return () => { clearTimeout(timer); loadAbort.current?.abort(); loadVersion.current += 1; };
+  }, [activeTab, currentPage, pageSize, search, sectionFilter, sortBy, tournamentFilter, includeCompleted, filtersReady]);
 
   useEffect(() => {
     setCurrentPage(1);
     setSelectedRegistrationIds([]);
-  }, [activeTab, pageSize, search, sectionFilter, sortBy, tournamentFilter]);
+  }, [activeTab, pageSize, search, sectionFilter, sortBy, tournamentFilter, includeCompleted]);
 
   useEffect(() => {
     setPageSize(eventMode === "Big event" ? 50 : 200);
@@ -955,7 +980,7 @@ function RegistrationsPageContent() {
   ];
 
   return (
-    <AdminGuard>
+    <>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         {deleteIds.length > 0 && <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-4">
           <section role="alertdialog" aria-modal="true" aria-labelledby="delete-entries-title" className="w-full max-w-lg rounded-2xl border border-red-500/40 bg-zinc-950 p-6">
@@ -1030,10 +1055,17 @@ function RegistrationsPageContent() {
             </div>
           </div>
 
+          <div className="mt-6 flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm text-gray-300"><input type="checkbox" checked={includeCompleted} onChange={event => { setIncludeCompleted(event.target.checked); setTournamentFilter("All"); setSectionFilter("All"); }} /> Include completed events</label>
+            <button className="rounded-lg border border-white/20 px-4 py-2 text-sm disabled:opacity-50" disabled={loading || statsLoading || !filtersReady} onClick={() => void loadStats()}>{statsLoading ? "Counting..." : "Load summary counts"}</button>
+            <button className="rounded-lg border border-white/20 px-4 py-2 text-sm" onClick={() => filtersReady ? void loadRegistrations() : void loadFilterOptions()}>Retry / refresh entries</button>
+            <button className="rounded-lg border border-white/20 px-4 py-2 text-sm disabled:opacity-50" disabled={loading || !registrations.length} onClick={() => void loadPlayedRegistrationIds(registrations)}>Check results for this page</button>
+            <p className="text-xs text-gray-400">Completed event entries load only when included. Summary counts and results are available on request.</p>
+          </div>
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
             <div className="rounded-xl border border-white/10 bg-zinc-900 p-4">
               <p className="text-sm text-gray-400">Total entries</p>
-              <p className="mt-2 text-3xl font-bold">{stats.all}</p>
+              <p className="mt-2 text-3xl font-bold">{statsLoaded ? stats.all : "—"}</p>
             </div>
 
             <button
@@ -1043,7 +1075,7 @@ function RegistrationsPageContent() {
             >
               <p className="text-sm text-gray-400">Needs review</p>
               <p className="mt-2 text-3xl font-bold text-yellow-300">
-                {stats.pending}
+                {statsLoaded ? stats.pending : "—"}
               </p>
             </button>
 
@@ -1054,7 +1086,7 @@ function RegistrationsPageContent() {
             >
               <p className="text-sm text-gray-400">Proof submitted</p>
               <p className="mt-2 text-3xl font-bold text-purple-300">
-                {stats.proofSubmitted}
+                {statsLoaded ? stats.proofSubmitted : "—"}
               </p>
             </button>
 
@@ -1065,7 +1097,7 @@ function RegistrationsPageContent() {
             >
               <p className="text-sm text-gray-400">Approved not paid</p>
               <p className="mt-2 text-3xl font-bold text-blue-300">
-                {stats.approvedAwaitingPayment}
+                {statsLoaded ? stats.approvedAwaitingPayment : "—"}
               </p>
             </button>
 
@@ -1076,7 +1108,7 @@ function RegistrationsPageContent() {
             >
               <p className="text-sm text-gray-400">Needs Chess SA</p>
               <p className="mt-2 text-3xl font-bold text-red-300">
-                {stats.needsChessSa}
+                {statsLoaded ? stats.needsChessSa : "—"}
               </p>
             </button>
 
@@ -1101,7 +1133,7 @@ function RegistrationsPageContent() {
                       : "bg-zinc-950 text-gray-300 hover:bg-zinc-800"
                   }`}
                 >
-                  {tab.label} ({tab.count})
+                  {tab.label}{statsLoaded ? ` (${tab.count})` : ""}
                 </button>
               ))}
             </div>
@@ -1322,8 +1354,7 @@ function RegistrationsPageContent() {
                 </button>
               </div>
               <p className="mt-3 text-xs text-gray-500">
-                Current view has {visibleApprovedCount} approved player
-                {visibleApprovedCount === 1 ? "" : "s"} ready for Swiss Manager.
+                {statsLoaded ? `${visibleApprovedCount} approved entries match the filters.` : "Exports retrieve all matching approved entries, even when summary counts are not loaded."}
               </p>
             </div>
 
@@ -1348,7 +1379,7 @@ function RegistrationsPageContent() {
                   <p className="flex items-center justify-between gap-3">
                     <span>Pending work</span>
                     <span className="font-semibold text-yellow-300">
-                      {stats.pending + stats.proofSubmitted}
+                      {statsLoaded ? stats.pending + stats.proofSubmitted : "—"}
                     </span>
                   </p>
                 </div>
@@ -1432,7 +1463,7 @@ function RegistrationsPageContent() {
                 {currentPageRegistrations.map((item) => {
                   const playedStatus =
                     playedStatusByRegistration[item.registration_id] ??
-                    "No final ranking yet";
+                    "Results not checked";
 
                   return (
                   <article
@@ -1578,7 +1609,7 @@ function RegistrationsPageContent() {
                       {currentPageRegistrations.map((item) => {
                         const playedStatus =
                           playedStatusByRegistration[item.registration_id] ??
-                          "No final ranking yet";
+                          "Results not checked";
 
                         return (
                         <tr
@@ -1680,7 +1711,7 @@ function RegistrationsPageContent() {
                       const selectedPlayedStatus =
                         playedStatusByRegistration[
                           selectedRegistration.registration_id
-                        ] ?? "No final ranking yet";
+                        ] ?? "Results not checked";
 
                       return (
                         <>
@@ -1884,6 +1915,6 @@ function RegistrationsPageContent() {
           )}
         </div>
       </main>
-    </AdminGuard>
+    </>
   );
 }

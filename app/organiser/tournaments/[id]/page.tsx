@@ -7,6 +7,7 @@ import * as XLSX from "xlsx";
 import OrganiserGuard, { OrganiserAccess } from "@/components/organiser/OrganiserGuard";
 import { supabase } from "@/lib/supabase";
 import { refreshRegistrationExportRows } from "@/lib/registrationExportIdentity";
+import { parseBulkRows, resolveBulkSection, type BulkEntry, type BulkSection } from "@/lib/bulkRegistration";
 import {
   buildSwissTeamTieBreakTextFiles,
   buildTournamentWorkbook,
@@ -49,21 +50,7 @@ type RegistrationRow = {
   section_name: string | null;
 };
 
-type TournamentSection = {
-  id: string;
-  section_name: string;
-};
-
-type BulkEntry = {
-  rowNumber: number;
-  firstNames: string;
-  surname: string;
-  fullName: string;
-  dateOfBirth: string;
-  rating: number | null;
-  club: string;
-  gender: string;
-};
+type TournamentSection = BulkSection;
 
 function valueOrDash(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
@@ -83,36 +70,6 @@ function safeFileName(value: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "")
     .toLowerCase();
-}
-
-function cellText(value: unknown) {
-  return String(value ?? "").trim();
-}
-
-function templateDateToKey(value: unknown) {
-  if (typeof value === "number") {
-    const parsed = XLSX.SSF.parse_date_code(value);
-    if (parsed) {
-      return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
-    }
-  }
-
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
-  }
-
-  const text = cellText(value);
-  const isoMatch = text.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-  if (isoMatch) {
-    return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
-  }
-
-  const southAfricanMatch = text.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
-  if (southAfricanMatch) {
-    return `${southAfricanMatch[3]}-${southAfricanMatch[2].padStart(2, "0")}-${southAfricanMatch[1].padStart(2, "0")}`;
-  }
-
-  return "";
 }
 
 export default function OrganiserTournamentEntriesPage() {
@@ -156,6 +113,27 @@ function TournamentEntries({
   const [importingBulkEntries, setImportingBulkEntries] = useState(false);
 
   const allowed = isAdmin || access.some((row) => row.tournament_id === tournamentId);
+  const bulkAssignments = bulkEntries.map(entry => ({ entry, ...resolveBulkSection(entry,tournamentSections,bulkSectionId) }));
+
+  function downloadBulkTemplate() {
+    const book = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([["First names","Surname","Date of birth","Gender","Rating","Club/City","Section"]]);
+    sheet["!cols"] = [24,24,20,14,12,28,28].map(wch => ({wch}));
+    XLSX.utils.book_append_sheet(book,sheet,"Players");
+    XLSX.utils.book_append_sheet(book,XLSX.utils.aoa_to_sheet([
+      ["PCC bulk entry",tournament?.tournament_name ?? ""],
+      ["First names / Surname","Use separate columns, without commas."],
+      ["Date of birth","YYYY-MM-DD or DD/MM/YYYY. Do not guess missing birth dates."],
+      ["Section","Copy an exact name from Sections. Leave blank for automatic assignment or the selected default."],
+      ["Eligibility","A qualifying requested section is kept. Ineligible requests move to the only eligible section. Multiple matches need your choice."],
+      ["Rating / Gender","Supply these when required by section rules. Blank ratings are unknown; zero means unrated."],
+      ["Import","Check the preview. Up to 200 players per batch. Fix all listed issues before submitting."],
+    ]),"Instructions");
+    const sectionSheet = XLSX.utils.aoa_to_sheet([["Section","Born from","Born through","Minimum rating","Maximum rating","Gender"],...tournamentSections.map(s=>[s.section_name,s.minimum_birth_year,s.maximum_birth_year,s.minimum_rating,s.maximum_rating,s.gender_restriction || "All"])]);
+    sectionSheet["!cols"] = [28,18,18,18,18,18].map(wch=>({wch}));
+    XLSX.utils.book_append_sheet(book,sectionSheet,"Sections");
+    XLSX.writeFile(book,`pcc-bulk-${safeFileName(tournament?.tournament_name ?? "entries")}.xlsx`);
+  }
 
   async function loadEntries() {
     setLoading(true);
@@ -181,7 +159,7 @@ function TournamentEntries({
 
     const { data: sectionData, error: sectionError } = await supabase
       .from("tournament_sections")
-      .select("id, section_name")
+      .select("id, section_name, minimum_birth_year, maximum_birth_year, minimum_rating, maximum_rating, gender_restriction")
       .eq("tournament_id", tournamentId)
       .order("display_order", { ascending: true });
 
@@ -193,7 +171,6 @@ function TournamentEntries({
 
     const loadedSections = (sectionData ?? []) as TournamentSection[];
     setTournamentSections(loadedSections);
-    setBulkSectionId((current) => current || loadedSections[0]?.id || "");
 
     const { data, error } = await supabase
       .from("registration_details")
@@ -468,60 +445,9 @@ function TournamentEntries({
         defval: "",
         raw: true,
       });
-      const headerRowIndex = rows.findIndex((row) =>
-        row.some((cell) => ["first names", "first name", "given names"].includes(cellText(cell).toLowerCase())) &&
-        row.some((cell) => ["surname", "last name", "family name"].includes(cellText(cell).toLowerCase())) &&
-        row.some((cell) => cellText(cell).toLowerCase() === "date of birth")
-      );
-
-      if (headerRowIndex === -1) {
-        setBulkEntries([]);
-        setBulkIssues(["This template must contain separate First names, Surname and Date of birth columns. Download the new PCC template; old Name-only files are not imported because their name order cannot be verified."]);
-        return;
-      }
-
-      const headers = rows[headerRowIndex].map((cell) => cellText(cell).toLowerCase());
-      const firstNamesIndex = ["first names", "first name", "given names"].map((header) => headers.indexOf(header)).find((index) => index >= 0) ?? -1;
-      const surnameIndex = ["surname", "last name", "family name"].map((header) => headers.indexOf(header)).find((index) => index >= 0) ?? -1;
-      const dobIndex = headers.indexOf("date of birth");
-      const ratingIndex = headers.indexOf("rtg");
-      const clubIndex = headers.indexOf("club/city");
-      const genderIndex = headers.indexOf("gender");
-      const entries: BulkEntry[] = [];
-      const issues: string[] = [];
-
-      rows.slice(headerRowIndex + 1).forEach((row, index) => {
-        const firstNames = cellText(row[firstNamesIndex]);
-        const surname = cellText(row[surnameIndex]);
-        const fullName = [firstNames, surname].filter(Boolean).join(" ");
-        const dateOfBirth = templateDateToKey(row[dobIndex]);
-        const sourceRow = headerRowIndex + index + 2;
-
-        if (!fullName && !cellText(row[dobIndex])) return;
-        if (!firstNames || !surname || !dateOfBirth) {
-          issues.push(`Row ${sourceRow}: First names, surname and date of birth are required.`);
-          return;
-        }
-
-        const parsedRating = Number(cellText(row[ratingIndex]).replace(/[^0-9.-]/g, ""));
-        entries.push({
-          rowNumber: sourceRow,
-          firstNames,
-          surname,
-          fullName,
-          dateOfBirth,
-          rating: Number.isFinite(parsedRating) ? Math.round(parsedRating) : null,
-          club: cellText(row[clubIndex]),
-          gender: cellText(row[genderIndex]),
-        });
-      });
-
-      if (entries.length > 200) {
-        issues.push("Only the first 200 valid players can be imported at one time.");
-      }
-
-      setBulkEntries(entries.slice(0, 200));
-      setBulkIssues(issues);
+      const parsed = parseBulkRows(rows);
+      setBulkEntries(parsed.entries);
+      setBulkIssues(parsed.issues);
     } catch {
       setBulkEntries([]);
       setBulkIssues(["The Excel file could not be read. Please use the PCC template and try again."]);
@@ -529,8 +455,9 @@ function TournamentEntries({
   }
 
   async function importBulkEntries() {
-    if (!bulkSectionId || bulkEntries.length === 0) {
-      setMessage("Choose a section and upload at least one valid player row first.");
+    if (importingBulkEntries) return;
+    if (bulkEntries.length === 0 || bulkIssues.length || bulkAssignments.some(item => !item.section)) {
+      setMessage("Resolve all file and section issues in the preview before importing.");
       return;
     }
     if (!bulkContactEmail.trim() || !bulkContactPhone.trim()) {
@@ -541,9 +468,14 @@ function TournamentEntries({
     setImportingBulkEntries(true);
     setMessage("");
     const failures: string[] = [];
+    const remaining: BulkEntry[] = [];
     let imported = 0;
-
-    for (const entry of bulkEntries) {
+    let nextIndex = 0;
+    try {
+    for (const [index, assignment] of bulkAssignments.entries()) {
+      const { entry, section } = assignment;
+      if (!section) continue;
+      setMessage(`Importing ${index+1} of ${bulkAssignments.length}: ${entry.fullName} → ${section.section_name}`);
       const { error } = await supabase.rpc("submit_tournament_registration_named", {
         p_full_name: entry.fullName,
         p_first_names: entry.firstNames,
@@ -558,14 +490,20 @@ function TournamentEntries({
         p_club: entry.club,
         p_province: "",
         p_tournament_id: tournamentId,
-        p_section_id: bulkSectionId,
+        p_section_id: section.id,
         p_payment_status: "Pending",
         p_proof_of_payment_url: "",
-      });
+      }).abortSignal(AbortSignal.timeout(30000));
+      if (error && /abort|timeout|fetch/i.test(error.message)) {
+        throw new Error("Registration request interrupted");
+      }
+      nextIndex = index + 1;
 
       if (error) {
+        remaining.push(entry);
         if (error.message.toLowerCase().includes("submit_tournament_registration_named") || error.message.toLowerCase().includes("schema cache")) {
           failures.push(`Row ${entry.rowNumber}: install the structured registration names SQL migration before importing this template.`);
+          remaining.push(...bulkAssignments.slice(index+1).map(item=>item.entry));
           break;
         }
         failures.push(`Row ${entry.rowNumber} (${entry.fullName}): ${error.message}`);
@@ -573,13 +511,17 @@ function TournamentEntries({
         imported += 1;
       }
     }
+    } catch {
+      remaining.push(...bulkAssignments.slice(nextIndex).map(item => item.entry));
+      failures.push("Import interrupted. Refresh entries to check which rows saved before uploading the remaining players.");
+    } finally { setImportingBulkEntries(false); }
 
     const completionMessage = failures.length
       ? `${imported} player${imported === 1 ? "" : "s"} imported. ${failures.length} row${failures.length === 1 ? " needs" : "s need"} attention below.`
       : `${imported} player${imported === 1 ? "" : "s"} imported as pending entries.`;
 
     setImportingBulkEntries(false);
-    setBulkEntries([]);
+    setBulkEntries(remaining);
     setBulkIssues(failures);
     await loadEntries();
     setMessage(completionMessage);
@@ -680,24 +622,24 @@ function TournamentEntries({
                 capacity checks.
               </p>
             </div>
-            <a
-              href="/templates/pcc-bulk-registration-template.xlsx"
-              download
+            <button
+              type="button" onClick={downloadBulkTemplate}
               className="shrink-0 rounded-xl border border-white/20 px-4 py-3 text-sm font-bold text-white transition hover:border-red-400 hover:bg-white/5"
             >
               Download PCC template
-            </a>
+            </button>
           </div>
 
           <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <label className="text-sm font-semibold text-zinc-200">
-              Tournament section
+              Default section (optional)
               <select
                 value={bulkSectionId}
+                disabled={importingBulkEntries}
                 onChange={(event) => setBulkSectionId(event.target.value)}
                 className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
               >
-                <option value="">Choose section</option>
+                <option value="">Automatic from eligibility</option>
                 {tournamentSections.map((section) => (
                   <option key={section.id} value={section.id}>
                     {section.section_name}
@@ -710,6 +652,7 @@ function TournamentEntries({
               <input
                 type="email"
                 value={bulkContactEmail}
+                disabled={importingBulkEntries}
                 onChange={(event) => setBulkContactEmail(event.target.value)}
                 placeholder="organiser@example.com"
                 className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
@@ -720,6 +663,7 @@ function TournamentEntries({
               <input
                 type="tel"
                 value={bulkContactPhone}
+                disabled={importingBulkEntries}
                 onChange={(event) => setBulkContactPhone(event.target.value)}
                 placeholder="e.g. 082 000 0000"
                 className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
@@ -738,8 +682,9 @@ function TournamentEntries({
           </div>
 
           <p className="mt-4 text-xs leading-5 text-zinc-400">
-            The PCC sheet requires Name and Date of birth. Rating, Club/City and
-            Gender are optional. The group contact details are recorded on each
+            First names, Surname and Date of birth are required. Add a Section per
+            player to request a specific section. Rating and gender are needed when
+            section rules require them. The group contact details are recorded on each
             player&apos;s entry so PCC can follow up where necessary.
           </p>
 
@@ -747,24 +692,25 @@ function TournamentEntries({
             <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950/70 p-4">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm font-semibold text-white">
-                  {bulkEntries.length} valid player{bulkEntries.length === 1 ? "" : "s"} ready to import
+                  {bulkAssignments.filter(item=>item.section).length} of {bulkEntries.length} players assigned — review below
                 </p>
                 <button
                   type="button"
                   onClick={importBulkEntries}
-                  disabled={importingBulkEntries || !bulkSectionId}
+                  disabled={importingBulkEntries || bulkIssues.length > 0 || bulkAssignments.some(item=>!item.section)}
                   className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {importingBulkEntries ? "Importing players..." : "Import pending entries"}
                 </button>
               </div>
-              <div className="mt-3 grid gap-2 text-xs text-zinc-400 sm:grid-cols-2 lg:grid-cols-4">
-                {bulkEntries.slice(0, 8).map((entry) => (
-                  <p key={`${entry.rowNumber}-${entry.fullName}`} className="truncate">
-                    Row {entry.rowNumber}: {entry.fullName}
-                  </p>
+              <div className="mt-3 max-h-96 space-y-2 overflow-y-auto text-sm">
+                {bulkAssignments.map(({entry,section,reason}) => (
+                  <div key={entry.rowNumber} className="rounded-lg border border-white/10 p-3">
+                    <p className="font-bold text-white">Row {entry.rowNumber}: {entry.fullName}</p>
+                    <p className="text-zinc-400">Requested: {entry.requestedSection || tournamentSections.find(s=>s.id===bulkSectionId)?.section_name || "Automatic"}</p>
+                    <p className={section ? "text-green-300" : "text-amber-300"}>{section?.section_name || "Needs review"} — {reason}</p>
+                  </div>
                 ))}
-                {bulkEntries.length > 8 && <p>+ {bulkEntries.length - 8} more players</p>}
               </div>
             </div>
           )}

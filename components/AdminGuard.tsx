@@ -34,10 +34,23 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
   const [checking, setChecking] = useState(true);
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [accessError, setAccessError] = useState("");
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     async function checkAdmin() {
-      const { data: sessionData } = await supabase.auth.getSession();
+      setChecking(true);
+      setAccessError("");
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+      const { data: sessionData, error: sessionError } = await Promise.race([
+        supabase.auth.getSession(),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Session check timed out. Please retry.")), 12000); }),
+      ]);
+      clearTimeout(timer);
+      if (sessionError) throw sessionError;
+      if (cancelled) return;
       const user = sessionData.session?.user;
 
       if (!user) {
@@ -45,40 +58,41 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Linking writes run as a separate POST, never inside a read-only RLS check.
-      await supabase.rpc("link_current_admin_account");
-      const { data: roleData } = await supabase.rpc("current_admin_role");
-      let isAdmin = typeof roleData === "string" && roleData.length > 0;
-      const resolvedRole = isAdmin ? (roleData as string) : null;
-
-      const { data: adminRow, error } = await supabase
-        .from("admin_users")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      isAdmin = isAdmin || (!error && Boolean(adminRow));
-
-      if (!isAdmin) {
-        await supabase.auth.signOut();
-        router.replace("/admin/login");
-        return;
+      // The role resolver includes email-based access. Linking is only needed
+      // for a newly assigned account, not on every page navigation.
+      let result = await supabase.rpc("current_admin_role").abortSignal(AbortSignal.timeout(12000));
+      if (result.error) throw result.error;
+      if (!result.data) {
+        const linked = await supabase.rpc("link_current_admin_account").abortSignal(AbortSignal.timeout(12000));
+        if (linked.error) throw linked.error;
+        result = await supabase.rpc("current_admin_role").abortSignal(AbortSignal.timeout(12000));
+        if (result.error) throw result.error;
       }
-
-      setCurrentRole(resolvedRole ?? (adminRow ? "admin" : null));
+      if (cancelled) return;
+      if (typeof result.data !== "string" || !result.data) throw new Error("This account does not have active admin access.");
+      setCurrentRole(result.data);
       setAllowed(true);
-      setChecking(false);
+      } catch (error) {
+        if (!cancelled) {
+          setAllowed(false);
+          setAccessError(error instanceof Error ? error.message : "Could not confirm admin access. Please retry.");
+        }
+      } finally {
+        clearTimeout(timer);
+        if (!cancelled) setChecking(false);
+      }
     }
 
     checkAdmin();
-  }, [router]);
+    return () => { cancelled = true; };
+  }, [router, attempt]);
 
   async function signOut() {
     await supabase.auth.signOut();
     router.replace("/admin/login");
   }
 
-  if (checking) {
+  if (checking || accessError) {
     return (
       <main className="min-h-screen bg-zinc-950 px-6 pt-28 text-white">
         <div className="mx-auto max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-zinc-900 shadow-2xl shadow-black/30">
@@ -87,10 +101,11 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
             <p className="text-xs font-bold uppercase tracking-[0.22em] text-red-300">
               Admin access
             </p>
-            <h1 className="mt-3 text-2xl font-black">Checking your session</h1>
+            <h1 className="mt-3 text-2xl font-black">{accessError ? "Could not check your session" : "Checking your session"}</h1>
             <p className="mt-3 text-sm leading-6 text-zinc-400">
-              Confirming that this account can manage PCC records and events.
+              {accessError || "Confirming that this account can manage PCC records and events."}
             </p>
+            {accessError && <div className="mt-4 flex gap-4"><button className="rounded-lg bg-red-600 px-4 py-2 font-bold" onClick={() => setAttempt(value => value + 1)}>Retry</button><Link className="px-4 py-2" href="/admin/login">Sign in</Link></div>}
           </div>
         </div>
       </main>
