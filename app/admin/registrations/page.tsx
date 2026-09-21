@@ -191,8 +191,13 @@ function RegistrationsPageContent() {
     let filteredQuery = query;
     const searchText = search.trim().replace(/[,%]/g, " ");
 
-    const ids = visibleEvents.filter(event => tournamentFilter === "All" || event.tournament_name === tournamentFilter).map(event => event.id);
-    filteredQuery = filteredQuery.in("tournament_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
+    // registration_details exposes the event name, not the underlying UUID.
+    // Filtering by the view's public column also keeps this compatible with
+    // older installations of the view that do not expose tournament_id.
+    const eventNames = visibleEvents
+      .filter(event => tournamentFilter === "All" || event.tournament_name === tournamentFilter)
+      .map(event => event.tournament_name);
+    filteredQuery = filteredQuery.in("tournament_name", eventNames.length ? eventNames : ["__no_visible_event__"]);
 
     if (sectionFilter === "No section") {
       filteredQuery = filteredQuery.is("section_name", null);
