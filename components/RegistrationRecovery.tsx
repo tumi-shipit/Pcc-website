@@ -13,11 +13,13 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
   const [file, setFile] = useState<File | null>(null);
   const [link, setLink] = useState("");
   const [onlineOnly, setOnlineOnly] = useState(true);
+  const [allowsProof, setAllowsProof] = useState(false);
 
   useEffect(() => {
     setLink(`${window.location.origin}/register#entry=${receipt.registrationId}&recovery=${receipt.recoveryToken}`);
     setStatus("");
     setOnlineOnly(true);
+    setAllowsProof(false);
     setEntryStatus("");
     let active = true;
     const form = new FormData();
@@ -27,7 +29,7 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
       .then(async response => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Could not check payment status.");
-        if (active) { setStatus(result.paymentStatus); setEntryStatus(result.registrationStatus); setOnlineOnly(result.onlineOnly === true); }
+        if (active) { setStatus(result.paymentStatus); setEntryStatus(result.registrationStatus); setOnlineOnly(result.onlineOnly === true); setAllowsProof(result.allowsProof !== false && result.onlineOnly === false); }
       }).catch(error => { if (active) setMessage(error.message); });
     return () => { active = false; };
   }, [receipt.registrationId, receipt.recoveryToken]);
@@ -51,6 +53,7 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
       setStatus(result.paymentStatus);
       setEntryStatus(result.registrationStatus);
       if (typeof result.onlineOnly === "boolean") setOnlineOnly(result.onlineOnly);
+      if (typeof result.allowsProof === "boolean") setAllowsProof(result.allowsProof);
       setMessage(action === "proof" ? "Proof submitted for the organiser to review. This is not yet a confirmed payment." : "Status checked.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Please try again. Your entry is still saved.");
@@ -71,7 +74,7 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
     </div>
     {onlineOnly && !closed && <p className="mt-3 text-sm text-amber-200">Online payment is required. An unfinished or failed payment does not confirm your entry. Use Pay now to finish payment.</p>}
     <details className="mt-3 text-sm"><summary>Show private recovery link</summary><input aria-label="Private recovery link" readOnly value={link} onFocus={event => event.target.select()} className="mt-2 w-full rounded bg-zinc-950 p-3" /></details>
-    {!closed && !onlineOnly && <div className="mt-4 border-t border-white/10 pt-4">
+    {!closed && allowsProof && <div className="mt-4 border-t border-white/10 pt-4">
       <label className="block text-sm" htmlFor="recovery-proof">Already paid manually? Upload proof (PDF, JPEG or PNG, maximum 4 MB).</label>
       <input id="recovery-proof" type="file" accept="application/pdf,image/jpeg,image/png" disabled={busy} onChange={event => setFile(event.target.files?.[0] ?? null)} className="mt-2 block max-w-full text-sm" />
       <button disabled={busy || !file || !status} onClick={() => act("proof")} className="mt-3 rounded-lg border border-white/30 px-4 py-3 disabled:opacity-50">Submit proof for review</button>

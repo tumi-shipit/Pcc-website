@@ -19,6 +19,8 @@ import {
   type TournamentRatingType,
 } from "@/lib/ratingTypes";
 
+import OnlineTournamentRegistration from "@/components/OnlineTournamentRegistration";
+
 type SearchMethod = "chesssa" | "surname_dob" | "surname";
 
 type ChessSaPlayer = {
@@ -69,6 +71,7 @@ const emptyNewPlayer: NewPlayerForm = {
 };
 
 type Tournament = {
+  registration_mode: string;
   id: string;
   tournament_name: string;
   start_date: string;
@@ -483,10 +486,10 @@ export default function RegisterPage() {
     let cancelled = false;
     async function refreshPaymentSetting() {
       const { data, error } = await supabase.from("tournaments")
-        .select("online_payment_enabled,registration_payment_required").eq("id", selectedTournamentId).single();
+        .select("online_payment_enabled,registration_payment_required,registration_mode").eq("id", selectedTournamentId).single();
       if (cancelled || error || !data) return;
       setTournaments(current => current.map(event => event.id === selectedTournamentId
-        ? { ...event, online_payment_enabled: data.online_payment_enabled === true, registration_payment_required: data.registration_payment_required === true } : event));
+        ? { ...event, registration_mode: data.registration_mode, online_payment_enabled: data.online_payment_enabled === true, registration_payment_required: data.registration_payment_required === true } : event));
     }
     void refreshPaymentSetting();
     window.addEventListener("focus", refreshPaymentSetting);
@@ -588,7 +591,7 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, online_payment_enabled, registration_payment_required, poster_image_url, registration_status, registration_open_date, registration_close_date, registration_schedule_enabled"
+          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, registration_mode, online_payment_enabled, registration_payment_required, poster_image_url, registration_status, registration_open_date, registration_close_date, registration_schedule_enabled"
         )
         .eq("registration_status", "Open")
         .order("start_date", { ascending: true });
@@ -675,7 +678,7 @@ export default function RegisterPage() {
     async function loadLockedPlayerRating() {
       setLockedPlayerRating(null);
 
-      if (!selectedChessSaPlayer || !selectedTournament?.rating_import_id) {
+      if (selectedTournament?.registration_mode !== "standard" || !selectedChessSaPlayer || !selectedTournament?.rating_import_id) {
         return;
       }
 
@@ -734,6 +737,7 @@ export default function RegisterPage() {
     selectedChessSaPlayer,
     selectedTournament?.id,
     selectedTournament?.rating_import_id,
+    selectedTournament?.registration_mode,
   ]);
 
   useEffect(() => {
@@ -806,6 +810,7 @@ export default function RegisterPage() {
 
   async function handleSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (selectedTournament && selectedTournament.registration_mode !== "standard") return;
 
     setSearching(true);
     setSearchMessage("");
@@ -1319,6 +1324,12 @@ export default function RegisterPage() {
     }
   }
 
+  if (selectedTournament && selectedTournament.registration_mode !== "standard") return <PublicPageShell><main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white"><div className="mx-auto max-w-3xl">
+    <button type="button" className="mb-4 underline" onClick={() => setSelectedTournamentId("")}>Choose another tournament</button>
+    {recoveryReceipt && <RegistrationRecovery receipt={recoveryReceipt} />}
+    <OnlineTournamentRegistration key={selectedTournament.id} tournament={selectedTournament} sections={sections} loading={loadingSections} />
+  </div></main></PublicPageShell>;
+
   return (
     <PublicPageShell>
       <main className="min-h-screen bg-zinc-950 pt-24 text-white">
@@ -1384,6 +1395,7 @@ export default function RegisterPage() {
         </div>
       </section>
 
+      <div className="mx-auto max-w-5xl px-4 pt-6"><label className="font-bold">Choose your tournament first<select className="mt-2 block w-full rounded bg-zinc-900 p-3" value={selectedTournamentId} onChange={e => setSelectedTournamentId(e.target.value)}><option value="">Select a tournament</option>{tournaments.map(t => <option key={t.id} value={t.id}>{t.tournament_name} · {t.registration_mode === "lichess" ? "Lichess" : t.registration_mode === "chesscom" ? "Chess.com" : "Standard"}</option>)}</select></label></div>
       <section id="single-player" className="mx-auto max-w-5xl scroll-mt-24 px-4 py-8 md:px-6 md:py-12">
         {paymentReturnStatus && <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">You have returned from checkout. Check your saved entry’s payment status below; returning here does not confirm payment.</div>}
         {recoveryReceipt && <RegistrationRecovery receipt={recoveryReceipt} />}

@@ -1,4 +1,6 @@
 ﻿"use client";
+import TournamentRegistrationMode from "@/components/admin/TournamentRegistrationMode";
+import OnlineRegistrationList from "@/components/admin/OnlineRegistrationList";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -709,6 +711,8 @@ export default function AdminTournamentDashboardPage() {
            Back to Admin Dashboard
         </Link>
 
+        <TournamentRegistrationMode tournamentId={tournamentId} />
+        <OnlineRegistrationList tournamentId={tournamentId} />
         <TournamentOnlinePayment tournamentId={tournamentId} />
         <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
           <div className="overflow-hidden rounded-2xl border border-white/10 bg-black">

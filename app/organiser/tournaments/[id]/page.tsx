@@ -1,4 +1,6 @@
 "use client";
+import TournamentRegistrationMode from "@/components/admin/TournamentRegistrationMode";
+import OnlineRegistrationList from "@/components/admin/OnlineRegistrationList";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -531,6 +533,8 @@ function TournamentEntries({
   return (
     <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
       <div className="mx-auto max-w-7xl">
+        <TournamentRegistrationMode tournamentId={tournamentId} />
+        <OnlineRegistrationList tournamentId={tournamentId} />
         <Link href="/organiser" className="text-sm font-semibold text-red-300">
           Back to organiser portal
         </Link>
