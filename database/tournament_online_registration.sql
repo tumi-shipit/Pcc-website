@@ -44,7 +44,7 @@ language plpgsql security definer set search_path=public as $$
 begin
   if (tg_op='INSERT' and new.registration_mode='standard') then return new; end if;
   if tg_op='UPDATE' and new.registration_mode is not distinct from old.registration_mode then return new; end if;
-  if not coalesce(public.can_operate_tournament_entries(new.id),false) then raise exception 'Only admins or assigned organisers can select registration mode.'; end if;
+  if current_user not in ('postgres','service_role') and not coalesce(public.can_operate_tournament_entries(new.id),false) then raise exception 'Only admins or assigned organisers can select registration mode.'; end if;
   if exists(select 1 from public.registrations where tournament_id=new.id)
     or exists(select 1 from public.online_registrations where tournament_id=new.id) then
     raise exception 'Registration mode cannot change after entries exist.';
@@ -57,7 +57,7 @@ create function public.get_tournament_registration_settings(p_tournament_id uuid
 language plpgsql security definer set search_path=public as $$
 declare result jsonb;
 begin
-  if not coalesce(public.can_operate_tournament_entries(p_tournament_id),false) then raise exception 'Access denied.'; end if;
+  if current_user not in ('postgres','service_role') and not coalesce(public.can_operate_tournament_entries(p_tournament_id),false) then raise exception 'Access denied.'; end if;
   select jsonb_build_object('mode',t.registration_mode,'locked',
     exists(select 1 from public.registrations where tournament_id=t.id) or
     exists(select 1 from public.online_registrations where tournament_id=t.id)) into result
@@ -70,7 +70,7 @@ grant execute on function public.get_tournament_registration_settings(uuid) to a
 create function public.set_tournament_registration_mode(p_tournament_id uuid,p_mode text) returns boolean
 language plpgsql security definer set search_path=public as $$
 begin
-  if not coalesce(public.can_operate_tournament_entries(p_tournament_id),false) then raise exception 'Access denied.'; end if;
+  if current_user not in ('postgres','service_role') and not coalesce(public.can_operate_tournament_entries(p_tournament_id),false) then raise exception 'Access denied.'; end if;
   if p_mode is null or p_mode not in ('standard','lichess','chesscom') then raise exception 'Invalid registration mode.'; end if;
   update public.tournaments set registration_mode=p_mode where id=p_tournament_id;
   return found;
@@ -178,3 +178,4 @@ revoke all on function public.complete_registration_payment_order(uuid,text,text
 grant execute on function public.complete_registration_payment_order(uuid,text,text,integer,text) to service_role;
 notify pgrst,'reload schema';
 commit;
+
