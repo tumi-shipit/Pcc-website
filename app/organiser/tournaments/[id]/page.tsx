@@ -26,6 +26,7 @@ type Tournament = {
   venue: string | null;
   registration_status: string | null;
   online_payment_enabled: boolean;
+  registration_payment_required: boolean;
 };
 
 type RegistrationRow = {
@@ -127,7 +128,7 @@ function TournamentEntries({
 
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
-      .select("id, tournament_name, start_date, venue, registration_status, online_payment_enabled")
+      .select("id, tournament_name, start_date, venue, registration_status, online_payment_enabled, registration_payment_required")
       .eq("id", tournamentId)
       .single();
 
@@ -408,6 +409,16 @@ function TournamentEntries({
     setUpdating(false);
   }
 
+  async function togglePaymentRequired() {
+    if (!tournament) return;
+    setUpdating(true);
+    const next = !tournament.registration_payment_required;
+    const { data, error } = await supabase.rpc("set_tournament_payment_required", { p_tournament_id: tournament.id, p_required: next });
+    if (error || data !== true) setMessage(error?.message || "Could not save payment requirement.");
+    else { setTournament({ ...tournament, registration_payment_required: next, online_payment_enabled: next || tournament.online_payment_enabled }); setMessage("Online-only requirement saved."); }
+    setUpdating(false);
+  }
+
   async function readBulkTemplate(file: File | undefined) {
     if (!file) return;
 
@@ -586,6 +597,11 @@ function TournamentEntries({
           </div>
         </section>
 
+        <section className="mt-4 rounded-2xl border border-emerald-500/25 p-5">
+          <h2 className="text-xl font-bold">Online payment only: {tournament?.registration_payment_required ? "Yes" : "No"}</h2>
+          <p className="mt-2 text-sm text-zinc-400">Players must complete online payment before approval. Proof uploads and manual payment labels are not accepted. Every section needs a positive entry fee.</p>
+          <button type="button" disabled={updating || !tournament} onClick={togglePaymentRequired} className="mt-3 rounded-xl bg-emerald-700 px-5 py-3 font-bold disabled:opacity-50">{updating ? "Saving…" : tournament?.registration_payment_required ? "Allow other payment options" : "Require online payment"}</button>
+        </section>
         <section className="mt-8 rounded-2xl border border-red-500/30 bg-red-500/5 p-5 md:p-6">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>

@@ -78,6 +78,7 @@ type Tournament = {
   entry_fee: number;
   payment_details: string | null;
   online_payment_enabled: boolean;
+  registration_payment_required: boolean;
   poster_image_url: string | null;
   registration_status?: string | null;
   registration_open_date?: string | null;
@@ -434,6 +435,9 @@ export default function RegisterPage() {
   const selectedTournamentRatingType = normalizeTournamentRatingType(
     selectedTournament?.rating_type
   );
+  useEffect(() => {
+    if (selectedTournament?.registration_payment_required && paymentChoice !== "online") { setPaymentChoice("online"); setProofFile(null); }
+  }, [selectedTournament?.registration_payment_required, paymentChoice]);
   const selectedTournamentRatingLabel = tournamentRatingLabel(
     selectedTournamentRatingType
   );
@@ -479,10 +483,10 @@ export default function RegisterPage() {
     let cancelled = false;
     async function refreshPaymentSetting() {
       const { data, error } = await supabase.from("tournaments")
-        .select("online_payment_enabled").eq("id", selectedTournamentId).single();
+        .select("online_payment_enabled,registration_payment_required").eq("id", selectedTournamentId).single();
       if (cancelled || error || !data) return;
       setTournaments(current => current.map(event => event.id === selectedTournamentId
-        ? { ...event, online_payment_enabled: data.online_payment_enabled === true } : event));
+        ? { ...event, online_payment_enabled: data.online_payment_enabled === true, registration_payment_required: data.registration_payment_required === true } : event));
     }
     void refreshPaymentSetting();
     window.addEventListener("focus", refreshPaymentSetting);
@@ -532,8 +536,8 @@ export default function RegisterPage() {
     selectedSectionId && !selectedSectionEligibilityMessage
   );
   const hasPaymentChoice =
-    paymentChoice === "later" ||
-    (paymentChoice === "proof" && Boolean(proofFile)) ||
+    (paymentChoice === "later" && !selectedTournament?.registration_payment_required) ||
+    (paymentChoice === "proof" && !selectedTournament?.registration_payment_required && Boolean(proofFile)) ||
     (paymentChoice === "online" && Boolean(selectedTournament?.online_payment_enabled) && entryFee > 0);
   const readinessItems = useMemo<Array<[boolean, string]>>(
     () => [
@@ -584,7 +588,7 @@ export default function RegisterPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, online_payment_enabled, poster_image_url, registration_status, registration_open_date, registration_close_date, registration_schedule_enabled"
+          "id, tournament_name, start_date, end_date, venue, province, entry_fee, payment_details, online_payment_enabled, registration_payment_required, poster_image_url, registration_status, registration_open_date, registration_close_date, registration_schedule_enabled"
         )
         .eq("registration_status", "Open")
         .order("start_date", { ascending: true });
@@ -1194,6 +1198,10 @@ export default function RegisterPage() {
 
     if (paymentChoice === "proof" && !proofFile) {
       setRegistrationMessage("Please choose your proof of payment file.");
+      return;
+    }
+    if (selectedTournament?.registration_payment_required && (paymentChoice !== "online" || !selectedTournament.online_payment_enabled || entryFee <= 0)) {
+      setRegistrationMessage("This event requires online payment. Select a payable section and use Pay now. Contact the organiser if payment is unavailable.");
       return;
     }
 
@@ -2118,13 +2126,14 @@ export default function RegisterPage() {
               <p className="mt-2 text-sm leading-6 text-gray-400">Choose how you want the organiser to handle this entry&apos;s payment.</p>
 
               <div className={`mt-4 grid gap-3 ${selectedTournament?.online_payment_enabled && entryFee > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+                {selectedTournament?.registration_payment_required && <p className="col-span-full rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">This event accepts online payment only. Your entry remains pending until payment succeeds and your entry is approved. Payment screenshots and proof uploads are not accepted.</p>}
                 {selectedTournament?.online_payment_enabled && entryFee > 0 && (
                   <button type="button" aria-pressed={paymentChoice === "online"} onClick={() => { setPaymentChoice("online"); setProofFile(null); }} className={`rounded-lg border border-green-500 bg-green-800 p-4 text-left text-white transition hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${paymentChoice === "online" ? "ring-2 ring-green-300 ring-offset-2 ring-offset-zinc-900" : ""}`}>
                     <span className="font-semibold">Pay now</span>
                     <span className="mt-1 block text-sm text-green-100">Submit the entry, then continue to secure online payment.</span>
                   </button>
                 )}
-                <button
+                {!selectedTournament?.registration_payment_required && <button
                   type="button"
                   onClick={() => {
                     setPaymentChoice("later");
@@ -2141,9 +2150,9 @@ export default function RegisterPage() {
                     Submit the entry now. The organiser will still see payment
                     as pending.
                   </span>
-                </button>
+                </button>}
 
-                <button
+                {!selectedTournament?.registration_payment_required && <button
                   type="button"
                   onClick={() => setPaymentChoice("proof")}
                   className={`rounded-lg border p-4 text-left transition ${
@@ -2157,10 +2166,10 @@ export default function RegisterPage() {
                     Use this if you already paid and have a clear payment
                     confirmation.
                   </span>
-                </button>
+                </button>}
               </div>
 
-              {paymentChoice === "proof" && (
+              {paymentChoice === "proof" && !selectedTournament?.registration_payment_required && (
                 <div className="mt-5">
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
                     Proof of payment
