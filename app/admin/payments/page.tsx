@@ -1,5 +1,4 @@
 "use client";
-import OnlineRegistrationList from "@/components/admin/OnlineRegistrationList";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -442,7 +441,6 @@ function AdminPaymentsContent() {
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
-        <OnlineRegistrationList />
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
             PCC Admin

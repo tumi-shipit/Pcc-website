@@ -1,5 +1,4 @@
 "use client";
-import OnlineRegistrationList from "@/components/admin/OnlineRegistrationList";
 
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -988,7 +987,6 @@ function RegistrationsPageContent() {
   return (
     <>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
-        <OnlineRegistrationList />
         {deleteIds.length > 0 && <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 p-4">
           <section role="alertdialog" aria-modal="true" aria-labelledby="delete-entries-title" className="w-full max-w-lg rounded-2xl border border-red-500/40 bg-zinc-950 p-6">
             <h2 id="delete-entries-title" className="text-xl font-bold">Delete {deleteIds.length} selected registrations?</h2>
