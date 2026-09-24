@@ -1,19 +1,22 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 
+import { attachPaymentOrders, paymentRequest, paymentSource, paymentDate, paymentCsv, confirmedYocoPayment, type PaymentReferences } from "@/lib/paymentDesk";
+
 type PaymentTab =
+  | "All"
   | "Proof Submitted"
   | "Approved Unpaid"
   | "Paid"
   | "Rejected"
   | "All Unpaid";
 
-type PaymentRow = {
+type PaymentRow = PaymentReferences & {
   registration_id: string;
   created_at: string;
   payment_status: string;
@@ -76,7 +79,7 @@ export default function AdminPaymentsPage() {
         </main>
       }
     >
-      <AdminPaymentsContent />
+      <AdminGuard><AdminPaymentsContent /></AdminGuard>
     </Suspense>
   );
 }
@@ -91,7 +94,7 @@ function AdminPaymentsContent() {
   const [sections, setSections] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectedRow, setSelectedRow] = useState<PaymentRow | null>(null);
-  const [activeTab, setActiveTab] = useState<PaymentTab>("Proof Submitted");
+  const [activeTab, setActiveTab] = useState<PaymentTab>("All");
   const [search, setSearch] = useState("");
   const [tournamentFilter, setTournamentFilter] = useState("All");
   const [sectionFilter, setSectionFilter] = useState("All");
@@ -100,10 +103,18 @@ function AdminPaymentsContent() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [message, setMessage] = useState("");
+  const [referenceMessage, setReferenceMessage] = useState("");
+  const [statsMessage, setStatsMessage] = useState("");
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [refresh, setRefresh] = useState(0);
+  const [exportingYoco, setExportingYoco] = useState(false);
+  const [filtersReady, setFiltersReady] = useState(false);
+  const loadVersion = useRef(0);
+  const loadAbort = useRef<AbortController | null>(null);
 
   function applyBaseFilters(query: any) {
     let nextQuery = query;
-    const searchText = search.trim().replace(/[,%]/g, " ");
+    const searchText = search.trim().replace(/[,%()."_]/g, " ");
 
     if (tournamentFilter !== "All") {
       nextQuery = nextQuery.eq("tournament_name", tournamentFilter);
@@ -133,6 +144,7 @@ function AdminPaymentsContent() {
   }
 
   function applyPaymentTab(query: any, tab: PaymentTab) {
+    if (tab === "All") return query;
     if (tab === "Proof Submitted") return query.eq("payment_status", "Proof Submitted");
     if (tab === "Approved Unpaid") {
       return query
@@ -144,144 +156,125 @@ function AdminPaymentsContent() {
     return query.not("payment_status", "eq", "Paid");
   }
 
-  async function countTab(tab: PaymentTab) {
-    const { count, error } = await applyPaymentTab(
-      applyBaseFilters(
-        supabase
-          .from("registration_details")
-          .select("registration_id", { count: "exact", head: true })
-      ),
-      tab
-    );
-
-    if (error) throw error;
+  async function countTab(tab: PaymentTab, signal: AbortSignal) {
+    const { count, error } = await paymentRequest<any>(applyPaymentTab(
+      applyBaseFilters(supabase.from("registration_details").select("registration_id", { count: "exact", head: true })), tab
+    ).abortSignal(signal), signal);
+    if (error) throw new Error(error.message);
     return count ?? 0;
   }
 
-  async function loadStats() {
-    const [proofSubmitted, approvedUnpaid, paid, rejected, allUnpaid] =
-      await Promise.all([
-        countTab("Proof Submitted"),
-        countTab("Approved Unpaid"),
-        countTab("Paid"),
-        countTab("Rejected"),
-        countTab("All Unpaid"),
-      ]);
-
-    setStats({ proofSubmitted, approvedUnpaid, paid, rejected, allUnpaid });
-  }
-
-  async function loadFilterOptions() {
-    const { data, error } = await supabase
-      .from("registration_details")
-      .select("tournament_name")
-      .order("tournament_name", { ascending: true })
-      .range(0, 9999);
-
-    if (error) {
-      setMessage(`Could not load tournaments: ${error.message}`);
-      return;
-    }
-
-    setTournaments(
-      Array.from(
-        new Set(
-          ((data ?? []) as Pick<PaymentRow, "tournament_name">[]).map(
-            (item) => item.tournament_name
-          )
-        )
-      ).sort()
-    );
-  }
-
-  async function loadSections() {
-    let query = supabase.from("registration_details").select("section_name");
-
-    if (tournamentFilter !== "All") {
-      query = query.eq("tournament_name", tournamentFilter);
-    }
-
-    const { data, error } = await query
-      .order("section_name", { ascending: true, nullsFirst: false })
-      .range(0, 9999);
-
-    if (error) {
-      setMessage(`Could not load sections: ${error.message}`);
-      return;
-    }
-
-    setSections(
-      Array.from(
-        new Set(
-          ((data ?? []) as Pick<PaymentRow, "section_name">[]).map(
-            (item) => item.section_name ?? "No section"
-          )
-        )
-      ).sort()
-    );
-  }
-
-  async function loadPayments() {
-    setLoading(true);
-    setMessage("");
-
-    const start = (currentPage - 1) * pageSize;
-    const end = start + pageSize - 1;
-
-    const query = applyPaymentTab(
-      applyBaseFilters(
-        supabase.from("registration_details").select("*", { count: "exact" })
-      ),
-      activeTab
-    )
-      .order("created_at", { ascending: false })
-      .range(start, end);
-
-    const [{ data, error, count }, statsResult] = await Promise.all([
-      query,
-      loadStats().then(
-        () => ({ error: null }),
-        (error) => ({ error })
-      ),
+  async function loadStats(signal: AbortSignal) {
+    const [proofSubmitted, approvedUnpaid, paid, rejected, allUnpaid] = await Promise.all([
+      countTab("Proof Submitted", signal), countTab("Approved Unpaid", signal), countTab("Paid", signal),
+      countTab("Rejected", signal), countTab("All Unpaid", signal),
     ]);
-
-    if (error) {
-      setMessage(`Could not load payments: ${error.message}`);
-    } else if (statsResult.error) {
-      setMessage(`Could not load payment counts: ${statsResult.error.message}`);
-      setRows((data ?? []) as unknown as PaymentRow[]);
-      setTotalCount(count ?? 0);
-    } else {
-      setRows((data ?? []) as unknown as PaymentRow[]);
-      setTotalCount(count ?? 0);
-    }
-
-    setLoading(false);
+    return { proofSubmitted, approvedUnpaid, paid, rejected, allUnpaid };
   }
 
   useEffect(() => {
-    loadFilterOptions();
-  }, []);
-
-  useEffect(() => {
-    if (requestedTournament) {
-      setTournamentFilter(requestedTournament);
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    async function loadOptions() {
+      try {
+        const { data, error } = await paymentRequest(supabase.from("tournaments").select("id,tournament_name")
+          .order("tournament_name").abortSignal(controller.signal), controller.signal);
+        if (error) throw new Error(error.message);
+        if (!active) return;
+        const events = data ?? [];
+        setTournaments(Array.from(new Set(events.map(event => event.tournament_name as string))));
+        if (requestedTournament) setTournamentFilter(events.find(event => event.id === requestedTournament)?.tournament_name ?? requestedTournament);
+      } catch (error) {
+        if (active) setMessage(error instanceof Error ? error.message : "Could not load event filters. Retry to load payments.");
+      } finally {
+        clearTimeout(timeout);
+        if (active) setFiltersReady(true);
+      }
     }
+    void loadOptions();
+    return () => { active = false; controller.abort(); clearTimeout(timeout); };
   }, [requestedTournament]);
 
   useEffect(() => {
-    loadSections();
-    setSectionFilter("All");
-  }, [tournamentFilter]);
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    async function loadSections() {
+      try {
+        let query = supabase.from("tournament_sections").select("section_name,tournaments!inner(tournament_name)");
+        if (tournamentFilter !== "All") query = query.eq("tournaments.tournament_name", tournamentFilter);
+        const { data, error } = await paymentRequest(query.order("section_name").abortSignal(controller.signal), controller.signal);
+        if (error) throw new Error(error.message);
+        if (active) setSections(Array.from(new Set((data ?? []).map(row => row.section_name as string))).concat("No section"));
+      } catch (error) {
+        if (active) setMessage(error instanceof Error ? error.message : "Could not load sections.");
+      } finally { clearTimeout(timeout); }
+    }
+    if (filtersReady) void loadSections();
+    return () => { active = false; controller.abort(); clearTimeout(timeout); };
+  }, [tournamentFilter, filtersReady, refresh]);
+
+  async function loadPayments() {
+    loadAbort.current?.abort();
+    const controller = new AbortController();
+    loadAbort.current = controller;
+    const version = ++loadVersion.current;
+    const current = () => version === loadVersion.current && !controller.signal.aborted;
+    setLoading(true); setMessage(""); setReferenceMessage(""); setSelectedRow(null);
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const { data, error, count } = await paymentRequest<any>(applyPaymentTab(
+        applyBaseFilters(supabase.from("registration_details").select("*", { count: "exact" })), activeTab
+      ).order("created_at", { ascending: false }).order("registration_id")
+        .range((currentPage - 1) * pageSize, currentPage * pageSize - 1).abortSignal(controller.signal), controller.signal);
+      if (error) throw new Error(error.message);
+      if (!current()) return;
+      const loaded = (data ?? []) as PaymentRow[];
+      setRows(loaded.map(row => ({ ...row, orderLookupFailed: true })));
+      setTotalCount(count ?? 0);
+      setLoading(false);
+      setReferenceMessage("Loading payment sources and references…");
+      try {
+        const enriched = await attachPaymentOrders(supabase, loaded, controller.signal);
+        if (current()) {
+          setRows(enriched);
+          setSelectedRow(selected => enriched.find(row => row.registration_id === selected?.registration_id) ?? null);
+          setReferenceMessage("");
+        }
+      } catch {
+        if (version === loadVersion.current) setReferenceMessage("Payment sources, references and dates could not be loaded. Retry to check them; entries are shown below.");
+      }
+    } catch (error) {
+      if (version === loadVersion.current) {
+        setRows([]); setTotalCount(0);
+        setMessage(controller.signal.aborted ? "Payment loading timed out. Please retry." : error instanceof Error ? error.message : "Could not load payments. Please retry.");
+      }
+    } finally {
+      clearTimeout(timeout);
+      if (version === loadVersion.current) setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    setCurrentPage(1);
-    setSelectedIds([]);
-  }, [activeTab, search, sectionFilter, tournamentFilter]);
+    if (!filtersReady) return;
+    const timer = setTimeout(() => { void loadPayments(); }, 250);
+    return () => { clearTimeout(timer); loadVersion.current += 1; loadAbort.current?.abort(); };
+  }, [activeTab, currentPage, search, sectionFilter, tournamentFilter, filtersReady, refresh]);
 
   useEffect(() => {
-    loadPayments();
-  }, [activeTab, currentPage, search, sectionFilter, tournamentFilter]);
+    if (!filtersReady) return;
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timer = setTimeout(() => {
+      setStatsLoading(true); setStatsMessage("");
+      loadStats(controller.signal).then(value => { if (active) setStats(value); })
+        .catch(() => { if (active) { setStats(emptyStats); setStatsMessage("Payment counts are unavailable. The payment list can still be used."); } })
+        .finally(() => { clearTimeout(timeout); if (active) setStatsLoading(false); });
+    }, 250);
+    return () => { active = false; clearTimeout(timer); clearTimeout(timeout); controller.abort(); };
+  }, [search, sectionFilter, tournamentFilter, filtersReady, refresh]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
   const displayStart = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
@@ -327,21 +320,21 @@ function AdminPaymentsContent() {
     setUpdating(true);
     setMessage("");
 
-    const { error } = await supabase.rpc("admin_batch_update_registration_status", {
-      p_registration_ids: ids,
-      p_payment_status: changes.payment_status ?? null,
-      p_registration_status: changes.registration_status ?? null,
-    });
-
-    if (error) {
-      setMessage(`Could not update payments: ${error.message}`);
+    try {
+      const signal = AbortSignal.timeout(15000);
+      const { error } = await paymentRequest(supabase.rpc("admin_batch_update_registration_status", {
+        p_registration_ids: ids,
+        p_payment_status: changes.payment_status ?? null,
+        p_registration_status: changes.registration_status ?? null,
+      }).abortSignal(signal), signal);
+      if (error) throw new Error(error.message);
+      setSelectedIds([]);
+      setRefresh(value => value + 1);
+    } catch (error) {
+      setMessage(`Could not confirm the payment update: ${error instanceof Error ? error.message : "Request failed."} Refresh to check the saved status before retrying.`);
+    } finally {
       setUpdating(false);
-      return;
     }
-
-    setSelectedIds([]);
-    await loadPayments();
-    setUpdating(false);
   }
 
   async function openProof(row: PaymentRow) {
@@ -368,6 +361,38 @@ function AdminPaymentsContent() {
     }
 
     window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+  }
+
+  async function exportYocoCsv() {
+    setExportingYoco(true); setMessage("");
+    try {
+      const exportRows: PaymentRow[] = [];
+      for (let offset = 0; ; offset += 500) {
+        const signal = AbortSignal.timeout(15000);
+        const { data, error } = await paymentRequest<any>(applyPaymentTab(
+          applyBaseFilters(supabase.from("registration_details").select("*")), activeTab
+        ).order("registration_id").range(offset, offset + 499).abortSignal(signal), signal);
+        if (error) throw new Error(error.message);
+        const batch = (data ?? []) as PaymentRow[];
+        const enriched = await attachPaymentOrders(supabase, batch, signal);
+        exportRows.push(...enriched.filter(confirmedYocoPayment));
+        if (batch.length < 500) break;
+      }
+      if (!exportRows.length) { setMessage("No confirmed live Yoco payments match the current filters. Choose All or Paid to include paid entries."); return; }
+      const csv = paymentCsv([
+        ["Event", "Section", "Player", "Email", "Payment source", "Amount", "Currency", "Payment confirmed (South African time)", "Payment confirmed (UTC)", "Entry reference", "Payment order reference", "Yoco payment reference", "Yoco checkout reference"],
+        ...exportRows.map(row => [row.tournament_name, row.section_name, row.full_name, row.email,
+          paymentSource(row), Number(row.order!.amount).toFixed(2), row.order!.currency, paymentDate(row), row.order!.paid_at,
+          row.registration_id, row.order!.id, row.order!.yoco_payment_id, row.order!.yoco_checkout_id]),
+      ]);
+      const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+      const link = document.createElement("a"); link.href = url;
+      link.download = "pcc-yoco-payments-" + tournamentFilter.replace(/[^a-z0-9]+/gi, "-").toLowerCase() + ".csv";
+      link.click(); URL.revokeObjectURL(url);
+      setMessage("Exported " + exportRows.length + " confirmed Yoco payments matching your filters.");
+    } catch (error) {
+      setMessage(error instanceof Error ? "Yoco export failed: " + error.message : "Could not export Yoco payments. Please retry.");
+    } finally { setExportingYoco(false); }
   }
 
   async function exportUnpaidCsv() {
@@ -431,6 +456,7 @@ function AdminPaymentsContent() {
   }
 
   const tabs: { label: PaymentTab; count: number }[] = [
+    { label: "All", count: stats.paid + stats.allUnpaid },
     { label: "Proof Submitted", count: stats.proofSubmitted },
     { label: "Approved Unpaid", count: stats.approvedUnpaid },
     { label: "All Unpaid", count: stats.allUnpaid },
@@ -439,7 +465,7 @@ function AdminPaymentsContent() {
   ];
 
   return (
-    <AdminGuard>
+    <>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-6">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
@@ -465,12 +491,15 @@ function AdminPaymentsContent() {
             </button>
           </div>
 
+          <button type="button" disabled={exportingYoco || !filtersReady} onClick={exportYocoCsv} className="mt-4 mr-3 rounded-lg bg-green-800 px-4 py-2 font-semibold disabled:opacity-50">{exportingYoco ? "Exporting Yoco payments…" : "Export confirmed Yoco payments (current filters)"}</button>
+          <button type="button" onClick={() => { setSelectedIds([]); setRefresh(value => value + 1); }} className="mt-4 rounded-lg border border-white/20 px-4 py-2">Refresh / retry payments</button>
+          {(statsMessage || referenceMessage) && <p role="status" className="mt-3 text-sm text-amber-200">{statsMessage} {referenceMessage}</p>}
           <div className="mt-8 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <StatCard label="Proof submitted" value={stats.proofSubmitted} tone="purple" />
-            <StatCard label="Approved unpaid" value={stats.approvedUnpaid} tone="blue" />
-            <StatCard label="All unpaid" value={stats.allUnpaid} tone="yellow" />
-            <StatCard label="Paid" value={stats.paid} tone="green" />
-            <StatCard label="Rejected" value={stats.rejected} tone="red" />
+            <StatCard label="Proof submitted" value={statsLoading ? "…" : statsMessage ? "—" : stats.proofSubmitted} tone="purple" />
+            <StatCard label="Approved unpaid" value={statsLoading ? "…" : statsMessage ? "—" : stats.approvedUnpaid} tone="blue" />
+            <StatCard label="All unpaid" value={statsLoading ? "…" : statsMessage ? "—" : stats.allUnpaid} tone="yellow" />
+            <StatCard label="Paid" value={statsLoading ? "…" : statsMessage ? "—" : stats.paid} tone="green" />
+            <StatCard label="Rejected" value={statsLoading ? "…" : statsMessage ? "—" : stats.rejected} tone="red" />
           </div>
 
           <section className="mt-6 rounded-xl border border-white/10 bg-zinc-900 p-4">
@@ -479,14 +508,14 @@ function AdminPaymentsContent() {
                 <button
                   key={tab.label}
                   type="button"
-                  onClick={() => setActiveTab(tab.label)}
+                  onClick={() => { setActiveTab(tab.label); setCurrentPage(1); setSelectedIds([]); }}
                   className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
                     activeTab === tab.label
                       ? "bg-red-600 text-white"
                       : "bg-zinc-950 text-gray-300 hover:bg-zinc-800"
                   }`}
                 >
-                  {tab.label} ({tab.count})
+                  {tab.label} ({statsLoading ? "…" : statsMessage ? "—" : tab.count})
                 </button>
               ))}
             </div>
@@ -494,14 +523,14 @@ function AdminPaymentsContent() {
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-[1.3fr_1fr_1fr_auto]">
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(event) => { setSearch(event.target.value); setCurrentPage(1); setSelectedIds([]); }}
                 placeholder="Search player, Chess SA ID, phone, email..."
                 className="rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
               />
 
               <select
                 value={tournamentFilter}
-                onChange={(event) => setTournamentFilter(event.target.value)}
+                onChange={(event) => { setTournamentFilter(event.target.value); setSectionFilter("All"); setCurrentPage(1); setSelectedIds([]); }}
                 className="rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition focus:border-red-500"
               >
                 <option value="All">All tournaments</option>
@@ -514,7 +543,7 @@ function AdminPaymentsContent() {
 
               <select
                 value={sectionFilter}
-                onChange={(event) => setSectionFilter(event.target.value)}
+                onChange={(event) => { setSectionFilter(event.target.value); setCurrentPage(1); setSelectedIds([]); }}
                 className="rounded-lg border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition focus:border-red-500"
               >
                 <option value="All">All sections</option>
@@ -531,7 +560,7 @@ function AdminPaymentsContent() {
                   setSearch("");
                   setTournamentFilter("All");
                   setSectionFilter("All");
-                  setActiveTab("Proof Submitted");
+                  setActiveTab("All"); setCurrentPage(1); setSelectedIds([]);
                 }}
                 className="rounded-lg border border-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:border-red-500"
               >
@@ -683,6 +712,10 @@ function AdminPaymentsContent() {
                               >
                                 {row.payment_status}
                               </span>
+                              <p className="mt-2 text-sm text-gray-300">{paymentSource(row)}</p>
+                              <p className="mt-1 text-xs text-gray-400">Paid: {paymentDate(row)}</p>
+                              <p className="mt-1 break-all text-xs text-gray-400">Payment reference: {row.order?.yoco_payment_id || "Not recorded"}</p>
+                              <p className="mt-1 break-all text-xs text-gray-500">Entry reference: {row.registration_id}</p>
                               <p className="mt-2 text-xs text-gray-500">
                                 Registered {formatDate(row.created_at)}
                               </p>
@@ -777,6 +810,15 @@ function AdminPaymentsContent() {
                     </p>
                   </div>
 
+                  <dl className="mt-5 space-y-3 break-all text-sm text-gray-300">
+                    <div><dt className="font-semibold text-white">Payment source</dt><dd>{paymentSource(selectedRow)}</dd></div>
+                    <div><dt className="font-semibold text-white">Payment confirmed (South African time)</dt><dd>{paymentDate(selectedRow)}</dd></div>
+                    <div><dt className="font-semibold text-white">Entry reference</dt><dd>{selectedRow.registration_id}</dd></div>
+                    <div><dt className="font-semibold text-white">Payment order reference</dt><dd>{selectedRow.order?.id || "Not recorded"}</dd></div>
+                    <div><dt className="font-semibold text-white">Yoco payment reference</dt><dd>{selectedRow.order?.yoco_payment_id || "Not recorded"}</dd></div>
+                    <div><dt className="font-semibold text-white">Yoco checkout reference</dt><dd>{selectedRow.order?.yoco_checkout_id || "Not recorded"}</dd></div>
+                    {selectedRow.order && <div><dt className="font-semibold text-white">Online order</dt><dd>{selectedRow.order.currency} {Number(selectedRow.order.amount).toFixed(2)} · {selectedRow.order.status}</dd></div>}
+                  </dl>
                   <div className="mt-6 grid gap-3">
                     <button
                       type="button"
@@ -830,7 +872,7 @@ function AdminPaymentsContent() {
           </section>
         </div>
       </main>
-    </AdminGuard>
+    </>
   );
 }
 
@@ -840,7 +882,7 @@ function StatCard({
   tone,
 }: {
   label: string;
-  value: number;
+  value: number | string;
   tone: "purple" | "blue" | "yellow" | "green" | "red";
 }) {
   const toneClass = {
