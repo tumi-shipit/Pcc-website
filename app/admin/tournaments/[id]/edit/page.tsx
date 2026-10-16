@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -14,6 +14,9 @@ import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 import {
   teamStandingsBasisForTournamentType,
+  normalizeTeamPointsGrouping,
+  teamPointsGroupingOptions,
+  type TeamPointsGrouping,
   type TournamentType,
 } from "@/lib/tournamentStandings";
 
@@ -36,6 +39,7 @@ type TournamentForm = {
   registration_schedule_enabled: boolean;
   registration_status: TournamentStatus;
   tournament_type: TournamentType;
+  team_points_grouping: TeamPointsGrouping;
   rating_type: TournamentRatingType;
   entry_fee: string;
   poster_image_url: string;
@@ -80,6 +84,7 @@ const emptyForm: TournamentForm = {
   registration_schedule_enabled: true,
   registration_status: "Draft",
   tournament_type: "Club",
+  team_points_grouping: "Auto",
   rating_type: "standard",
   entry_fee: "0",
   poster_image_url: "",
@@ -402,7 +407,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, tournament_type, team_standings_basis, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, tournament_type, team_standings_basis, team_points_grouping, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -438,6 +443,7 @@ export default function EditTournamentPage() {
           registration_schedule_enabled: fallback.data.registration_schedule_enabled ?? true,
           registration_status: fallback.data.registration_status ?? "Draft",
           tournament_type: "Club",
+          team_points_grouping: "Auto",
           rating_type: "standard",
           entry_fee: String(fallback.data.entry_fee ?? 0),
           poster_image_url: fallback.data.poster_image_url ?? "",
@@ -473,6 +479,7 @@ export default function EditTournamentPage() {
             data.tournament_type === "Organisation / School"
               ? data.tournament_type
               : "Club",
+          team_points_grouping: normalizeTeamPointsGrouping(data.team_points_grouping),
           rating_type: normalizeTournamentRatingType(data.rating_type),
           entry_fee: String(data.entry_fee ?? 0),
           poster_image_url: data.poster_image_url ?? "",
@@ -620,6 +627,7 @@ export default function EditTournamentPage() {
       registration_status: form.registration_status,
       tournament_type: form.tournament_type,
       team_standings_basis: teamStandingsBasisForTournamentType(form.tournament_type),
+      team_points_grouping: form.team_points_grouping,
       rating_type: form.rating_type,
       rating_import_id: nextRatingImportId,
       rating_list_locked_at: nextRatingLockedAt,
@@ -932,6 +940,20 @@ export default function EditTournamentPage() {
               </div>
 
               <div>
+                <label htmlFor="team-points-grouping" className="mb-2 block text-sm font-semibold">Team points grouping</label>
+                <select id="team-points-grouping" value={form.team_points_grouping}
+                  onChange={(event) => updateField("team_points_grouping", normalizeTeamPointsGrouping(event.target.value))}
+                  className={inputClass}>
+                  {teamPointsGroupingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Auto uses FED when there are multiple groups, otherwise TYPE, then Club/Team.
+                  TYPE can contain age groups, district codes or any labels you use.
+                  Calculated totals follow the latest individual results. Choose Imported team ranking to use an uploaded team list.
+                </p>
+              </div>
+
+              <div>
                 <label className="mb-2 block text-sm font-semibold">Tournament type</label>
                 <select
                   value={form.tournament_type}
@@ -950,8 +972,7 @@ export default function EditTournamentPage() {
                   <option value="Organisation / School">Organisation / School</option>
                 </select>
                 <p className="mt-2 text-xs leading-5 text-gray-500">
-                  National events group team points by South African province. Every
-                  other type groups them by the player&apos;s registered Club/City.
+                  Describes the event. Choose team points grouping separately.
                 </p>
               </div>
 

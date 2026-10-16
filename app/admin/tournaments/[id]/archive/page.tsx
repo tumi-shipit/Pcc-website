@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -10,6 +10,7 @@ import AdminTournamentTabs from "@/components/admin/AdminTournamentTabs";
 import AdminImportSummaryPanel from "@/components/admin/AdminImportSummaryPanel";
 import { createImportSession, createImportSessionRows } from "@/lib/importSummary";
 import { supabase } from "@/lib/supabase";
+import { cleanTeamGroup, normalizeTeamPointsGrouping, teamPointsGroupingOptions, type TeamPointsGrouping } from "@/lib/tournamentStandings";
 
 type Tournament = {
   id: string;
@@ -59,6 +60,8 @@ type ImportedPlayer = {
 };
 
 type ImportedStanding = {
+  result_type: string | null;
+  imported_club: string | null;
   rank: number | null;
   starting_number: number | null;
   name: string;
@@ -1029,6 +1032,9 @@ function parseFinalRankingRows(
     "Code",
   ]);
 
+  const typeIndex = getFlexibleColumnIndex(headers, ["Type", "TYPE", "Player Type"]);
+  const clubIndex = getFlexibleColumnIndex(headers, ["Club", "Team", "Club/City", "Club / Team", "School", "Organisation", "Organization"]);
+
   const pointsIndex = getFlexibleColumnIndex(headers, [
     "Pts",
     "Pts.",
@@ -1066,6 +1072,8 @@ function parseFinalRankingRows(
       );
 
       return {
+        result_type: typeIndex >= 0 ? cleanTeamGroup(row[typeIndex]) : null,
+        imported_club: clubIndex >= 0 ? cleanTeamGroup(row[clubIndex]) : null,
         rank: toNumber(row[rankIndex]),
         starting_number: startingNumber,
         name,
@@ -1501,6 +1509,8 @@ export default function TournamentArchiveContinuationPage() {
   const [playerFileName, setPlayerFileName] = useState("");
   const [rankingFileName, setRankingFileName] = useState("");
   const [teamFileName, setTeamFileName] = useState("");
+  const [teamGrouping, setTeamGrouping] = useState<TeamPointsGrouping>("Auto");
+  const [savingTeamGrouping, setSavingTeamGrouping] = useState(false);
   const [message, setMessage] = useState("");
   const [reportText, setReportText] = useState("");
   const [lastImportSummary, setLastImportSummary] = useState<ImportSummary | null>(null);
@@ -1519,7 +1529,7 @@ export default function TournamentArchiveContinuationPage() {
 
     const { data: tournamentData, error: tournamentError } = await supabase
       .from("tournaments")
-      .select("id, tournament_name, organiser_name, start_date, venue, registration_status, tournament_report, chess_results_url")
+      .select("id, tournament_name, organiser_name, start_date, venue, registration_status, tournament_report, chess_results_url, team_points_grouping")
       .eq("id", tournamentId)
       .single();
 
@@ -1560,6 +1570,7 @@ export default function TournamentArchiveContinuationPage() {
     const loadedTournament = tournamentData as Tournament;
 
     setTournament(loadedTournament);
+    setTeamGrouping(normalizeTeamPointsGrouping(tournamentData.team_points_grouping));
     setReportText(loadedTournament.tournament_report ?? "");
     setSections(loadedSections);
     setSectionCombinations(
@@ -1577,6 +1588,14 @@ export default function TournamentArchiveContinuationPage() {
       );
     }
     setLoading(false);
+  }
+
+  async function saveTeamGrouping() {
+    setSavingTeamGrouping(true);
+    const { error } = await supabase.from("tournaments")
+      .update({ team_points_grouping: teamGrouping }).eq("id", tournamentId);
+    setSavingTeamGrouping(false);
+    setMessage(error ? `Could not save team points grouping: ${error.message}` : "Team points grouping saved. Refresh the public tournament page to see the updated totals.");
   }
 
   async function loadSectionPlayers(sectionId = selectedSectionId) {
@@ -2575,6 +2594,13 @@ export default function TournamentArchiveContinuationPage() {
       return;
     }
 
+    const { error: schemaError } = await supabase.from("tournament_results")
+      .select("id, result_type, imported_club").eq("tournament_id", tournament.id).limit(1);
+    if (schemaError) {
+      setMessage(`Cannot import results yet: ${schemaError.message}. Install database/tournament_team_points_grouping.sql before replacing results.`);
+      return;
+    }
+
     const confirmed = window.confirm(
       `Import ${rowsToImport.length} final rankings for this section? Existing results for this section will be deleted first.`
     );
@@ -2623,6 +2649,8 @@ export default function TournamentArchiveContinuationPage() {
           imported_name: row.name,
           imported_rating: row.rating,
           federation: row.federation,
+          result_type: row.result_type,
+          imported_club: row.imported_club,
           points: row.points,
           tie_break: row.tieBreak,
           award_title:
@@ -2725,6 +2753,8 @@ export default function TournamentArchiveContinuationPage() {
             rating: row.rating,
             federation: row.federation,
             chess_sa_id: row.chess_sa_id,
+            result_type: row.result_type,
+            imported_club: row.imported_club,
             points: row.points,
             tieBreak: row.tieBreak,
             upset_notes: row.upsetNotes,
@@ -3574,6 +3604,18 @@ export default function TournamentArchiveContinuationPage() {
                 </p>
 
                 <h2 className="mt-2 text-2xl font-black">Team standings</h2>
+                <div className="mt-4">
+                  <label htmlFor="team-grouping" className="block text-sm font-semibold">Team points grouping for this tournament</label>
+                  <select id="team-grouping" className={inputClass} value={teamGrouping}
+                    onChange={(event) => setTeamGrouping(normalizeTeamPointsGrouping(event.target.value))}>
+                    {teamPointsGroupingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                  <button type="button" onClick={saveTeamGrouping} disabled={savingTeamGrouping}
+                    className="mt-3 rounded-xl bg-red-600 px-5 py-3 text-sm font-bold disabled:opacity-60">
+                    {savingTeamGrouping ? "Saving..." : "Save Team Grouping"}
+                  </button>
+                  <p className="mt-2 text-xs text-gray-400">Auto uses multiple FED groups, otherwise multiple TYPE groups, then Club/Team. Re-upload individual final rankings to refresh calculated points. TYPE labels are used as supplied. Imported team rankings are shown only when selected.</p>
+                </div>
 
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">
                   Upload the team results for the selected section when the
@@ -3705,6 +3747,8 @@ function RankingReviewTable({
             <th className="p-3">Imported name</th>
             <th className="p-3">Rtg</th>
             <th className="p-3">FED</th>
+            <th className="p-3">TYPE</th>
+            <th className="p-3">Club/Team</th>
             <th className="p-3">Chess SA ID</th>
             <th className="p-3">Matched PCC player</th>
             <th className="p-3">Registered section</th>
@@ -3726,6 +3770,8 @@ function RankingReviewTable({
               <td className="p-3 font-semibold text-white">{row.name}</td>
               <td className="p-3 text-gray-300">{row.rating ?? "-"}</td>
               <td className="p-3 text-gray-300">{row.federation ?? "-"}</td>
+              <td className="p-3 text-gray-300">{row.result_type ?? "-"}</td>
+              <td className="p-3 text-gray-300">{row.imported_club ?? "-"}</td>
               <td className="p-3 text-gray-300">{row.chess_sa_id ?? "-"}</td>
               <td className="p-3">
                 <select
