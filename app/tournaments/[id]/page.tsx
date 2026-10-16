@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
@@ -7,11 +7,7 @@ import { useParams } from "next/navigation";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import PublicPageShell from "@/components/PublicPageShell";
 import { formatCalendarDate } from "@/lib/dateHelpers";
-import {
-  canonicalOrganisationName,
-  organisationNameKey,
-} from "@/lib/organisationNames";
-import { hasOfficialTeamStandings } from "@/lib/tournamentStandings";
+import { calculateTeamPoints, normalizeTeamPointsGrouping, type TeamPointsGrouping } from "@/lib/tournamentStandings";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 
 type Tournament = {
@@ -24,6 +20,7 @@ type Tournament = {
   venue: string;
   province: string | null;
   registration_status: string;
+  team_points_grouping?: TeamPointsGrouping;
   team_standings_basis?: "National" | "Club / District" | null;
   entry_fee: number;
   poster_image_url: string | null;
@@ -77,6 +74,8 @@ type Player = {
 };
 
 type TournamentResult = {
+  result_type: string | null;
+  imported_club: string | null;
   id: string;
   tournament_id: string;
   player_id: string | null;
@@ -706,7 +705,7 @@ export default function TournamentHubPage() {
             .maybeSingle(),
           supabase
             .from("tournaments")
-            .select("team_standings_basis")
+            .select("team_standings_basis, team_points_grouping")
             .eq("id", tournamentId)
             .maybeSingle(),
           supabase
@@ -724,6 +723,7 @@ export default function TournamentHubPage() {
       const loadedTournament = {
         ...tournamentData,
         postponement_reason: postponementFields.data?.postponement_reason ?? null,
+        team_points_grouping: normalizeTeamPointsGrouping(standingsFields.data?.team_points_grouping),
         team_standings_basis:
           standingsFields.data?.team_standings_basis ?? "Club / District",
         competition_document_url:
@@ -763,16 +763,21 @@ export default function TournamentHubPage() {
         .eq("tournament_id", tournamentId)
         .single();
 
-      const { data: resultData } = await supabase
+      const { data: resultData, error: resultError } = await supabase
         .from("tournament_results")
         .select(
-          "id, tournament_id, player_id, section_id, final_position, starting_number, imported_name, imported_rating, federation, points, tie_break, award_title, notes"
+          "id, tournament_id, player_id, section_id, final_position, starting_number, imported_name, imported_rating, federation, result_type, imported_club, points, tie_break, award_title, notes"
         )
         .eq("tournament_id", tournamentId)
         .order("section_id", { ascending: true, nullsFirst: true })
         .order("final_position", { ascending: true, nullsFirst: false })
         .order("points", { ascending: false, nullsFirst: false });
 
+      if (resultError) {
+        setMessage("Tournament results could not be loaded. Please try again shortly.");
+        setLoading(false);
+        return;
+      }
       const resultRows = (resultData ?? []) as TournamentResult[];
 
       let teamResultRows: TournamentTeamResult[] = [];
@@ -2154,17 +2159,17 @@ function ArchiveContent({
         isCompleted
       />
 
-      {hasOfficialTeamStandings(teamResults) ? (
-        <TeamRankingTable
+      {tournament.team_points_grouping === "Imported" ? (
+        teamResults.length > 0 ? <TeamRankingTable
           teamResults={teamResults}
           sections={sections}
           sectionCombinations={sectionCombinations}
           chessResultsUrl={tournament.chess_results_url}
-        />
+        /> : <p className="rounded-xl border border-white/10 p-4 text-sm text-gray-400">Imported team ranking is selected, but no team results have been uploaded yet.</p>
       ) : (
         <CalculatedTeamStandings
           results={results}
-          basis={tournament.team_standings_basis ?? "Club / District"}
+          grouping={tournament.team_points_grouping ?? "Auto"}
         />
       )}
     </div>
@@ -2795,63 +2800,18 @@ function FinalRankingTable({
   );
 }
 
-type CalculatedTeamStanding = {
-  name: string;
-  points: number;
-  playerCount: number;
-  bestPlayerPoints: number;
-};
-
-function calculatedTeamStandings(
-  results: ResultWithPlayer[],
-  groupBy: "province" | "club"
-) {
-  const grouped = new Map<string, CalculatedTeamStanding>();
-
-  results.forEach((result) => {
-    const rawTeamName = result.player?.[groupBy]?.trim();
-    const teamName =
-      groupBy === "club" ? canonicalOrganisationName(rawTeamName) : rawTeamName;
-    const teamKey =
-      groupBy === "club" ? organisationNameKey(teamName) : teamName?.toLocaleLowerCase("en-ZA");
-    if (!teamName || !teamKey) return;
-
-    const current = grouped.get(teamKey) ?? {
-      name: teamName,
-      points: 0,
-      playerCount: 0,
-      bestPlayerPoints: 0,
-    };
-    const points = result.points ?? 0;
-    current.points += points;
-    current.playerCount += 1;
-    current.bestPlayerPoints = Math.max(current.bestPlayerPoints, points);
-    grouped.set(teamKey, current);
-  });
-
-  return [...grouped.values()]
-    .sort(
-      (left, right) =>
-        right.points - left.points ||
-        right.bestPlayerPoints - left.bestPlayerPoints ||
-        left.name.localeCompare(right.name)
-    );
-}
-
 function CalculatedTeamStandings({
   results,
-  basis,
+  grouping,
 }: {
   results: ResultWithPlayer[];
-  basis: "National" | "Club / District";
+  grouping: TeamPointsGrouping;
 }) {
-  const groupBy = basis === "National" ? "province" : "club";
-  const standings = calculatedTeamStandings(results, groupBy);
-  const groupingLabel = groupBy === "province" ? "South African province" : "Club";
+  const { standings, grouping: groupingLabel, unassignedCount } = calculateTeamPoints(results, grouping);
   const visibleStandings = standings.slice(0, 10);
   const hiddenCount = standings.length - visibleStandings.length;
 
-  if (standings.length < 2) return null;
+  if (results.length === 0) return null;
 
   return (
     <section
@@ -2864,7 +2824,10 @@ function CalculatedTeamStandings({
             {groupingLabel} team points
           </h2>
           <p className="mt-1 text-xs text-gray-400">
-            Totals from published individual player points
+            Totals from the latest published individual player points.
+            {grouping === "Auto" && <> Auto selected {groupingLabel}.</>}
+            {unassignedCount > 0 && <> {unassignedCount} result(s) have no {groupingLabel} and are excluded.</>}
+            {standings.length === 0 && <> No groups are available. Choose another grouping or re-import results with group labels.</>}
           </p>
         </div>
         <span className="w-fit rounded-full bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-100">
