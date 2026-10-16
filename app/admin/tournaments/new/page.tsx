@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
@@ -12,6 +12,9 @@ import { resizeImageForUpload } from "@/lib/imageCompression";
 import { supabase } from "@/lib/supabase";
 import {
   teamStandingsBasisForTournamentType,
+  normalizeTeamPointsGrouping,
+  teamPointsGroupingOptions,
+  type TeamPointsGrouping,
   type TournamentType,
 } from "@/lib/tournamentStandings";
 
@@ -34,6 +37,7 @@ type TournamentForm = {
   registration_schedule_enabled: boolean;
   registration_status: TournamentStatus;
   tournament_type: TournamentType;
+  team_points_grouping: TeamPointsGrouping;
   rating_type: TournamentRatingType;
   entry_fee: string;
   poster_image_url: string;
@@ -78,6 +82,7 @@ const emptyForm: TournamentForm = {
   registration_schedule_enabled: true,
   registration_status: "Draft",
   tournament_type: "Club",
+  team_points_grouping: "Auto",
   rating_type: "standard",
   entry_fee: "0",
   poster_image_url: "",
@@ -427,6 +432,7 @@ export default function NewTournamentPage() {
       registration_status: form.registration_status,
       tournament_type: form.tournament_type,
       team_standings_basis: teamStandingsBasisForTournamentType(form.tournament_type),
+      team_points_grouping: form.team_points_grouping,
       rating_type: form.rating_type,
       rating_import_id: latestRatingImport?.id ?? null,
       rating_list_locked_at: latestRatingImport ? new Date().toISOString() : null,
@@ -668,6 +674,20 @@ export default function NewTournamentPage() {
               </div>
 
               <div>
+                <label htmlFor="team-points-grouping" className="mb-2 block text-sm font-semibold">Team points grouping</label>
+                <select id="team-points-grouping" value={form.team_points_grouping}
+                  onChange={(event) => updateField("team_points_grouping", normalizeTeamPointsGrouping(event.target.value))}
+                  className={inputClass}>
+                  {teamPointsGroupingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                <p className="mt-2 text-xs leading-5 text-gray-500">
+                  Auto uses FED when there are multiple groups, otherwise TYPE, then Club/Team.
+                  TYPE can contain age groups, district codes or any labels you use.
+                  Calculated totals follow the latest individual results. Choose Imported team ranking to use an uploaded team list.
+                </p>
+              </div>
+
+              <div>
                 <label className="mb-2 block text-sm font-semibold">Tournament type</label>
                 <select
                   value={form.tournament_type}
@@ -686,8 +706,7 @@ export default function NewTournamentPage() {
                   <option value="Organisation / School">Organisation / School</option>
                 </select>
                 <p className="mt-2 text-xs leading-5 text-gray-500">
-                  National events group team points by South African province. Every
-                  other type groups them by the player&apos;s registered Club/City.
+                  Describes the event. Choose team points grouping separately.
                 </p>
               </div>
 
