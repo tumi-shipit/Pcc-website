@@ -446,7 +446,7 @@ export default function NewTournamentPage() {
     let { data, error } = await supabase
       .from("tournaments")
       .insert(tournamentPayload)
-      .select("id")
+      .select("id, team_points_grouping")
       .single();
 
     if (
@@ -473,7 +473,7 @@ export default function NewTournamentPage() {
       const retry = await supabase
         .from("tournaments")
         .insert(legacyPayload)
-        .select("id")
+        .select("id, team_points_grouping")
         .single();
 
       data = retry.data;
@@ -487,6 +487,12 @@ export default function NewTournamentPage() {
           ? "Competition document fields are not installed yet. Run database/tournament_competition_document_setup.sql, then save again."
           : `Could not create tournament: ${errorMessage}`
       );
+      setSaving(false);
+      return;
+    }
+
+    if (data.team_points_grouping !== form.team_points_grouping) {
+      setMessage("The saved team grouping could not be confirmed. Please edit the tournament and save the grouping again.");
       setSaving(false);
       return;
     }

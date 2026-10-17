@@ -21,7 +21,6 @@ type Tournament = {
   province: string | null;
   registration_status: string;
   team_points_grouping?: TeamPointsGrouping;
-  team_standings_basis?: "National" | "Club / District" | null;
   entry_fee: number;
   poster_image_url: string | null;
   payment_details: string | null;
@@ -678,34 +677,33 @@ export default function TournamentHubPage() {
   const isPostponed = tournament?.registration_status === "Postponed";
 
   useEffect(() => {
-    async function loadTournamentHub() {
-      setLoading(true);
+    let active = true;
+    let loadVersion = 0;
+    async function loadTournamentHub(background = false) {
+      const version = ++loadVersion;
+      if (!background) setLoading(true);
       setMessage("");
 
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id"
+          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id, team_points_grouping"
         )
         .eq("id", tournamentId)
         .single();
 
       if (tournamentError || !tournamentData) {
-        setMessage("Tournament could not be found.");
+        if (!active || version !== loadVersion) return;
+        setMessage("Tournament settings could not be loaded. Please try again; team points will not use a different grouping in the meantime.");
         setLoading(false);
         return;
       }
 
-      const [postponementFields, standingsFields, documentFields, galleryFields] =
+      const [postponementFields, documentFields, galleryFields] =
         await Promise.all([
           supabase
             .from("tournaments")
             .select("postponement_reason")
-            .eq("id", tournamentId)
-            .maybeSingle(),
-          supabase
-            .from("tournaments")
-            .select("team_standings_basis, team_points_grouping")
             .eq("id", tournamentId)
             .maybeSingle(),
           supabase
@@ -723,9 +721,7 @@ export default function TournamentHubPage() {
       const loadedTournament = {
         ...tournamentData,
         postponement_reason: postponementFields.data?.postponement_reason ?? null,
-        team_points_grouping: normalizeTeamPointsGrouping(standingsFields.data?.team_points_grouping),
-        team_standings_basis:
-          standingsFields.data?.team_standings_basis ?? "Club / District",
+        team_points_grouping: normalizeTeamPointsGrouping(tournamentData.team_points_grouping),
         competition_document_url:
           documentFields.data?.competition_document_url ?? null,
         competition_document_label:
@@ -774,6 +770,7 @@ export default function TournamentHubPage() {
         .order("points", { ascending: false, nullsFirst: false });
 
       if (resultError) {
+        if (!active || version !== loadVersion) return;
         setMessage("Tournament results could not be loaded. Please try again shortly.");
         setLoading(false);
         return;
@@ -981,6 +978,7 @@ export default function TournamentHubPage() {
           null,
       }));
 
+      if (!active || version !== loadVersion) return;
       setTournament(loadedTournament);
       setSections(loadedSections);
       setSectionCombinations(loadedSectionCombinations);
@@ -1033,6 +1031,18 @@ export default function TournamentHubPage() {
     }
 
     if (tournamentId) loadTournamentHub();
+    const refreshWhenVisible = () => {
+      if (tournamentId && document.visibilityState !== "hidden") {
+        void loadTournamentHub(true);
+      }
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [tournamentId]);
 
   if (loading) {
@@ -1049,7 +1059,7 @@ export default function TournamentHubPage() {
     return (
       <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-100">
-          <h1 className="text-2xl font-bold">Tournament not found</h1>
+          <h1 className="text-2xl font-bold">Tournament unavailable</h1>
           <p className="mt-3">{message || "Tournament could not be found."}</p>
           <Link
             href="/tournaments"
@@ -2821,7 +2831,7 @@ function CalculatedTeamStandings({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-black text-white">
-            {groupingLabel} team points
+            {groupingLabel === "Club / Team" ? "Club / Team points" : `${groupingLabel} team points`}
           </h2>
           <p className="mt-1 text-xs text-gray-400">
             Totals from the latest published individual player points.

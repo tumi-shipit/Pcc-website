@@ -407,7 +407,7 @@ export default function EditTournamentPage() {
       const { data, error } = await supabase
         .from("tournaments")
         .select(
-          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, tournament_type, team_standings_basis, team_points_grouping, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
+          "tournament_name, organiser_name, description, tournament_report, postponement_reason, chess_results_url, competition_document_url, competition_document_label, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, tournament_type, team_points_grouping, rating_type, rating_import_id, rating_list_locked_at, entry_fee, poster_image_url, payment_details"
         )
         .eq("id", tournamentId)
         .single();
@@ -416,7 +416,7 @@ export default function EditTournamentPage() {
         const fallback = await supabase
           .from("tournaments")
           .select(
-            "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, entry_fee, poster_image_url, payment_details"
+            "tournament_name, organiser_name, description, tournament_report, chess_results_url, start_date, end_date, venue, province, registration_open_date, registration_close_date, registration_schedule_enabled, registration_status, entry_fee, poster_image_url, payment_details, team_points_grouping"
           )
           .eq("id", tournamentId)
           .single();
@@ -443,7 +443,7 @@ export default function EditTournamentPage() {
           registration_schedule_enabled: fallback.data.registration_schedule_enabled ?? true,
           registration_status: fallback.data.registration_status ?? "Draft",
           tournament_type: "Club",
-          team_points_grouping: "Auto",
+          team_points_grouping: normalizeTeamPointsGrouping(fallback.data.team_points_grouping),
           rating_type: "standard",
           entry_fee: String(fallback.data.entry_fee ?? 0),
           poster_image_url: fallback.data.poster_image_url ?? "",
@@ -638,10 +638,12 @@ export default function EditTournamentPage() {
       payment_details: form.payment_details.trim() || null,
     };
 
-    let { error } = await supabase
+    let { data: savedTournament, error } = await supabase
       .from("tournaments")
       .update(tournamentPayload)
-      .eq("id", tournamentId);
+      .eq("id", tournamentId)
+      .select("id, team_points_grouping")
+      .single();
 
     if (
       error &&
@@ -667,8 +669,11 @@ export default function EditTournamentPage() {
       const retry = await supabase
         .from("tournaments")
         .update(legacyPayload)
-        .eq("id", tournamentId);
+        .eq("id", tournamentId)
+        .select("id, team_points_grouping")
+        .single();
 
+      savedTournament = retry.data;
       error = retry.error;
     }
 
@@ -678,6 +683,12 @@ export default function EditTournamentPage() {
           ? "Competition document fields are not installed yet. Run database/tournament_competition_document_setup.sql, then save again."
           : `Could not update tournament: ${error.message}`
       );
+      setSaving(false);
+      return;
+    }
+
+    if (savedTournament?.team_points_grouping !== form.team_points_grouping) {
+      setMessage("The saved team grouping could not be confirmed. Please try saving again.");
       setSaving(false);
       return;
     }

@@ -1592,10 +1592,21 @@ export default function TournamentArchiveContinuationPage() {
 
   async function saveTeamGrouping() {
     setSavingTeamGrouping(true);
-    const { error } = await supabase.from("tournaments")
-      .update({ team_points_grouping: teamGrouping }).eq("id", tournamentId);
-    setSavingTeamGrouping(false);
-    setMessage(error ? `Could not save team points grouping: ${error.message}` : "Team points grouping saved. Refresh the public tournament page to see the updated totals.");
+    const requested = teamGrouping;
+    try {
+      const { data, error } = await supabase.from("tournaments")
+        .update({ team_points_grouping: requested }).eq("id", tournamentId)
+        .select("id, team_points_grouping").single();
+      if (error) throw new Error(error.message);
+      if (!data || data.team_points_grouping !== requested) {
+        throw new Error("The saved selection could not be confirmed. Please try again.");
+      }
+      setMessage(`Team points grouping saved as ${data.team_points_grouping}. Refresh the public tournament page to see the updated totals.`);
+    } catch (error) {
+      setMessage(`Could not save team points grouping: ${error instanceof Error ? error.message : "Please try again."}`);
+    } finally {
+      setSavingTeamGrouping(false);
+    }
   }
 
   async function loadSectionPlayers(sectionId = selectedSectionId) {
