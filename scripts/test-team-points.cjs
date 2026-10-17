@@ -158,3 +158,105 @@ test('missing grouping columns stop the actual importer before existing results 
   assert.equal(importer.getDeletes(), 0);
   assert.equal(importer.stored[0].points, 99);
 });
+
+const publicPage = fs.readFileSync('app/tournaments/[id]/page.tsx', 'utf8');
+const publicAst = ts.createSourceFile('public.tsx', publicPage, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const loadHub = findFunction(publicAst, 'loadTournamentHub').getText(publicAst);
+const loadSettingsOnly = loadHub.slice(0, loadHub.indexOf('      const { data: sectionData')) + '\nreturn loadedTournament;\n}';
+function tournamentReader(saved, failPrimary = false) {
+  const requestedColumns = [];
+  return { requestedColumns, from(table) {
+    assert.equal(table, 'tournaments');
+    let columns;
+    const query = {
+      select(value) { columns = value; requestedColumns.push(columns); return query; },
+      eq() { return query; },
+      async single() {
+        if (failPrimary || columns.includes('team_standings_basis')) return {data:null,error:{message:'missing legacy column'}};
+        return {data:{id:'T', tournament_name:'Test', ...(columns.includes('team_points_grouping') ? {team_points_grouping:saved} : {})},error:null};
+      },
+      async maybeSingle() {
+        if (columns.includes('team_standings_basis')) return {data:null,error:{message:'missing legacy column'}};
+        return {data:{},error:null};
+      },
+    };
+    return query;
+  }};
+}
+test('actual public loader honors every saved choice when the obsolete standings column is absent', async () => {
+  for (const saved of ['FED', 'TYPE', 'Club / Team', 'Imported', 'Auto']) {
+    const database = tournamentReader(saved);
+    const loader = compile('let active=true; let loadVersion=0;\n' + loadSettingsOnly + '\nexports.run=loadTournamentHub;', {
+      supabase:database, tournamentId:'T', normalizeTeamPointsGrouping:standings.normalizeTeamPointsGrouping,
+      setLoading:()=>{}, setMessage:()=>{},
+    });
+    const loaded = await loader.run();
+    assert.equal(loaded.team_points_grouping, saved);
+    assert.equal(database.requestedColumns.some(columns=>columns.includes('team_standings_basis')), false);
+  }
+});
+test('actual public loader reports settings read errors instead of silently choosing Auto', async () => {
+  let message='';
+  const loader = compile('let active=true; let loadVersion=0;\n' + loadSettingsOnly + '\nexports.run=loadTournamentHub;', {
+    supabase:tournamentReader('FED', true), tournamentId:'T', normalizeTeamPointsGrouping:standings.normalizeTeamPointsGrouping,
+    setLoading:()=>{}, setMessage:value=>{message=value;},
+  });
+  assert.equal(await loader.run(), undefined);
+  assert.match(message, /settings could not be loaded/);
+});
+
+const saveGrouping = findFunction(ast, 'saveTeamGrouping').getText(ast);
+async function exerciseSave(response, requested='FED') {
+  let message=''; const saving=[];
+  const database = {from(table) { assert.equal(table,'tournaments'); return {
+    update(payload) { assert.equal(payload.team_points_grouping, requested); return {
+      eq(column,id) {assert.equal(column,'id'); assert.equal(id,'T'); return {
+        select(columns) { assert.match(columns,/team_points_grouping/); return {
+          single: async()=>response,
+        };},
+      };},
+    };},
+  };}};
+  const saver=compile(saveGrouping+'\nexports.run=saveTeamGrouping;', {
+    supabase:database,teamGrouping:requested,tournamentId:'T',
+    setSavingTeamGrouping:value=>saving.push(value),setMessage:value=>{message=value;},
+  });
+  await saver.run();
+  assert.equal(saving.join(','),'true,false');
+  return message;
+}
+test('save confirms the exact grouping returned by the database', async()=> {
+  for (const value of ['FED','TYPE','Club / Team','Imported','Auto']) {
+    const message=await exerciseSave({data:{id:'T',team_points_grouping:value},error:null},value);
+    assert.match(message,new RegExp('saved as '+value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')));
+  }
+});
+test('save cannot report success for a zero-row update or a different returned choice', async()=> {
+  for(const response of [{data:null,error:null},{data:null,error:{message:'No row returned'}},{data:{id:'T',team_points_grouping:'TYPE'},error:null}]) {
+    assert.match(await exerciseSave(response),/^Could not save/);
+  }
+});
+
+const editPage=fs.readFileSync('app/admin/tournaments/[id]/edit/page.tsx','utf8');
+const editAst=ts.createSourceFile('edit.tsx',editPage,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+const loadEdit=findFunction(editAst,'loadTournament').getText(editAst);
+const editSettingsOnly=loadEdit.slice(0,loadEdit.indexOf('      const { data: sectionData'))+'\n}';
+test('actual edit form keeps the saved choice when older optional columns require fallback',async()=> {
+  for(const saved of ['FED','TYPE','Club / Team','Imported']) {
+    let form;
+    const database={from() {let columns;const query={
+      select(value){columns=value;return query;},eq(){return query;},
+      async single(){return columns.includes('tournament_type')
+        ? {data:null,error:{message:'column tournament_type does not exist'}}
+        : {data:{...(columns.includes('team_points_grouping')?{team_points_grouping:saved}:{})},error:null};},
+    };return query;}};
+    const noop=()=>{};
+    const loader=compile(editSettingsOnly+'\nexports.run=loadTournament;',{
+      supabase:database,tournamentId:'T',normalizeTeamPointsGrouping:standings.normalizeTeamPointsGrouping,
+      setLoading:noop,setMessage:noop,setForm:value=>{form=value;},
+      setLockedRatingImportId:noop,setLockedRatingImport:noop,setRatingListLockedAt:noop,
+    });
+    await loader.run();
+    assert.equal(form.team_points_grouping,saved);
+  }
+});
