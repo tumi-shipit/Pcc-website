@@ -16,6 +16,7 @@ const primaryNav = [
   { href: "/admin/payments", label: "Payments" },
   { href: "/admin/payment-alerts", label: "Payment Alerts" },
   { href: "/admin/news", label: "News" },
+  { href: "/admin/cdc-excellence-awards", label: "CDC Awards" },
   { href: "/admin/admin-access", label: "Admins" },
 ];
 
@@ -116,6 +117,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
 
   const navItems = primaryNav.filter((item) => {
     if (currentRole === "super_admin") return true;
+    if (item.href === "/admin/cdc-excellence-awards") return false;
     if (currentRole === "admin") return item.href !== "/admin/admin-access";
     if (currentRole === "organisation_admin") {
       return [

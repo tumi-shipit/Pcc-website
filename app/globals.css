@@ -27,3 +27,116 @@ body {
   background: #dc2626;
   color: #ffffff;
 }
+
+.cdc-awards {
+  --cdc-gold: #dfbd58;
+  --cdc-light-gold: #f0d783;
+  --cdc-green: #0a2717;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.cdc-awards .cdc-hero {
+  background:
+    radial-gradient(ellipse at 70% 40%, rgba(27, 88, 44, 0.45), transparent 45%),
+    linear-gradient(120deg, #04170c 0%, #092516 56%, #071b10 100%);
+}
+
+.cdc-awards .cdc-hero-glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image: linear-gradient(135deg, transparent 49.8%, #d7b64e 50%, transparent 50.2%);
+  background-size: 82px 82px;
+  mask-image: linear-gradient(90deg, transparent, black 82%);
+}
+
+.cdc-awards .cdc-gold-button,
+.cdc-awards .cdc-outline-button {
+  display: inline-flex;
+  min-height: 46px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.15rem;
+  font-size: 0.875rem;
+  font-weight: 800;
+  transition: 160ms ease;
+}
+
+.cdc-awards .cdc-gold-button {
+  border: 1px solid #f0d783;
+  background: linear-gradient(135deg, #f0d783, #c9a744);
+  color: #142211;
+  box-shadow: 0 8px 28px rgba(199, 158, 53, 0.15);
+}
+
+.cdc-awards .cdc-gold-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+.cdc-awards .cdc-outline-button { border: 1px solid rgba(227, 199, 112, 0.45); color: #f0d783; }
+.cdc-awards .cdc-outline-button:hover { border-color: #f0d783; background: rgba(223, 189, 88, 0.08); }
+
+.cdc-awards .cdc-event-fact {
+  min-height: 100px;
+  border: 1px solid rgba(222, 190, 88, 0.2);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, rgba(255,255,255,0.045), rgba(255,255,255,0.015));
+  padding: 1.2rem 1.4rem;
+}
+
+.cdc-awards .cdc-eyebrow {
+  color: #e3c35f;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  line-height: 1.5;
+  text-transform: uppercase;
+}
+
+.cdc-awards .cdc-category-panel {
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 1.25rem;
+  background: linear-gradient(145deg, rgba(255,255,255,0.055), rgba(255,255,255,0.018));
+  padding: 1.4rem;
+}
+
+.cdc-awards .cdc-category-featured {
+  border-color: rgba(222, 190, 88, 0.38);
+  background: linear-gradient(145deg, rgba(190, 151, 49, 0.13), rgba(255,255,255,0.025));
+}
+
+.cdc-awards .cdc-panel-index { color: #d9bd69; font-size: 0.68rem; font-weight: 900; letter-spacing: 0.22em; }
+
+.cdc-awards .cdc-form-card {
+  border: 1px solid rgba(222, 190, 88, 0.25);
+  border-radius: 1.5rem;
+  background: linear-gradient(145deg, #102b1a, #081d11);
+  padding: clamp(1.2rem, 4vw, 2.2rem);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.26);
+}
+
+.cdc-awards .cdc-form-card input,
+.cdc-awards .cdc-form-card select,
+.cdc-awards .cdc-form-card textarea {
+  width: 100%;
+  border: 1px solid rgba(224, 234, 220, 0.17);
+  border-radius: 0.7rem;
+  background: #07190e;
+  padding: 0.8rem 0.9rem;
+  color: #f7f4e9;
+  font-size: 0.9rem;
+  outline: none;
+}
+
+.cdc-awards .cdc-form-card input:focus,
+.cdc-awards .cdc-form-card select:focus,
+.cdc-awards .cdc-form-card textarea:focus {
+  border-color: #d9bd69;
+  box-shadow: 0 0 0 3px rgba(217, 189, 105, 0.14);
+}
+
+.cdc-awards .cdc-form-card input::placeholder,
+.cdc-awards .cdc-form-card textarea::placeholder { color: #788b78; }
+
+@media (min-width: 768px) {
+  .cdc-awards .cdc-category-panel { padding: 1.75rem; }
+}

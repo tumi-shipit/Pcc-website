@@ -13,6 +13,7 @@ export default function Navbar() {
     { href: "/store", label: "Store" },
     { href: "/membership", label: "Membership" },
     { href: "/news", label: "News" },
+    { href: "/cdc-excellence-awards", label: "CDC Awards" },
     { href: "/contact", label: "Contact" },
     { href: "/admin", label: "Admin" },
   ];
