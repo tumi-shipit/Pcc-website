@@ -69,7 +69,7 @@ export default function CdcAwardsNewsArticle() {
                   Send in your nomination by Friday, 23 October 2026. The public vote is planned to begin on 26 October; the voting closing date will be announced when voting opens.
                 </p>
                 <p className="mt-4 leading-7 text-zinc-300">
-                  Each nomination includes the nominee’s name, category, school or club, your contact details, and a short reason explaining why you are nominating them.
+                  Each nomination includes the nominee’s name, category, school or club, and your contact details. You’ll confirm that the nominee meets the criteria for the selected award.
                 </p>
                 <ul className="mt-5 grid gap-2 sm:grid-cols-2">
                   {cdcServiceAwardCategories.map((category) => (

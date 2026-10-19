@@ -15,7 +15,7 @@ type Nomination = {
   school_club: string;
   nominator_name: string;
   nominator_contact: string;
-  reason: string;
+  criteria_confirmed: boolean;
   created_at: string;
 };
 
@@ -47,7 +47,7 @@ export default function CdcAwardsAdminPage() {
     setRole("super_admin");
     const result = await supabase
       .from("cdc_excellence_nominations")
-      .select("id, award_year, nominee_name, nominee_surname, category, school_club, nominator_name, nominator_contact, reason, created_at")
+      .select("id, award_year, nominee_name, nominee_surname, category, school_club, nominator_name, nominator_contact, criteria_confirmed, created_at")
       .order("created_at", { ascending: false });
     if (result.error) {
       setError("Could not load nominations. Check that the CDC awards database setup has been applied to the site database.");
@@ -68,7 +68,7 @@ export default function CdcAwardsAdminPage() {
     return rows.filter((row) => {
       if (category !== "all" && row.category !== category) return false;
       if (!normalizedQuery) return true;
-      return [row.nominee_name, row.nominee_surname, row.category, row.school_club, row.nominator_name, row.nominator_contact, row.reason]
+      return [row.nominee_name, row.nominee_surname, row.category, row.school_club, row.nominator_name, row.nominator_contact]
         .some((value) => value.toLocaleLowerCase().includes(normalizedQuery));
     });
   }, [category, query, rows]);
@@ -83,13 +83,13 @@ export default function CdcAwardsAdminPage() {
       "School / club": row.school_club,
       "Nominator name": row.nominator_name,
       "Nominator contact": row.nominator_contact,
-      "Reason for nomination": row.reason,
+      "Criteria confirmed": row.criteria_confirmed ? "Yes" : "No",
       "Submitted at (SAST)": formatDate(row.created_at),
     }));
     const sheet = XLSX.utils.json_to_sheet(data);
     sheet["!cols"] = [
       { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 22 }, { wch: 30 },
-      { wch: 26 }, { wch: 30 }, { wch: 70 }, { wch: 24 },
+      { wch: 26 }, { wch: 30 }, { wch: 20 }, { wch: 24 },
     ];
     XLSX.utils.book_append_sheet(workbook, sheet, "CDC Nominations");
     XLSX.writeFile(workbook, "cdc-excellence-awards-nominations-2026.xlsx");
@@ -126,7 +126,7 @@ export default function CdcAwardsAdminPage() {
               </div>
 
               <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-white/10 bg-zinc-900/70 p-4 md:flex-row">
-                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search names, school, contact or reason" className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-4 text-sm outline-none focus:border-amber-300/70" />
+                <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search names, school or contact" className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-4 text-sm outline-none focus:border-amber-300/70" />
                 <select value={category} onChange={(event) => setCategory(event.target.value)} className="min-h-11 rounded-xl border border-white/10 bg-zinc-950 px-4 text-sm outline-none focus:border-amber-300/70">
                   <option value="all">All categories</option>
                   {cdcServiceAwardCategories.map((item) => <option key={item} value={item}>{item}</option>)}
@@ -142,7 +142,7 @@ export default function CdcAwardsAdminPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full min-w-[1100px] border-collapse text-left text-sm">
                       <thead className="bg-white/[0.04] text-xs uppercase tracking-wider text-zinc-400">
-                        <tr>{["Nominee", "Category", "School / club", "Nominated by", "Reason", "Submitted"].map((heading) => <th key={heading} className="px-4 py-4 font-bold">{heading}</th>)}</tr>
+                        <tr>{["Nominee", "Category", "School / club", "Nominated by", "Criteria confirmed", "Submitted"].map((heading) => <th key={heading} className="px-4 py-4 font-bold">{heading}</th>)}</tr>
                       </thead>
                       <tbody className="divide-y divide-white/[0.07]">
                         {visibleRows.map((row) => (
@@ -151,7 +151,7 @@ export default function CdcAwardsAdminPage() {
                             <td className="px-4 py-4 text-amber-100">{row.category}</td>
                             <td className="px-4 py-4 text-zinc-300">{row.school_club}</td>
                             <td className="px-4 py-4"><p className="text-zinc-200">{row.nominator_name}</p><p className="mt-1 text-xs text-zinc-500">{row.nominator_contact}</p></td>
-                            <td className="max-w-sm whitespace-pre-wrap px-4 py-4 leading-6 text-zinc-300">{row.reason}</td>
+                            <td className="px-4 py-4">{row.criteria_confirmed ? <span className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-200">Confirmed</span> : <span className="text-xs text-zinc-500">No</span>}</td>
                             <td className="whitespace-nowrap px-4 py-4 text-xs text-zinc-400">{formatDate(row.created_at)}</td>
                           </tr>
                         ))}

@@ -18,9 +18,29 @@ create table if not exists public.cdc_excellence_nominations (
   school_club text not null check (length(btrim(school_club)) between 1 and 120),
   nominator_name text not null check (length(btrim(nominator_name)) between 1 and 120),
   nominator_contact text not null check (length(btrim(nominator_contact)) between 5 and 120),
-  reason text not null check (length(btrim(reason)) between 10 and 600),
+  criteria_confirmed boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table public.cdc_excellence_nominations
+  add column if not exists criteria_confirmed boolean not null default false;
+
+-- Preserve any existing nomination explanations while allowing new submissions
+-- to use the criteria confirmation checkbox instead.
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'cdc_excellence_nominations'
+      and column_name = 'reason'
+  ) then
+    alter table public.cdc_excellence_nominations
+      alter column reason drop not null;
+  end if;
+end
+$$;
 
 alter table public.cdc_excellence_nominations enable row level security;
 
@@ -34,6 +54,8 @@ create policy cdc_awards_public_nomination_insert
   for insert
   to anon
   with check (
+    criteria_confirmed is true
+    and
     ((now() at time zone 'Africa/Johannesburg')::date >= date '2026-10-20')
     and ((now() at time zone 'Africa/Johannesburg')::date <= date '2026-10-23')
   );

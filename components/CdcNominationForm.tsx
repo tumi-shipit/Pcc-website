@@ -11,7 +11,7 @@ type FormState = {
   school_club: string;
   nominator_name: string;
   nominator_contact: string;
-  reason: string;
+  criteria_confirmed: boolean;
   website: string;
 };
 
@@ -22,7 +22,7 @@ const emptyForm: FormState = {
   school_club: "",
   nominator_name: "",
   nominator_contact: "",
-  reason: "",
+  criteria_confirmed: false,
   website: "",
 };
 
@@ -73,7 +73,7 @@ export default function CdcNominationForm() {
         school_club: form.school_club.trim(),
         nominator_name: form.nominator_name.trim(),
         nominator_contact: form.nominator_contact.trim(),
-        reason: form.reason.trim(),
+        criteria_confirmed: form.criteria_confirmed,
       });
     setSubmitting(false);
     if (submitError) {
@@ -122,7 +122,16 @@ export default function CdcNominationForm() {
             <FormField label="School or club *"><input required maxLength={120} value={form.school_club} onChange={(event) => update("school_club", event.target.value)} /></FormField>
             <FormField label="Your name *"><input required maxLength={120} value={form.nominator_name} onChange={(event) => update("nominator_name", event.target.value)} autoComplete="name" /></FormField>
             <FormField label="Your contact details *"><input required maxLength={120} value={form.nominator_contact} onChange={(event) => update("nominator_contact", event.target.value)} placeholder="Phone number or email address" autoComplete="email" /></FormField>
-            <FormField label="Why are you nominating this person? *"><textarea required minLength={10} maxLength={600} rows={4} value={form.reason} onChange={(event) => update("reason", event.target.value)} placeholder="Share a short reason connected to the award criteria." /></FormField>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#dfbd58]/25 bg-black/15 p-4 text-sm leading-6 text-[#f2f0e7]">
+              <input
+                type="checkbox"
+                required
+                checked={form.criteria_confirmed}
+                onChange={(event) => setForm((current) => ({ ...current, criteria_confirmed: event.target.checked }))}
+                className="mt-1 !h-5 !w-5 shrink-0 accent-amber-300"
+              />
+              <span>I confirm that this nominee meets the conditions or criteria for the selected award category.</span>
+            </label>
             <div aria-hidden="true" className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden"><label htmlFor="cdc-website">Website</label><input id="cdc-website" tabIndex={-1} autoComplete="off" value={form.website} onChange={(event) => update("website", event.target.value)} /></div>
             {error && <p role="alert" className="rounded-xl border border-red-300/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">{error}</p>}
             <button type="submit" disabled={submitting} className="cdc-gold-button w-full disabled:cursor-wait disabled:opacity-60">
