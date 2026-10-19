@@ -66,7 +66,7 @@ export default function CdcAwardsNewsArticle() {
               <div>
                 <h2 className="text-2xl font-black">Nominations are open</h2>
                 <p className="mt-3 leading-7 text-zinc-300">
-                  Send in your nomination by Friday, 23 October 2026. The public vote is planned to begin on 26 October; the voting closing date will be announced when voting opens.
+                  Send in your nomination by Friday, 23 October 2026. The nominee list will be published on 24 and 25 October so the community can review the candidates. Public voting begins Monday, 26 October; its closing date will be announced when voting opens.
                 </p>
                 <p className="mt-4 leading-7 text-zinc-300">
                   Each nomination includes the nominee’s name, category, school or club, and your contact details. You’ll confirm that the nominee meets the criteria for the selected award.

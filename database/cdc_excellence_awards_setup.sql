@@ -47,6 +47,10 @@ alter table public.cdc_excellence_nominations enable row level security;
 revoke all on public.cdc_excellence_nominations from public, anon, authenticated;
 grant insert on public.cdc_excellence_nominations to anon;
 grant select on public.cdc_excellence_nominations to authenticated;
+grant select (nominee_name, nominee_surname, category, school_club)
+  on public.cdc_excellence_nominations to anon;
+grant select (created_at)
+  on public.cdc_excellence_nominations to anon;
 
 drop policy if exists cdc_awards_public_nomination_insert on public.cdc_excellence_nominations;
 create policy cdc_awards_public_nomination_insert
@@ -66,3 +70,13 @@ create policy cdc_awards_super_admin_nomination_read
   for select
   to authenticated
   using ((select public.current_admin_role()) = 'super_admin');
+
+drop policy if exists cdc_awards_public_nominee_list_read on public.cdc_excellence_nominations;
+create policy cdc_awards_public_nominee_list_read
+  on public.cdc_excellence_nominations
+  for select
+  to anon
+  using (
+    criteria_confirmed is true
+    and (now() at time zone 'Africa/Johannesburg')::date >= date '2026-10-24'
+  );

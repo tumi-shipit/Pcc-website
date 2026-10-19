@@ -3,6 +3,7 @@ import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
 import CdcNominationForm from "@/components/CdcNominationForm";
 import CdcNominationCountdown from "@/components/CdcNominationCountdown";
+import CdcPublicNomineeList from "@/components/CdcPublicNomineeList";
 import { cdcAwardGroups, cdcNominationEligibility } from "@/lib/cdcAwards";
 
 export default function CdcExcellenceAwardsPage() {
@@ -120,8 +121,9 @@ export default function CdcExcellenceAwardsPage() {
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
                 <p className="text-sm font-bold text-[#e4c45e]">What happens next?</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
-                  Public voting is planned to begin on 26 October. Voting rules and the
-                  closing date will be announced when voting opens.
+                  The nominee list will be published on 24 and 25 October. Public voting
+                  begins on Monday, 26 October; voting rules and the closing date will
+                  be announced when voting opens.
                 </p>
               </div>
               <p className="mt-6 text-xs leading-5 text-[#9faf9f]">
@@ -132,6 +134,8 @@ export default function CdcExcellenceAwardsPage() {
             <CdcNominationForm />
           </div>
         </section>
+
+        <CdcPublicNomineeList />
 
         <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-xs text-[#9faf9f] sm:flex-row sm:items-center sm:justify-between md:px-10">
           <p>2nd Capricorn District Chess Excellence Awards · 2026</p>

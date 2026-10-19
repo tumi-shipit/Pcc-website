@@ -98,7 +98,7 @@ export default function CdcNominationForm() {
         <div className="flex min-h-[460px] flex-col justify-center">
           <p className="cdc-eyebrow">Nomination period</p>
           <h3 className="mt-4 font-serif text-3xl font-semibold">Nominations are closed</h3>
-          <p className="mt-3 leading-7 text-[#c1d0c0]">The nomination window runs from 20 to 23 October 2026. Voting is planned to open on 26 October.</p>
+          <p className="mt-3 leading-7 text-[#c1d0c0]">The nominee list will be published on 24 and 25 October. Public voting begins Monday, 26 October.</p>
         </div>
       ) : (
         <>
