@@ -958,9 +958,8 @@ export default function EditTournamentPage() {
                   {teamPointsGroupingOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
                 <p className="mt-2 text-xs leading-5 text-gray-500">
-                  Auto uses FED when there are multiple groups, otherwise TYPE, then Club/Team.
-                  TYPE can contain age groups, district codes or any labels you use.
-                  Calculated totals follow the latest individual results. Choose Imported team ranking to use an uploaded team list.
+                  Auto shows uploaded official team results first. If none are uploaded, it calculates FED, then TYPE, then Club/Team from individual results.
+                  Choose a calculated option only when you deliberately want to override official team results.
                 </p>
               </div>
 

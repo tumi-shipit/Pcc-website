@@ -3625,7 +3625,7 @@ export default function TournamentArchiveContinuationPage() {
                     className="mt-3 rounded-xl bg-red-600 px-5 py-3 text-sm font-bold disabled:opacity-60">
                     {savingTeamGrouping ? "Saving..." : "Save Team Grouping"}
                   </button>
-                  <p className="mt-2 text-xs text-gray-400">Auto uses multiple FED groups, otherwise multiple TYPE groups, then Club/Team. Re-upload individual final rankings to refresh calculated points. TYPE labels are used as supplied. Imported team rankings are shown only when selected.</p>
+                  <p className="mt-2 text-xs text-gray-400">Auto shows an uploaded official team ranking first. If none exists, it uses multiple FED groups, otherwise multiple TYPE groups, then Club/Team. Select a calculated option only to deliberately override official team results.</p>
                 </div>
 
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-400">

@@ -7,7 +7,7 @@ import { useParams } from "next/navigation";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import PublicPageShell from "@/components/PublicPageShell";
 import { formatCalendarDate } from "@/lib/dateHelpers";
-import { calculateTeamPoints, normalizeTeamPointsGrouping, type TeamPointsGrouping } from "@/lib/tournamentStandings";
+import { calculateTeamPoints, normalizeTeamPointsGrouping, shouldUseOfficialTeamStandings, type TeamPointsGrouping } from "@/lib/tournamentStandings";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 
 type Tournament = {
@@ -2149,6 +2149,11 @@ function ArchiveContent({
   teamResults: TournamentTeamResult[];
   standingUpdates: LiveStandingUpdate[];
 }) {
+  const teamGrouping = tournament.team_points_grouping ?? "Auto";
+  const useOfficialTeamStandings = shouldUseOfficialTeamStandings(
+    teamResults,
+    teamGrouping
+  );
   const upsets = results.filter((result) =>
     `${result.award_title ?? ""} ${result.notes ?? ""}`
       .toLowerCase()
@@ -2169,17 +2174,21 @@ function ArchiveContent({
         isCompleted
       />
 
-      {tournament.team_points_grouping === "Imported" ? (
-        teamResults.length > 0 ? <TeamRankingTable
+      {useOfficialTeamStandings ? (
+        <TeamRankingTable
           teamResults={teamResults}
           sections={sections}
           sectionCombinations={sectionCombinations}
           chessResultsUrl={tournament.chess_results_url}
-        /> : <p className="rounded-xl border border-white/10 p-4 text-sm text-gray-400">Imported team ranking is selected, but no team results have been uploaded yet.</p>
+        />
+      ) : teamGrouping === "Imported" ? (
+        <p className="rounded-xl border border-white/10 p-4 text-sm text-gray-400">
+          Official imported team rankings are selected, but no team results have been uploaded yet.
+        </p>
       ) : (
         <CalculatedTeamStandings
           results={results}
-          grouping={tournament.team_points_grouping ?? "Auto"}
+          grouping={teamGrouping}
         />
       )}
     </div>
@@ -2834,10 +2843,10 @@ function CalculatedTeamStandings({
             {groupingLabel === "Club / Team" ? "Club / Team points" : `${groupingLabel} team points`}
           </h2>
           <p className="mt-1 text-xs text-gray-400">
-            Totals from the latest published individual player points.
-            {grouping === "Auto" && <> Auto selected {groupingLabel}.</>}
+            Calculated from the imported individual standings; this is not an official team result.
+            {grouping === "Auto" && <> Auto selected {groupingLabel} because no official team ranking is available.</>}
             {unassignedCount > 0 && <> {unassignedCount} result(s) have no {groupingLabel} and are excluded.</>}
-            {standings.length === 0 && <> No groups are available. Choose another grouping or re-import results with group labels.</>}
+            {standings.length === 0 && <> No groups are available. An administrator must choose another grouping or re-import results with group labels.</>}
           </p>
         </div>
         <span className="w-fit rounded-full bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-100">
@@ -2845,7 +2854,7 @@ function CalculatedTeamStandings({
         </span>
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
+      {standings.length > 0 && <div className="mt-3 overflow-hidden rounded-lg border border-white/10">
         <table className="w-full border-collapse text-left text-xs">
           <thead className="bg-black/35 uppercase tracking-wider text-gray-500">
             <tr>
@@ -2866,7 +2875,7 @@ function CalculatedTeamStandings({
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {hiddenCount > 0 && (
         <p className="mt-2 text-right text-[11px] text-gray-500">
@@ -2936,14 +2945,14 @@ function TeamRankingTable({
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.25em] text-red-400">
-            Team Standings
+            Official team standings
           </p>
           <h2 className="mt-3 text-2xl font-black md:text-4xl">
-            Team top 10 by section
+            Official team rankings by section
           </h2>
           <p className="mt-3 text-sm leading-6 text-gray-400">
-            Team results are shown separately for Swiss system events with team
-            tiebreaks.
+            These are the uploaded official team results, shown separately from
+            individual standings.
           </p>
         </div>
 

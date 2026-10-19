@@ -13,7 +13,7 @@ const organisations = compile(fs.readFileSync('lib/organisationNames.ts', 'utf8'
 const standings = compile(fs.readFileSync('lib/tournamentStandings.ts', 'utf8'), {
   require: (id) => { assert.equal(id, './organisationNames'); return organisations; },
 });
-const { calculateTeamPoints } = standings;
+const { calculateTeamPoints, shouldUseOfficialTeamStandings } = standings;
 const row = (fed, type, club, points) => ({ federation: fed, result_type: type, imported_club: club, points });
 
 test('Auto prioritises multiple FED values over TYPE and clubs', () => {
@@ -44,6 +44,14 @@ test('explicit choice overrides Auto even with only one group', () => {
   assert.equal(actual.standings[0].points, 6);
   assert.equal(calculateTeamPoints(rows, 'Club / Team').grouping, 'Club / Team');
   assert.equal(calculateTeamPoints(rows, 'TYPE').grouping, 'TYPE');
+});
+test('Auto prefers uploaded official team standings, while an explicit calculation can override them', () => {
+  const officialRows = [{ team_name: 'Limpopo' }];
+  assert.equal(shouldUseOfficialTeamStandings(officialRows, 'Auto'), true);
+  assert.equal(shouldUseOfficialTeamStandings(officialRows, 'Imported'), true);
+  assert.equal(shouldUseOfficialTeamStandings(officialRows, 'FED'), false);
+  assert.equal(shouldUseOfficialTeamStandings([], 'Auto'), false);
+  assert.equal(shouldUseOfficialTeamStandings([], 'Imported'), false);
 });
 test('missing group labels are counted and do not become fake teams', () => {
   const actual = calculateTeamPoints([row('LIM', null, null, 2), row('', null, null, 9)], 'FED');

@@ -23,15 +23,26 @@ export function hasOfficialTeamStandings(results: readonly unknown[]) {
 export type TeamPointsGrouping = "Auto" | "FED" | "TYPE" | "Club / Team" | "Imported";
 
 export const teamPointsGroupingOptions: { value: TeamPointsGrouping; label: string }[] = [
-  { value: "Auto", label: "Auto: FED → TYPE → Club/Team" },
-  { value: "FED", label: "FED" },
-  { value: "TYPE", label: "TYPE (your spreadsheet labels)" },
-  { value: "Club / Team", label: "Club / Team" },
-  { value: "Imported", label: "Imported team ranking" },
+  { value: "Auto", label: "Auto: official results → FED → TYPE → Club/Team" },
+  { value: "FED", label: "Calculate by FED" },
+  { value: "TYPE", label: "Calculate by TYPE (spreadsheet labels)" },
+  { value: "Club / Team", label: "Calculate by Club / Team" },
+  { value: "Imported", label: "Official imported team ranking only" },
 ];
 
 export function normalizeTeamPointsGrouping(value: unknown): TeamPointsGrouping {
   return teamPointsGroupingOptions.find((option) => option.value === value)?.value ?? "Auto";
+}
+
+/**
+ * Auto must never replace official team standings with a reconstructed table.
+ * An explicit calculated grouping remains an administrator's deliberate override.
+ */
+export function shouldUseOfficialTeamStandings(
+  teamResults: readonly unknown[],
+  requested: TeamPointsGrouping
+) {
+  return hasOfficialTeamStandings(teamResults) && (requested === "Auto" || requested === "Imported");
 }
 
 export type TeamPointsResult = {
