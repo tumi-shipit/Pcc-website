@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
 import { supabase } from "../../lib/supabase";
+import { cdcAwardsNewsItem } from "@/lib/cdcAwardsNews";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
   buildVerifiedRecordNewsItems,
@@ -66,6 +67,7 @@ export default function NewsPage() {
       );
 
       setPosts([
+        cdcAwardsNewsItem,
         ...protectedItems,
         ...((data ?? []) as unknown as NewsPost[]),
       ]);

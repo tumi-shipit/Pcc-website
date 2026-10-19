@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { supabase } from "../lib/supabase";
+import { cdcAwardsNewsItem } from "@/lib/cdcAwardsNews";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 import {
   buildVerifiedRecordNewsItems,
@@ -70,9 +71,9 @@ export default function LatestNews() {
 
       if (error) {
         console.error("Latest news error:", error);
-        setPosts(protectedItems);
+        setPosts([cdcAwardsNewsItem, ...protectedItems]);
       } else {
-        setPosts([...protectedItems, ...((data ?? []) as NewsPost[])]);
+        setPosts([cdcAwardsNewsItem, ...protectedItems, ...((data ?? []) as NewsPost[])]);
       }
 
       setLoading(false);
