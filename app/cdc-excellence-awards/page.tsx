@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
 import CdcNominationForm from "@/components/CdcNominationForm";
+import CdcNominationCountdown from "@/components/CdcNominationCountdown";
 import { cdcAwardGroups, cdcNominationEligibility } from "@/lib/cdcAwards";
 
 export default function CdcExcellenceAwardsPage() {
@@ -19,7 +20,7 @@ export default function CdcExcellenceAwardsPage() {
                 </p>
               </div>
               <h1 className="mt-6 max-w-3xl font-serif text-5xl font-semibold leading-[0.98] tracking-[-0.035em] text-white md:text-7xl">
-                CDC Excellence <span className="text-[#e5c560]">Awards</span>
+                2nd CDC Excellence <span className="text-[#e5c560]">Awards</span>
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-[#d4dfd4]">
                 Honouring the dedication, leadership and achievements that move chess
@@ -113,8 +114,9 @@ export default function CdcExcellenceAwardsPage() {
               <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Put a remarkable contribution forward.</h2>
               <p className="mt-5 leading-7 text-[#c1d0c0]">
                 Nominate someone whose work has strengthened chess in Capricorn District.
-                Nominations close Friday, 23 October 2026. No approval step is required.
+                Nominations close Friday, 23 October 2026.
               </p>
+              <CdcNominationCountdown />
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
                 <p className="text-sm font-bold text-[#e4c45e]">What happens next?</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
@@ -132,7 +134,7 @@ export default function CdcExcellenceAwardsPage() {
         </section>
 
         <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-xs text-[#9faf9f] sm:flex-row sm:items-center sm:justify-between md:px-10">
-          <p>Capricorn District Chess Excellence Awards · 2026</p>
+          <p>2nd Capricorn District Chess Excellence Awards · 2026</p>
           <Link href="/" className="font-semibold text-[#d9bd69] hover:text-white">Polokwane Chess Club</Link>
         </footer>
       </main>

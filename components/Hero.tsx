@@ -35,6 +35,11 @@ const quickLinks = [
     text: "Manage the tournaments assigned to you",
   },
   { href: "/hall-of-fame", title: "Hall of Fame", text: "PCC legacy" },
+  {
+    href: "/cdc-excellence-awards",
+    title: "2nd CDC Excellence Awards",
+    text: "Nominate a Capricorn District chess contributor",
+  },
 ];
 
 const proofPoints = [
@@ -99,6 +104,12 @@ export default function Hero() {
               className="rounded-lg bg-red-600 px-5 py-3 text-center text-sm font-bold text-white shadow-lg shadow-red-950/30 transition hover:bg-red-700"
             >
               Enter a Tournament
+            </Link>
+            <Link
+              href="/cdc-excellence-awards"
+              className="rounded-lg border border-amber-200/50 bg-amber-300 px-5 py-3 text-center text-sm font-bold text-emerald-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-200"
+            >
+              2nd CDC Excellence Awards
             </Link>
             <Link
               href="/#tournaments"

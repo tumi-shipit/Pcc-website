@@ -114,6 +114,14 @@ body {
   box-shadow: 0 24px 80px rgba(0,0,0,0.26);
 }
 
+.cdc-awards .cdc-countdown-panel {
+  margin-top: 1.5rem;
+  border: 1px solid rgba(222, 190, 88, 0.26);
+  border-radius: 1rem;
+  background: rgba(3, 17, 9, 0.55);
+  padding: 1rem;
+}
+
 .cdc-awards .cdc-form-card input,
 .cdc-awards .cdc-form-card select,
 .cdc-awards .cdc-form-card textarea {
