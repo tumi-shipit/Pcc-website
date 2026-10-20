@@ -117,7 +117,7 @@ export default function AdminGuard({ children }: { children: ReactNode }) {
 
   const navItems = primaryNav.filter((item) => {
     if (currentRole === "super_admin") return true;
-    if (item.href === "/admin/cdc-excellence-awards") return false;
+    if (item.href === "/admin/cdc-excellence-awards") return currentRole === "admin";
     if (currentRole === "admin") return item.href !== "/admin/admin-access";
     if (currentRole === "organisation_admin") {
       return [

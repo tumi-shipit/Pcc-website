@@ -34,17 +34,18 @@ export default function CdcAwardsAdminPage() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const canViewNominations = role === "super_admin" || role === "admin";
 
   const loadNominations = useCallback(async () => {
     setLoading(true);
     setError("");
     const roleResult = await supabase.rpc("current_admin_role");
-    if (roleResult.error || roleResult.data !== "super_admin") {
+    if (roleResult.error || !["super_admin", "admin"].includes(String(roleResult.data))) {
       setRole(typeof roleResult.data === "string" ? roleResult.data : "no_access");
       setLoading(false);
       return;
     }
-    setRole("super_admin");
+    setRole(String(roleResult.data));
     const result = await supabase
       .from("cdc_excellence_nominations")
       .select("id, award_year, nominee_name, nominee_surname, category, school_club, nominator_name, nominator_contact, criteria_confirmed, created_at")
@@ -105,17 +106,17 @@ export default function CdcAwardsAdminPage() {
               <h1 className="mt-3 text-3xl font-black md:text-4xl">Excellence Awards nominations</h1>
               <p className="mt-2 text-sm text-zinc-400">Private nomination records · 2026</p>
             </div>
-            {role === "super_admin" && (
+            {canViewNominations && (
               <button type="button" onClick={exportExcel} disabled={visibleRows.length === 0} className="rounded-xl bg-amber-300 px-5 py-3 text-sm font-black text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-40">
                 Export {visibleRows.length === rows.length ? "all" : "filtered"} to Excel
               </button>
             )}
           </div>
 
-          {role && role !== "super_admin" && !loading ? (
+          {role && !canViewNominations && !loading ? (
             <div className="mt-8 rounded-2xl border border-red-400/20 bg-red-950/20 p-6">
-              <h2 className="font-bold text-red-100">Super admin access required</h2>
-              <p className="mt-2 text-sm text-zinc-400">The CDC awards nomination list is restricted to the designated awards administrator.</p>
+              <h2 className="font-bold text-red-100">Admin access required</h2>
+              <p className="mt-2 text-sm text-zinc-400">The CDC awards nomination list is available to Admin and Super Admin accounts.</p>
             </div>
           ) : (
             <>

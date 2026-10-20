@@ -65,11 +65,12 @@ create policy cdc_awards_public_nomination_insert
   );
 
 drop policy if exists cdc_awards_super_admin_nomination_read on public.cdc_excellence_nominations;
-create policy cdc_awards_super_admin_nomination_read
+drop policy if exists cdc_awards_admin_nomination_read on public.cdc_excellence_nominations;
+create policy cdc_awards_admin_nomination_read
   on public.cdc_excellence_nominations
   for select
   to authenticated
-  using ((select public.current_admin_role()) = 'super_admin');
+  using ((select public.current_admin_role()) in ('super_admin', 'admin'));
 
 drop policy if exists cdc_awards_public_nominee_list_read on public.cdc_excellence_nominations;
 create policy cdc_awards_public_nominee_list_read
