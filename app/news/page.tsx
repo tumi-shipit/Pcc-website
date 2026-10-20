@@ -18,6 +18,7 @@ type NewsPost = {
   excerpt: string;
   image_url: string | null;
   category: string | null;
+  published?: boolean;
   published_at: string | null;
   display_date?: string | null;
   href?: string;
@@ -54,7 +55,7 @@ export default function NewsPage() {
 
       const { data } = await supabase
         .from("news_posts")
-        .select("id, title, excerpt, image_url, category, published_at")
+        .select("id, title, excerpt, image_url, category, published, published_at")
         .eq("published", true)
         .order("published_at", { ascending: false });
       const { data: overrideData } = await supabase
@@ -66,10 +67,17 @@ export default function NewsPage() {
         (overrideData ?? []) as Array<VerifiedRecordOverride & { slug?: string | null }>
       );
 
+      const newsRows = (data ?? []) as unknown as NewsPost[];
+      const cdcPost = newsRows.find((post) => post.id === cdcAwardsNewsItem.id);
+      const awardsPost = cdcPost
+        ? cdcPost.published === false
+          ? null
+          : { ...cdcAwardsNewsItem, ...cdcPost, href: cdcAwardsNewsItem.href }
+        : cdcAwardsNewsItem;
       setPosts([
-        cdcAwardsNewsItem,
+        ...(awardsPost ? [awardsPost] : []),
         ...protectedItems,
-        ...((data ?? []) as unknown as NewsPost[]),
+        ...newsRows.filter((post) => post.id !== cdcAwardsNewsItem.id),
       ]);
       setLoading(false);
     }

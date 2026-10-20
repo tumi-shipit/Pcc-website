@@ -14,6 +14,7 @@ import {
   buildVerifiedRecordNewsItems,
   type VerifiedRecordOverride,
 } from "@/lib/verifiedRecords";
+import { cdcAwardsNewsItem } from "@/lib/cdcAwardsNews";
 
 type NewsPost = {
   id: string;
@@ -29,6 +30,8 @@ type NewsPost = {
   href?: string;
   display_date?: string | null;
   protected?: boolean;
+  managedBuiltin?: boolean;
+  persisted?: boolean;
 };
 
 type Tournament = {
@@ -320,9 +323,23 @@ export default function AdminNewsPage() {
         protected: true,
       }));
 
+      const databasePosts = (data ?? []) as unknown as NewsPost[];
+      const cdcPost = databasePosts.find((post) => post.id === cdcAwardsNewsItem.id);
+      const managedCdcPost: NewsPost = {
+        ...cdcAwardsNewsItem,
+        content: cdcPost?.content ?? cdcAwardsNewsItem.content,
+        image_url: cdcPost?.image_url ?? cdcAwardsNewsItem.image_url,
+        published: cdcPost?.published ?? cdcAwardsNewsItem.published,
+        published_at: cdcPost?.published_at ?? cdcAwardsNewsItem.published_at,
+        created_at: cdcPost?.created_at ?? cdcAwardsNewsItem.published_at,
+        updated_at: cdcPost?.updated_at ?? cdcAwardsNewsItem.published_at,
+        managedBuiltin: true,
+        persisted: Boolean(cdcPost),
+      };
       setPosts([
+        managedCdcPost,
         ...protectedPosts,
-        ...((data ?? []) as unknown as NewsPost[]),
+        ...databasePosts.filter((post) => post.id !== cdcAwardsNewsItem.id),
       ]);
       setTournaments((tournamentData ?? []) as unknown as Tournament[]);
       setOrganisations((organisationData ?? []) as unknown as Organisation[]);
@@ -520,6 +537,11 @@ export default function AdminNewsPage() {
   }
 
   async function editPost(post: NewsPost) {
+    if (post.managedBuiltin && !isSuperAdmin) {
+      setMessage("Only a Super Admin can edit the CDC awards announcement.");
+      return;
+    }
+
     if (post.protected) {
       setMessage("This is a protected PCC verified record. Edit it from the retained record source, not the ordinary newsroom editor.");
       return;
@@ -541,7 +563,7 @@ export default function AdminNewsPage() {
     });
 
     setActivePanel("compose");
-    await loadNewsCredits(post.id);
+    if (!post.managedBuiltin) await loadNewsCredits(post.id);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -651,7 +673,18 @@ export default function AdminNewsPage() {
       updated_at: now,
     };
 
-    if (editingPostId) {
+    if (editingPostId && editingPost?.managedBuiltin && !editingPost.persisted) {
+      const { error } = await supabase.from("news_posts").insert({
+        id: cdcAwardsNewsItem.id,
+        ...payload,
+      });
+      if (error) {
+        setMessage(`Could not save CDC awards announcement: ${error.message}`);
+        setSaving(false);
+        return;
+      }
+      setMessage("CDC awards announcement saved.");
+    } else if (editingPostId) {
       const { error } = await supabase
         .from("news_posts")
         .update(payload)
@@ -664,7 +697,7 @@ export default function AdminNewsPage() {
       }
 
       try {
-        await saveNewsCredits(editingPostId);
+        if (!editingPost?.managedBuiltin) await saveNewsCredits(editingPostId);
       } catch (creditError) {
         setMessage(
           `Article saved, but news credits could not be saved: ${
@@ -710,7 +743,7 @@ export default function AdminNewsPage() {
   }
 
   async function togglePublished(post: NewsPost) {
-    if (post.protected) {
+    if (post.protected && !post.managedBuiltin) {
       setMessage("Protected verified records cannot be unpublished from the newsroom.");
       return;
     }
@@ -723,6 +756,27 @@ export default function AdminNewsPage() {
     setMessage("");
 
     const nextPublished = !post.published;
+
+    if (post.managedBuiltin && !post.persisted) {
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("news_posts").insert({
+        id: cdcAwardsNewsItem.id,
+        title: post.title,
+        excerpt: post.excerpt,
+        content: post.content,
+        image_url: post.image_url,
+        category: post.category,
+        published: nextPublished,
+        published_at: nextPublished ? now : null,
+        updated_at: now,
+      });
+      if (error) {
+        setMessage(`Could not update publishing status: ${error.message}`);
+        return;
+      }
+      await loadPosts();
+      return;
+    }
 
     const { error } = await supabase
       .from("news_posts")
@@ -746,6 +800,11 @@ export default function AdminNewsPage() {
   async function deletePost(post: NewsPost) {
     if (!isSuperAdmin) {
       setMessage("Only a Super Admin can delete news records.");
+      return;
+    }
+
+    if (post.managedBuiltin) {
+      setMessage("The CDC awards announcement is a built-in article and cannot be deleted.");
       return;
     }
 
@@ -1401,7 +1460,7 @@ export default function AdminNewsPage() {
                                   {post.display_date || formatDate(post.published_at)}
                                 </span>
 
-                                {post.protected && (
+                                {post.protected && !post.managedBuiltin && (
                                   <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-200">
                                     Protected retained record
                                   </span>
@@ -1411,7 +1470,7 @@ export default function AdminNewsPage() {
                                     Super Admin edits
                                   </span>
                                 )}
-                                {!isSuperAdmin && post.protected && (
+                                {!isSuperAdmin && post.protected && !post.managedBuiltin && (
                                   <span className="rounded-full border border-white/10 bg-zinc-950 px-3 py-1 text-xs text-gray-400">
                                     Super Admin protected action
                                   </span>
@@ -1428,7 +1487,16 @@ export default function AdminNewsPage() {
                             </div>
 
                             <div className="flex flex-wrap gap-2">
-                              {post.protected ? (
+                              {post.managedBuiltin ? (
+                                <button
+                                  type="button"
+                                  onClick={() => editPost(post)}
+                                  disabled={!isSuperAdmin}
+                                  className="rounded-xl border border-amber-300/30 px-4 py-2 text-sm font-bold text-amber-100 transition hover:border-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                  Edit announcement
+                                </button>
+                              ) : post.protected ? (
                                 <Link
                                   href={`/admin/verified-records/${post.id.replace(
                                     /^verified-/,
@@ -1456,14 +1524,16 @@ export default function AdminNewsPage() {
                               <button
                                 type="button"
                                 onClick={() => togglePublished(post)}
-                                disabled={!isSuperAdmin || post.protected}
+                                disabled={!isSuperAdmin || (post.protected && !post.managedBuiltin)}
                                 className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
                                   post.published
                                     ? "border border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10"
                                     : "bg-green-600 text-white hover:bg-green-700"
                                 } disabled:cursor-not-allowed disabled:opacity-45`}
                               >
-                                {post.protected
+                                {post.managedBuiltin
+                                  ? post.published ? "Unpublish" : "Publish"
+                                  : post.protected
                                   ? "Retained"
                                   : post.published
                                     ? "Unpublish"
@@ -1480,7 +1550,7 @@ export default function AdminNewsPage() {
                               <button
                                 type="button"
                                 onClick={() => deletePost(post)}
-                                disabled={!isSuperAdmin}
+                                disabled={!isSuperAdmin || post.managedBuiltin}
                                 className="rounded-xl border border-red-500/40 px-4 py-2 text-sm font-bold text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-45"
                               >
                                 Delete
