@@ -221,6 +221,7 @@ export default function AdminNewsPage() {
   const [currentRole, setCurrentRole] = useState<string | null>(null);
 
   const isSuperAdmin = currentRole === "super_admin";
+  const canManageCdcAnnouncement = isSuperAdmin || currentRole === "admin";
 
   const editingPost = useMemo(() => {
     return posts.find((post) => post.id === editingPostId) ?? null;
@@ -537,8 +538,8 @@ export default function AdminNewsPage() {
   }
 
   async function editPost(post: NewsPost) {
-    if (post.managedBuiltin && !isSuperAdmin) {
-      setMessage("Only a Super Admin can edit the CDC awards announcement.");
+    if (post.managedBuiltin && !canManageCdcAnnouncement) {
+      setMessage("Only an Admin can edit the CDC awards announcement.");
       return;
     }
 
@@ -547,7 +548,7 @@ export default function AdminNewsPage() {
       return;
     }
 
-    if (!isSuperAdmin) {
+    if (!isSuperAdmin && !post.managedBuiltin) {
       setMessage("Only a Super Admin can edit published news records.");
       return;
     }
@@ -748,7 +749,7 @@ export default function AdminNewsPage() {
       return;
     }
 
-    if (!isSuperAdmin) {
+    if (!isSuperAdmin && !(post.managedBuiltin && canManageCdcAnnouncement)) {
       setMessage("Only a Super Admin can publish or unpublish news records.");
       return;
     }
@@ -1491,7 +1492,7 @@ export default function AdminNewsPage() {
                                 <button
                                   type="button"
                                   onClick={() => editPost(post)}
-                                  disabled={!isSuperAdmin}
+                                  disabled={!canManageCdcAnnouncement}
                                   className="rounded-xl border border-amber-300/30 px-4 py-2 text-sm font-bold text-amber-100 transition hover:border-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
                                 >
                                   Edit announcement
@@ -1524,7 +1525,7 @@ export default function AdminNewsPage() {
                               <button
                                 type="button"
                                 onClick={() => togglePublished(post)}
-                                disabled={!isSuperAdmin || (post.protected && !post.managedBuiltin)}
+                                disabled={!(post.managedBuiltin ? canManageCdcAnnouncement : isSuperAdmin) || (post.protected && !post.managedBuiltin)}
                                 className={`rounded-xl px-4 py-2 text-sm font-bold transition ${
                                   post.published
                                     ? "border border-yellow-500/40 text-yellow-200 hover:bg-yellow-500/10"
