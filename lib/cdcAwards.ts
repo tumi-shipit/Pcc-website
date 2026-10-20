@@ -54,7 +54,7 @@ export const cdcNominationEligibility: Record<
   "Organiser of the Year":
     "Organised a chess tournament in Capricorn District or helped organise at least one Capricorn District chess event during 2026.",
   "Administrator of the Year":
-    "Performed chess administration for a Capricorn District school, club, or district body during 2026.",
+    "Performed chess administration within Capricorn District during 2026.",
   "Team Manager of the Year":
     "Managed a Capricorn District team, school, or club in at least one chess event during 2026.",
   "Upcoming Manager of the Year":
