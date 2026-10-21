@@ -53,19 +53,17 @@ export default function CdcPublicNomineeList() {
         setLoading(false);
         return;
       }
-      listLoaded = true;
       setLoading(true);
       const { data, error: loadError } = await publicSupabase
         .from("cdc_excellence_nominations")
         .select("nominee_name, nominee_surname, category, school_club, created_at")
-        .eq("eligibility_status", "eligible")
-        .eq("acceptance_status", "accepted")
         .order("created_at", { ascending: true });
       if (cancelled) return;
       if (loadError) {
         setError(true);
       } else {
         setRows(uniqueNominees((data ?? []) as PublicNominee[]));
+        listLoaded = true;
       }
       setLoading(false);
     }
