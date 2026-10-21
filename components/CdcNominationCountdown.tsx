@@ -45,7 +45,7 @@ export default function CdcNominationCountdown() {
           <CountdownUnit label="Seconds" value={remaining.seconds} />
         </div>
       ) : ready ? (
-        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The nominee response period is closed. The accepted nominee list is public; voting instructions and the closing date will be announced.</p>
+        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The nominee response period is closed. The accepted nominee list is public. Verify your email to cast one vote in each available category; the closing date will be announced.</p>
       ) : (
         <p className="mt-3 text-sm text-[#c1d0c0]">Calculating time remaining…</p>
       )}

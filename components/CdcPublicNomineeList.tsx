@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { publicSupabase } from "@/lib/publicSupabase";
 import { cdcServiceAwardCategories } from "@/lib/cdcAwards";
+import CdcVotingBallot from "@/components/CdcVotingBallot";
 
 type PublicNominee = {
   nominee_name: string;
@@ -92,7 +93,7 @@ export default function CdcPublicNomineeList() {
           </div>
           <p className="max-w-lg text-sm leading-6 text-[#bfccbf]">
             {votingStarted
-              ? "The accepted nominee list is now public. Voting instructions and the closing date will be announced."
+              ? "The accepted nominee list is public. Verify your email below to vote once in each available category. The closing date will be announced."
               : "These nominees were reviewed and accepted their nominations."}
           </p>
         </div>
@@ -124,6 +125,7 @@ export default function CdcPublicNomineeList() {
             })}
           </div>
         )}
+        <CdcVotingBallot />
       </div>
     </section>
   );

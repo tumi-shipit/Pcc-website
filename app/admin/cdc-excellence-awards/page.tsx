@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
+import CdcVotingAdminPanel from "@/components/admin/CdcVotingAdminPanel";
 import { supabase } from "@/lib/supabase";
 import { cdcApprovedNomineeRoster, cdcAwardsSiteUrl, cdcServiceAwardCategories } from "@/lib/cdcAwards";
 
@@ -209,6 +210,8 @@ export default function CdcAwardsAdminPage() {
                 <Metric label="Categories represented" value={new Set(rows.map((row) => row.category)).size} />
                 <Metric label="Showing" value={`${visibleRows.length} / ${rows.length}`} />
               </div>
+
+              {canViewNominations && <CdcVotingAdminPanel />}
 
               <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">

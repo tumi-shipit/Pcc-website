@@ -124,8 +124,9 @@ export default function CdcExcellenceAwardsPage() {
                 <p className="text-sm font-bold text-[#e4c45e]">What happens next?</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
                   Only nominees on the approved shortlist who accept will be published
-                  for public voting when the response period ends. The voting method
-                  and closing date will be announced separately.
+                  for public voting when the response period ends. Any verified email
+                  may submit one vote in each available category; the voting closing date
+                  will be announced separately.
                 </p>
               </div>
               <p className="mt-6 text-xs leading-5 text-[#9faf9f]">

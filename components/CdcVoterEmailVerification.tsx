@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { cdcAwardsSiteUrl } from "@/lib/cdcAwards";
 
@@ -22,7 +23,7 @@ export default function CdcVoterEmailVerification() {
       if (session?.user.email_confirmed_at) {
         setVerifiedEmail(session.user.email ?? "");
         setSentTo("");
-        setMessage("Your email is verified. Voting details will appear here when the ballot is ready.");
+        setMessage("Your email is verified. Continue to the awards page to cast your ballot.");
         if (event === "SIGNED_IN" && window.location.hash) {
           window.history.replaceState(null, "", window.location.pathname + window.location.search);
         }
@@ -76,6 +77,7 @@ export default function CdcVoterEmailVerification() {
             <p className="font-semibold text-[#e4c45e]">Email verified</p>
             <p className="mt-2 text-sm leading-6 text-[#d4dfd4]">{verifiedEmail}</p>
             <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">{message}</p>
+            <Link href="/cdc-excellence-awards#voting" className="cdc-gold-button mt-4 inline-flex">Continue to the ballot</Link>
           </div>
         ) : (
           <form onSubmit={sendVerificationLink} className="mt-7 rounded-2xl border border-[#dfbd58]/20 bg-black/15 p-5">
@@ -98,7 +100,7 @@ export default function CdcVoterEmailVerification() {
 
         {message && !verifiedEmail && <p role="status" className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-[#d4dfd4]">{message}</p>}
         <p className="mt-7 border-t border-white/10 pt-5 text-xs leading-5 text-[#9faf9f]">
-          Email verification confirms access to the inbox. The voting ballot and voting dates will be published separately.
+          Email verification confirms access to the inbox. A verified account may vote once in each available category. The closing date will be announced.
         </p>
       </section>
     </main>
