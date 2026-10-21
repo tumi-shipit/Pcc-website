@@ -29,6 +29,7 @@ export default function CdcExcellenceAwardsPage() {
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
                 <a href="#nominate" className="cdc-gold-button">Nominee acceptance</a>
+                <Link href="/cdc-excellence-awards/vote" className="cdc-outline-button">Verify email for voting</Link>
                 <a href="#categories" className="cdc-outline-button">Explore the awards</a>
               </div>
               <p className="mt-5 text-sm text-[#c1cfbf]">
