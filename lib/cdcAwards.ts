@@ -47,7 +47,7 @@ export const cdcAwardGroups = [
   },
   {
     title: "Chess service and contribution awards",
-    description: "Nominations are closed. Eligible nominees are being invited to accept or decline before the public list is published.",
+    description: "Nominations and nominee responses are closed. Public voting is open for categories with at least two eligible nominees.",
     categories: [...cdcServiceAwardCategories],
     mode: "nominations" as const,
   },
