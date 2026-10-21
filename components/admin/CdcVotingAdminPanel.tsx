@@ -5,12 +5,16 @@ import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 
 type WinnerRow = { category: string; name: string; surname: string };
+type TallyRow = { category: string; name: string; surname: string; votes: number };
 type Summary = {
   state: "not_open" | "open" | "closed";
   opens_at: string;
   closes_at: string | null;
   results_at: string;
   winners: WinnerRow[] | null;
+  total_voters: number;
+  total_votes: number;
+  tallies: TallyRow[];
 };
 
 function asSastInput(value: string | null) {
@@ -21,7 +25,7 @@ function asSastInput(value: string | null) {
     hour: "2-digit", minute: "2-digit", hourCycle: "h23",
   }).formatToParts(new Date(value));
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
-  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
+  return get("year") + "-" + get("month") + "-" + get("day") + "T" + get("hour") + ":" + get("minute");
 }
 
 function formatSast(value: string) {
@@ -39,7 +43,7 @@ export default function CdcVotingAdminPanel() {
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("cdc_admin_get_voting_summary");
     if (error) {
-      setMessage("Voting controls are unavailable. Apply database/cdc_excellence_awards_voting_setup.sql in Supabase, then refresh this page.");
+      setMessage("Voting controls and live results are unavailable. Apply database/cdc_excellence_awards_admin_vote_tally.sql in Supabase, then refresh this page.");
       return;
     }
     const result = data as Summary;
@@ -77,7 +81,7 @@ export default function CdcVotingAdminPanel() {
       await setDeadline(null);
       return;
     }
-    const parsed = new Date(`${closeAt}:00+02:00`);
+    const parsed = new Date(closeAt + ":00+02:00");
     if (!Number.isFinite(parsed.getTime()) || parsed.getTime() <= Date.now()) {
       setMessage("Choose a future closing date and time in South African time. Use Close voting now to end the ballot immediately.");
       return;
@@ -93,14 +97,25 @@ export default function CdcVotingAdminPanel() {
   function exportResults() {
     if (!summary?.winners) return;
     const workbook = XLSX.utils.book_new();
-    const rows = summary.winners.map((row) => ({
-      Category: row.category,
-      Winner: `${row.name} ${row.surname}`,
-    }));
+    const rows = summary.winners.map((row) => ({ Category: row.category, Winner: row.name + " " + row.surname }));
     const sheet = XLSX.utils.json_to_sheet(rows);
     sheet["!cols"] = [{ wch: 34 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(workbook, sheet, "CDC Voting Results");
+    XLSX.utils.book_append_sheet(workbook, sheet, "CDC Award Winners");
     XLSX.writeFile(workbook, "cdc-excellence-awards-winners-2026.xlsx");
+  }
+
+  function exportTally() {
+    if (!summary) return;
+    const workbook = XLSX.utils.book_new();
+    const rows = summary.tallies.map((row) => ({
+      Category: row.category,
+      Nominee: row.name + " " + row.surname,
+      Votes: row.votes,
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 34 }, { wch: 30 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(workbook, sheet, "Live Vote Tally");
+    XLSX.writeFile(workbook, "cdc-excellence-awards-live-vote-tally-2026.xlsx");
   }
 
   return (
@@ -108,7 +123,7 @@ export default function CdcVotingAdminPanel() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-black">Voting controls</h2>
-          <p className="mt-1 text-sm text-zinc-400">The ballot opens as soon as every approved nominee has accepted or declined. If responses remain pending, it opens at midnight on 22 October 2026 (South African time). Set the closing date when it is announced. Winner names are published on the site at 21:00 on 14 November 2026, once voting is closed.</p>
+          <p className="mt-1 text-sm text-zinc-400">The ballot opens as soon as every approved nominee has accepted or declined. If responses remain pending, it opens at midnight on 22 October 2026 (South African time). Winner names are published on the site at 21:00 on 14 November 2026, once voting is closed.</p>
         </div>
         {summary && <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-200">{summary.state.replace("_", " ")}</span>}
       </div>
@@ -120,11 +135,47 @@ export default function CdcVotingAdminPanel() {
           </label>
           <button type="button" disabled={busy || summary.state === "closed"} onClick={() => void saveDeadline()} className="rounded-lg bg-amber-300 px-4 py-2.5 text-sm font-black text-zinc-950 disabled:opacity-50">Save closing date</button>
           <button type="button" disabled={busy || summary.state === "closed" || summary.state === "not_open"} onClick={() => void closeNow()} className="rounded-lg border border-red-300/30 px-4 py-2.5 text-sm font-bold text-red-100 disabled:opacity-50">Close voting now</button>
-          <p className="w-full text-xs text-zinc-400">{summary.closes_at ? `Scheduled to close ${formatSast(summary.closes_at)}.` : "No closing date is scheduled yet."} Winner names publish {formatSast(summary.results_at)} after voting closes. Vote totals and turnout are never displayed.</p>
+          <p className="w-full text-xs text-zinc-400">{summary.closes_at ? "Scheduled to close " + formatSast(summary.closes_at) + ". " : "No closing date is scheduled yet. "}Winner names publish {formatSast(summary.results_at)} after voting closes. Live totals are available to admins here; voter names and email addresses stay private.</p>
         </div>
       )}
 
       {message && <p role="status" className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-zinc-200">{message}</p>}
+
+      {summary && (
+        <div className="mt-6 border-t border-white/10 pt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-bold">Live vote tally</h3>
+              <p className="mt-1 text-xs text-zinc-400">Admin only · refreshes automatically every 30 seconds</p>
+            </div>
+            <button type="button" onClick={exportTally} disabled={summary.tallies.length === 0} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50 disabled:opacity-40">Export tally to Excel</button>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Voters who submitted</p><p className="mt-1 text-2xl font-black">{summary.total_voters}</p></div>
+            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Selections recorded</p><p className="mt-1 text-2xl font-black">{summary.total_votes}</p></div>
+          </div>
+          {summary.tallies.length === 0 ? (
+            <p className="mt-4 rounded-lg border border-white/[0.07] bg-black/15 p-4 text-sm text-zinc-400">No votes have been submitted yet.</p>
+          ) : (
+            <div className="mt-4 space-y-4">
+              {Array.from(new Set(summary.tallies.map((row) => row.category))).map((category) => {
+                const categoryRows = summary.tallies.filter((row) => row.category === category);
+                const categoryTotal = categoryRows.reduce((total, row) => total + row.votes, 0);
+                const maxVotes = Math.max(1, ...categoryRows.map((row) => row.votes));
+                return <article key={category} className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h4 className="font-bold">{category}</h4><span className="text-xs text-zinc-400">{categoryTotal} vote{categoryTotal === 1 ? "" : "s"}</span></div>
+                  <div className="space-y-3">
+                    {categoryRows.map((row) => <div key={category + "-" + row.name + "-" + row.surname}>
+                      <div className="mb-1 flex items-center justify-between gap-3 text-sm"><span>{row.name} {row.surname}</span><span className="font-bold text-amber-200">{row.votes}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-amber-300" style={{ width: ((row.votes / maxVotes) * 100) + "%" }} /></div>
+                    </div>)}
+                  </div>
+                </article>;
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {summary?.state === "closed" && summary.winners && (
         <div className="mt-6 border-t border-white/10 pt-5">
@@ -133,7 +184,7 @@ export default function CdcVotingAdminPanel() {
             <button type="button" onClick={exportResults} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50">Export winners to Excel</button>
           </div>
           <div className="mt-4 space-y-2">
-            {summary.winners.map((row) => <div key={`${row.category}-${row.name}-${row.surname}`} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span></div>)}
+            {summary.winners.map((row) => <div key={row.category + "-" + row.name + "-" + row.surname} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span></div>)}
             {summary.winners.length === 0 && <p className="text-sm text-zinc-400">No winner names are available to display.</p>}
           </div>
         </div>
