@@ -1,9 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { cdcAwardsSiteUrl } from "@/lib/cdcAwards";
+import CdcVotingBallot from "@/components/CdcVotingBallot";
 
 export default function CdcVoterEmailVerification() {
   const [email, setEmail] = useState("");
@@ -19,16 +19,16 @@ export default function CdcVoterEmailVerification() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
 
-    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+    const applySession = (session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]) => {
       if (session?.user.email_confirmed_at) {
         setVerifiedEmail(session.user.email ?? "");
         setSentTo("");
-        setMessage("Your email is verified. Continue to the awards page to cast your ballot.");
-        if (event === "SIGNED_IN" && window.location.hash) {
-          window.history.replaceState(null, "", window.location.pathname + window.location.search);
-        }
+        setMessage("Your email is verified. Your ballot is ready below.");
       }
-    });
+    };
+
+    void supabase.auth.getSession().then(({ data }) => applySession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => applySession(session));
 
     return () => data.subscription.unsubscribe();
   }, []);
@@ -73,12 +73,7 @@ export default function CdcVoterEmailVerification() {
         </p>
 
         {verifiedEmail ? (
-          <div className="mt-7 rounded-2xl border border-[#dfbd58]/25 bg-black/15 p-5">
-            <p className="font-semibold text-[#e4c45e]">Email verified</p>
-            <p className="mt-2 text-sm leading-6 text-[#d4dfd4]">{verifiedEmail}</p>
-            <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">{message}</p>
-            <Link href="/cdc-excellence-awards#voting" className="cdc-gold-button mt-4 inline-flex">Continue to the ballot</Link>
-          </div>
+          <CdcVotingBallot />
         ) : (
           <form onSubmit={sendVerificationLink} className="mt-7 rounded-2xl border border-[#dfbd58]/20 bg-black/15 p-5">
             <label className="block text-sm font-semibold" htmlFor="voter-email">Email address</label>

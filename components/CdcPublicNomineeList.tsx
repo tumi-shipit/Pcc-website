@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { publicSupabase } from "@/lib/publicSupabase";
 import { cdcServiceAwardCategories } from "@/lib/cdcAwards";
-import CdcVotingBallot from "@/components/CdcVotingBallot";
 
 type PublicNominee = {
   nominee_name: string;
@@ -121,7 +120,6 @@ export default function CdcPublicNomineeList() {
             })}
           </div>
         )}
-        <CdcVotingBallot />
       </div>
     </section>
   );
