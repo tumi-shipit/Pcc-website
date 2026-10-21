@@ -72,9 +72,9 @@ export default function CdcVotingBallot() {
       if (error) {
         setMessage("The ballot is being prepared. Please check back shortly.");
       } else {
-        const result = data as Ballot;
-        setBallot(result);
-        setChoices(Object.fromEntries(result.my_votes.map((vote) => [vote.category, `${vote.name}|${vote.surname}`])));
+        const result = data as Ballot; const eligibleCategories = result.categories.filter(({ nominees }) => nominees.length >= 2); const eligibleCategoryNames = new Set(eligibleCategories.map(({ category }) => category)); setBallot({ ...result, categories: eligibleCategories }); setChoices(Object.fromEntries(result.my_votes.filter(({ category }) => eligibleCategoryNames.has(category)).map((vote) => [vote.category, `${vote.name}|${vote.surname}`])));
+        
+        
       }
       setLoading(false);
     }
@@ -110,9 +110,9 @@ export default function CdcVotingBallot() {
         setMessage(error.message);
         return;
       }
-      const saved = data as Ballot;
-      setBallot(saved);
-      setChoices(Object.fromEntries(saved.my_votes.map((vote) => [vote.category, `${vote.name}|${vote.surname}`])));
+      const saved = data as Ballot; const eligibleCategories = saved.categories.filter(({ nominees }) => nominees.length >= 2); const eligibleCategoryNames = new Set(eligibleCategories.map(({ category }) => category)); setBallot({ ...saved, categories: eligibleCategories }); setChoices(Object.fromEntries(saved.my_votes.filter(({ category }) => eligibleCategoryNames.has(category)).map((vote) => [vote.category, `${vote.name}|${vote.surname}`])));
+      
+      
       setMessage("Your votes have been recorded. You can vote only once in each category.");
     } catch (cause) {
       setMessage(cause instanceof Error ? cause.message : "Could not submit your votes. Please try again.");
@@ -161,7 +161,7 @@ export default function CdcVotingBallot() {
           )}
         </div>
       ) : ballot.categories.length === 0 ? (
-        <p className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">There are no accepted nominees available for voting.</p>
+        <p className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">No categories have enough eligible nominations to go to a public vote.</p>
       ) : !email ? (
         <div className="mt-6 rounded-2xl border border-[#dfbd58]/25 bg-black/15 p-5">
           <p className="text-sm leading-6 text-[#d4dfd4]">Verify your email to open the ballot. We will send a sign-in link to your inbox and return you here after confirmation.</p>
