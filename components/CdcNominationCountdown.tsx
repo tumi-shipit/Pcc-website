@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { publicSupabase } from "@/lib/publicSupabase";
 
 const closingTime = new Date("2026-10-22T00:00:00+02:00").getTime();
-
 type RemainingTime = { days: number; hours: number; minutes: number; seconds: number };
+type VotingState = "checking" | "not_open" | "open" | "closed" | "unavailable";
 
 function getRemainingTime(): RemainingTime | null {
   const difference = closingTime - Date.now();
@@ -20,36 +21,66 @@ function getRemainingTime(): RemainingTime | null {
 
 export default function CdcNominationCountdown() {
   const [remaining, setRemaining] = useState<RemainingTime | null>(null);
-  const [ready, setReady] = useState(false);
+  const [votingState, setVotingState] = useState<VotingState>("checking");
 
   useEffect(() => {
-    const update = () => {
-      setRemaining(getRemainingTime());
-      setReady(true);
+    let cancelled = false;
+    async function refreshVotingState() {
+      const { data, error } = await publicSupabase.rpc("cdc_get_voting_ballot");
+      if (cancelled) return;
+      if (error) {
+        setVotingState("unavailable");
+        return;
+      }
+      const state = (data as { state?: string } | null)?.state;
+      setVotingState(state === "open" || state === "closed" ? state : "not_open");
+    }
+    void refreshVotingState();
+    const statusInterval = window.setInterval(() => { void refreshVotingState(); }, 15_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(statusInterval);
     };
+  }, []);
+
+  useEffect(() => {
+    if (votingState !== "not_open") return;
+    const update = () => setRemaining(getRemainingTime());
     update();
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
-  }, []);
+  }, [votingState]);
+
+  if (votingState === "open") return null;
 
   return (
-    <div className="cdc-countdown-panel" aria-label="Time remaining until nominee responses close">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e4c45e]">
-        {ready && !remaining ? "Nominee responses are closed" : "Nominee responses close in"}
-      </p>
-      {remaining ? (
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          <CountdownUnit label="Days" value={remaining.days} />
-          <CountdownUnit label="Hours" value={remaining.hours} />
-          <CountdownUnit label="Minutes" value={remaining.minutes} />
-          <CountdownUnit label="Seconds" value={remaining.seconds} />
-        </div>
-      ) : ready ? (
-        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The nominee response period is closed. The accepted nominee list is public. Verify your email to cast one vote in each available category; the closing date will be announced.</p>
+    <div className="cdc-countdown-panel" aria-live="polite" aria-label="Nominee response and voting status">
+      {votingState === "checking" ? (
+        <p className="text-sm text-[#c1d0c0]">Checking voting status…</p>
+      ) : votingState === "unavailable" ? (
+        <p className="text-sm leading-6 text-[#c1d0c0]">Voting status is temporarily unavailable. Please refresh the page in a moment.</p>
+      ) : votingState === "closed" ? (
+        <>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e4c45e]">Voting has closed</p>
+          <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The nominee response period has ended and the accepted nominee list is public.</p>
+        </>
+      ) : remaining ? (
+        <>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e4c45e]">Nominee responses close in</p>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            <CountdownUnit label="Days" value={remaining.days} />
+            <CountdownUnit label="Hours" value={remaining.hours} />
+            <CountdownUnit label="Minutes" value={remaining.minutes} />
+            <CountdownUnit label="Seconds" value={remaining.seconds} />
+          </div>
+          <p className="mt-3 text-[11px] text-[#aabbaa]">Closes at 00:00 on Thursday, 22 October (South African time).</p>
+        </>
       ) : (
-        <p className="mt-3 text-sm text-[#c1d0c0]">Calculating time remaining…</p>
+        <>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e4c45e]">Nominee responses are closed</p>
+          <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The accepted nominee list is public. Verify your email to cast one vote in each available category.</p>
+        </>
       )}
-      {ready && remaining && <p className="mt-3 text-[11px] text-[#aabbaa]">Closes at 00:00 on Thursday, 22 October. Public voting opens then (South African time).</p>}
     </div>
   );
 }
