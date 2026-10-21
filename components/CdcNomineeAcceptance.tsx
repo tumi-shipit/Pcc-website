@@ -2,12 +2,10 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
-import { cdcAwardsSiteUrl } from "@/lib/cdcAwards";
 
 const acceptanceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-  { auth: { storageKey: "cdc-nominee-acceptance-auth", persistSession: true } },
 );
 
 type ResponseChoice = "accepted" | "declined" | "";
@@ -23,8 +21,6 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [choices, setChoices] = useState<Record<string, ResponseChoice>>({});
   const [email, setEmail] = useState("");
-  const [verifiedEmail, setVerifiedEmail] = useState("");
-  const [emailSent, setEmailSent] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -32,12 +28,8 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
 
   useEffect(() => {
     let alive = true;
-    const authError = new URLSearchParams(window.location.hash.slice(1)).get("error_description");
     async function load() {
-      const [{ data, error }, { data: userData }] = await Promise.all([
-        acceptanceSupabase.rpc("cdc_get_nominee_acceptance", { p_token: token }),
-        acceptanceSupabase.auth.getUser(),
-      ]);
+      const { data, error } = await acceptanceSupabase.rpc("cdc_get_nominee_acceptance", { p_token: token });
       if (!alive) return;
       if (error || !data) {
         setMessage("This private response link is invalid or unavailable.");
@@ -47,57 +39,38 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
       const details = data as unknown as Invitation;
       setInvitation(details);
       setChoices(Object.fromEntries(details.categories.map(({ category, response }) => [category, response === "pending" ? "" : response])));
-      const user = userData.user;
-      if (user?.email && user.email_confirmed_at) setVerifiedEmail(user.email);
-      if (authError) setMessage(`Email verification did not complete: ${authError}`);
       setLoading(false);
     }
     void load();
-    const { data: authListener } = acceptanceSupabase.auth.onAuthStateChange((_event, session) => {
-      const user = session?.user;
-      if (user?.email && user.email_confirmed_at) setVerifiedEmail(user.email);
-    });
-    return () => { alive = false; authListener.subscription.unsubscribe(); };
+    return () => { alive = false; };
   }, [token]);
-
-  async function sendVerification(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setBusy(true);
-    setMessage("");
-    const { error } = await acceptanceSupabase.auth.signInWithOtp({
-      email: email.trim(),
-      options: {
-        shouldCreateUser: true,
-        emailRedirectTo: `${cdcAwardsSiteUrl}/cdc-excellence-awards/accept/${token}`,
-      },
-    });
-    setBusy(false);
-    if (error) setMessage(error.message);
-    else {
-      setEmailSent(true);
-      setMessage("Check your inbox and open the verification link. It will bring you back here to respond.");
-    }
-  }
 
   async function submitResponse(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!verifiedEmail || !invitation) return;
+    if (!email.trim() || !invitation) return;
     setBusy(true);
     setMessage("");
     const responses = invitation.categories.map(({ category }) => ({ category, response: choices[category] }));
-    const { error } = await acceptanceSupabase.rpc("cdc_submit_nominee_acceptance", {
-      p_token: token,
-      p_responses: responses,
-    });
-    setBusy(false);
-    if (error) setMessage(error.message);
-    else {
+    try {
+      const { error } = await acceptanceSupabase.rpc("cdc_submit_nominee_acceptance", {
+        p_token: token,
+        p_email: email.trim(),
+        p_responses: responses,
+      });
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
       setSubmitted(true);
       setMessage("Your response has been recorded for every eligible category.");
       setInvitation((current) => current ? {
         ...current,
         categories: current.categories.map((item) => ({ ...item, response: choices[item.category] as "accepted" | "declined" })),
       } : current);
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "Could not save your response. Please try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -124,17 +97,10 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
               ))}
             </div>
             {!invitation.open && <p className="mt-5 rounded-xl border border-amber-200/20 bg-amber-950/20 p-4 text-sm text-amber-100">The response period closed at midnight on 22 October 2026 (South African time).</p>}
-            {invitation.open && invitation.categories.some((item) => item.response === "pending") && !verifiedEmail && (
-              <form onSubmit={sendVerification} className="mt-7 rounded-2xl border border-[#dfbd58]/20 bg-black/15 p-5">
-                <h2 className="font-bold text-white">Verify your email</h2>
-                <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">We’ll send you a secure verification link before your response can be submitted.</p>
-                <label className="mt-4 block text-sm font-semibold">Your email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-white/15 bg-[#071b10] px-4 py-3 text-white outline-none focus:border-[#dfbd58]" /></label>
-                <button disabled={busy} className="cdc-gold-button mt-4 disabled:opacity-60">{busy ? "Sending…" : emailSent ? "Resend verification link" : "Send verification link"}</button>
-              </form>
-            )}
-            {verifiedEmail && invitation.open && invitation.categories.some((item) => item.response === "pending") && !submitted && (
-              <form onSubmit={submitResponse} className="mt-7">
-                <p className="text-sm text-emerald-200">Email verified: {verifiedEmail}</p>
+            {invitation.open && invitation.categories.some((item) => item.response === "pending") && !submitted && (
+              <form onSubmit={submitResponse} className="mt-7 rounded-2xl border border-[#dfbd58]/20 bg-black/15 p-5">
+                <label className="block text-sm font-semibold">Your email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-2 block w-full rounded-xl border border-white/15 bg-[#071b10] px-4 py-3 text-white outline-none focus:border-[#dfbd58]" /></label>
+                <p className="mt-2 text-xs leading-5 text-[#aebbaa]">Enter your email for the awards record. No verification email is required.</p>
                 <button disabled={busy || invitation.categories.some((item) => item.response === "pending" && !choices[item.category])} className="cdc-gold-button mt-4 w-full disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Submitting…" : "Submit my responses"}</button>
               </form>
             )}

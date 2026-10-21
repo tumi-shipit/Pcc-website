@@ -117,8 +117,11 @@ as $$
   having count(*) > 0;
 $$;
 
-create or replace function public.cdc_submit_nominee_acceptance(
+drop function if exists public.cdc_submit_nominee_acceptance(uuid, jsonb);
+drop function if exists public.cdc_submit_nominee_acceptance(uuid, text, jsonb);
+create function public.cdc_submit_nominee_acceptance(
   p_token uuid,
+  p_email text,
   p_responses jsonb
 )
 returns boolean
@@ -127,7 +130,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_email text;
+  v_email text := lower(btrim(coalesce(p_email, '')));
   v_count integer;
   v_response_count integer;
   v_updated integer;
@@ -135,18 +138,10 @@ begin
   if p_token is null then
     raise exception 'This private response link is invalid.' using errcode = '22023';
   end if;
+  if length(v_email) > 254 or v_email !~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$' then
+    raise exception 'Enter a valid email address.' using errcode = '22023';
+  end if;
   perform pg_advisory_xact_lock(hashtext(p_token::text));
-  if auth.uid() is null then
-    raise exception 'Verify your email before responding.' using errcode = '42501';
-  end if;
-
-  select u.email into v_email
-  from auth.users u
-  where u.id = auth.uid()
-    and u.email_confirmed_at is not null;
-  if v_email is null then
-    raise exception 'Verify your email before responding.' using errcode = '42501';
-  end if;
 
   if (now() at time zone 'Africa/Johannesburg') >= timestamp '2026-10-22 00:00:00' then
     raise exception 'The nominee response period has closed.' using errcode = '22023';
@@ -216,6 +211,6 @@ $$;
 
 revoke all on function public.cdc_get_nominee_acceptance(uuid) from public;
 grant execute on function public.cdc_get_nominee_acceptance(uuid) to anon, authenticated;
-revoke all on function public.cdc_submit_nominee_acceptance(uuid, jsonb) from public;
-grant execute on function public.cdc_submit_nominee_acceptance(uuid, jsonb) to authenticated;
+revoke all on function public.cdc_submit_nominee_acceptance(uuid, text, jsonb) from public;
+grant execute on function public.cdc_submit_nominee_acceptance(uuid, text, jsonb) to anon, authenticated;
 
