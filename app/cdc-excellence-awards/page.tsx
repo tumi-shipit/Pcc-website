@@ -98,7 +98,7 @@ export default function CdcExcellenceAwardsPage() {
               <p className="cdc-eyebrow">Public voting is open</p>
               <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Choose this year’s award recipients.</h2>
               <p className="mt-5 leading-7 text-[#c1d0c0]">
-                The nomination and nominee response periods have ended. Accepted nominees are listed below. Verify your email to cast one vote in each available category. Voting closes at 12:00 on Friday, 23 October 2026 (South African time).
+                The nomination and nominee response periods have ended. Accepted nominees are listed below. Verify your email to cast one vote in each available category. Voting closes at 12:00 midday on Thursday, 22 October 2026 (South African time).
               </p>
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
                 <p className="text-sm font-bold text-[#e4c45e]">How voting works</p>
@@ -114,7 +114,7 @@ export default function CdcExcellenceAwardsPage() {
                 Any voter with a verified email can vote once in each available category. Sign in securely to continue to the ballot.
               </p>
               <Link href="/cdc-excellence-awards/vote" className="cdc-gold-button mt-7 inline-flex w-full justify-center">Verify email and vote</Link>
-              <p className="mt-4 text-center text-xs leading-5 text-[#92a491]">Voting closes Friday, 23 October 2026 at 12:00 (South African time).</p>
+              <p className="mt-4 text-center text-xs leading-5 text-[#92a491]">Voting closes Thursday, 22 October 2026 at 12:00 midday (South African time).</p>
             </div>
           </div>
         </section>
