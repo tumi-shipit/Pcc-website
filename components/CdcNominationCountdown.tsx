@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const closingTime = new Date("2026-10-26T00:00:00+02:00").getTime();
+const closingTime = new Date("2026-10-22T00:00:00+02:00").getTime();
 
 type RemainingTime = { days: number; hours: number; minutes: number; seconds: number };
 
@@ -45,11 +45,11 @@ export default function CdcNominationCountdown() {
           <CountdownUnit label="Seconds" value={remaining.seconds} />
         </div>
       ) : ready ? (
-        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The response period ended at midnight on Monday, 26 October (South African time).</p>
+        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The response period ends at midnight tonight. Public voting opens at the same time (South African time).</p>
       ) : (
         <p className="mt-3 text-sm text-[#c1d0c0]">Calculating time remaining…</p>
       )}
-      {ready && remaining && <p className="mt-3 text-[11px] text-[#aabbaa]">Closes at midnight after Sunday, 25 October (South African time).</p>}
+      {ready && remaining && <p className="mt-3 text-[11px] text-[#aabbaa]">Closes at 00:00 on Thursday, 22 October. Public voting opens then (South African time).</p>}
     </div>
   );
 }

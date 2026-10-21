@@ -130,21 +130,31 @@ export default function CdcAwardsAdminPage() {
     const approvedEntries = person.entries.filter((entry) => entry.ids.length > 0);
     if (approvedEntries.length === 0) return;
     setBusyKey(person.key);
+    setError("");
     const ids = approvedEntries.flatMap((entry) => entry.ids);
     const token = crypto.randomUUID();
-    const result = await supabase.from("cdc_excellence_nominations").update({
-      acceptance_token: token,
-      acceptance_status: "pending",
-      accepted_email: null,
-    }).in("id", ids);
-    setBusyKey("");
-    if (result.error) {
-      setError(`Could not create the private response link: ${result.error.message}`);
-      return;
+    try {
+      const result = await supabase.from("cdc_excellence_nominations").update({
+        acceptance_token: token,
+        acceptance_status: "pending",
+        accepted_email: null,
+      }).in("id", ids).select("id");
+      if (result.error) {
+        setError(`Could not create the private response link: ${result.error.message}`);
+        return;
+      }
+      if ((result.data ?? []).length !== ids.length) {
+        setError(`The database updated ${(result.data ?? []).length} of ${ids.length} matching nominations. Check the CDC awards admin update policy, then refresh before generating again.`);
+        return;
+      }
+      const link = `${window.location.origin}/cdc-excellence-awards/accept/${token}`;
+      setPrivateLinks((current) => ({ ...current, [person.key]: link }));
+      await loadNominations();
+    } catch (cause) {
+      setError(`Could not create the private response link: ${cause instanceof Error ? cause.message : "Unexpected network error."}`);
+    } finally {
+      setBusyKey("");
     }
-    const link = `${window.location.origin}/cdc-excellence-awards/accept/${token}`;
-    setPrivateLinks((current) => ({ ...current, [person.key]: link }));
-    await loadNominations();
   }
 
   function exportExcel() {
@@ -203,7 +213,7 @@ export default function CdcAwardsAdminPage() {
               <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
                   <div><h2 className="text-xl font-black">Approved nominees and response links</h2><p className="mt-1 text-sm text-zinc-400">This shortlist follows the final nominees poster. Repeated submissions are grouped together.</p></div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-200">Response deadline · midnight after 25 October</span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-200">Response deadline · midnight tonight (22 October)</span>
                 </div>
                 <div className="mt-5 space-y-4">
                   {nomineeGroups.map((person) => {

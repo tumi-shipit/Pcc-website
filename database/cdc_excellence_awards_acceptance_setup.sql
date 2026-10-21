@@ -82,7 +82,7 @@ create policy cdc_awards_public_nominee_list_read
     criteria_confirmed is true
     and eligibility_status = 'eligible'
     and acceptance_status = 'accepted'
-    and (now() at time zone 'Africa/Johannesburg') >= timestamp '2026-10-26 00:00:00'
+    and (now() at time zone 'Africa/Johannesburg') >= timestamp '2026-10-22 00:00:00'
   );
 
 grant select (nominee_name, nominee_surname, category, school_club, created_at,
@@ -108,7 +108,7 @@ as $$
           and n2.criteria_confirmed is true
       ) c
     ),
-    'open', (now() at time zone 'Africa/Johannesburg') < timestamp '2026-10-26 00:00:00'
+    'open', (now() at time zone 'Africa/Johannesburg') < timestamp '2026-10-22 00:00:00'
   )
   from public.cdc_excellence_nominations n
   where n.acceptance_token = p_token
@@ -148,7 +148,7 @@ begin
     raise exception 'Verify your email before responding.' using errcode = '42501';
   end if;
 
-  if (now() at time zone 'Africa/Johannesburg') >= timestamp '2026-10-26 00:00:00' then
+  if (now() at time zone 'Africa/Johannesburg') >= timestamp '2026-10-22 00:00:00' then
     raise exception 'The nominee response period has closed.' using errcode = '22023';
   end if;
 

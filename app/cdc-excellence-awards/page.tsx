@@ -116,14 +116,15 @@ export default function CdcExcellenceAwardsPage() {
               <p className="mt-5 leading-7 text-[#c1d0c0]">
                 Nominations are closed. Approved nominees will receive a private link to
                 accept or decline every category in which they were nominated. Responses
-                close at midnight after Sunday, 25 October 2026 (South African time).
+                close at midnight tonight, 00:00 on Thursday, 22 October 2026 (South African time).
               </p>
               <CdcNominationCountdown />
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
                 <p className="text-sm font-bold text-[#e4c45e]">What happens next?</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
-                  Only approved nominees who accept will be published when the
-                  response period ends. Voting details will be announced separately.
+                  Only nominees on the approved shortlist who accept will be published
+                  for public voting when the response period ends. The voting method
+                  and closing date will be announced separately.
                 </p>
               </div>
               <p className="mt-6 text-xs leading-5 text-[#9faf9f]">

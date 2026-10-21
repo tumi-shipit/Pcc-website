@@ -45,14 +45,17 @@ export default function CdcPublicNomineeList() {
 
   useEffect(() => {
     let cancelled = false;
+    let listLoaded = false;
     async function initialize() {
-      const nowOpen = southAfricaDateKey() >= "2026-10-26";
+      const nowOpen = southAfricaDateKey() >= "2026-10-22";
       if (cancelled) return;
       setVisible(nowOpen);
-      if (!nowOpen) {
+      if (!nowOpen || listLoaded) {
         setLoading(false);
         return;
       }
+      listLoaded = true;
+      setLoading(true);
       const { data, error: loadError } = await publicSupabase
         .from("cdc_excellence_nominations")
         .select("nominee_name, nominee_surname, category, school_club, created_at")
@@ -68,27 +71,28 @@ export default function CdcPublicNomineeList() {
       setLoading(false);
     }
 
-    const timer = window.setTimeout(() => { void initialize(); }, 0);
+    void initialize();
+    const timer = window.setInterval(() => { void initialize(); }, 15_000);
     return () => {
       cancelled = true;
-      window.clearTimeout(timer);
+      window.clearInterval(timer);
     };
   }, []);
 
   if (!visible) return null;
-  const votingStarted = southAfricaDateKey() >= "2026-10-26";
+  const votingStarted = southAfricaDateKey() >= "2026-10-22";
 
   return (
     <section id="nominee-list" className="border-t border-[#d3ad47]/25 bg-[#071b10]">
       <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-18">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="cdc-eyebrow">Published 26 October 2026</p>
+            <p className="cdc-eyebrow">Voting opens 22 October 2026</p>
             <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">Accepted 2026 Nominees</h2>
           </div>
           <p className="max-w-lg text-sm leading-6 text-[#bfccbf]">
             {votingStarted
-              ? "Voting information and the closing date will be announced."
+              ? "Public voting is now open. The voting method and closing date will be announced."
               : "These nominees were reviewed and accepted their nominations."}
           </p>
         </div>

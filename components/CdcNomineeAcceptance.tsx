@@ -120,7 +120,7 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
                 </fieldset>
               ))}
             </div>
-            {!invitation.open && <p className="mt-5 rounded-xl border border-amber-200/20 bg-amber-950/20 p-4 text-sm text-amber-100">The response period closed at midnight after 25 October 2026 (South African time).</p>}
+            {!invitation.open && <p className="mt-5 rounded-xl border border-amber-200/20 bg-amber-950/20 p-4 text-sm text-amber-100">The response period closed at midnight on 22 October 2026 (South African time).</p>}
             {invitation.open && invitation.categories.some((item) => item.response === "pending") && !verifiedEmail && (
               <form onSubmit={sendVerification} className="mt-7 rounded-2xl border border-[#dfbd58]/20 bg-black/15 p-5">
                 <h2 className="font-bold text-white">Verify your email</h2>
@@ -138,7 +138,7 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
             {message && <p role="status" className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-[#d4dfd4]">{message}</p>}
           </>
         )}
-        <p className="mt-8 border-t border-white/10 pt-5 text-xs leading-5 text-[#9faf9f]">Responses close at midnight after Sunday, 25 October 2026. Only accepted nominees from the approved shortlist will be published.</p>
+        <p className="mt-8 border-t border-white/10 pt-5 text-xs leading-5 text-[#9faf9f]">Responses close at 00:00 on Thursday, 22 October 2026. Only accepted nominees from the approved shortlist will be published for public voting at that time.</p>
       </section>
     </main>
   );
