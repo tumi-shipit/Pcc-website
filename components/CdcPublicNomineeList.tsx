@@ -89,7 +89,7 @@ export default function CdcPublicNomineeList() {
           </div>
           <p className="max-w-lg text-sm leading-6 text-[#bfccbf]">
             {votingStarted
-              ? "The accepted nominee list is public. Verify your email below to vote once in each available category. The closing date will be announced."
+              ? "The accepted nominee list is public. Verify your email below to vote once in each available category. Voting closes at 12:00 midday on Thursday, 22 October 2026 (South African time)."
               : "These nominees were reviewed and accepted their nominations."}
           </p>
         </div>
@@ -104,7 +104,7 @@ export default function CdcPublicNomineeList() {
           <div className="mt-7 grid gap-5 lg:grid-cols-2">
             {cdcServiceAwardCategories.map((category) => {
               const nominees = rows.filter((row) => row.category === category);
-              if (nominees.length === 0) return null;
+              if (nominees.length < 2) return <section key={category} className="cdc-category-panel"><h3 className="font-serif text-xl font-semibold text-white">{displayCategory(category)}</h3><p className="mt-4 text-sm leading-6 text-[#bfccbf]">This category will not go to a public vote because fewer than two eligible nominations were received.</p></section>;
               return (
                 <section key={category} className="cdc-category-panel">
                   <h3 className="font-serif text-xl font-semibold text-white">{displayCategory(category)}</h3>
