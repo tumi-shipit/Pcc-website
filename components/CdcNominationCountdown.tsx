@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-const closingTime = new Date("2026-10-24T00:00:00+02:00").getTime();
+const closingTime = new Date("2026-10-26T00:00:00+02:00").getTime();
 
 type RemainingTime = { days: number; hours: number; minutes: number; seconds: number };
 
@@ -33,9 +33,9 @@ export default function CdcNominationCountdown() {
   }, []);
 
   return (
-    <div className="cdc-countdown-panel" aria-label="Time remaining until nominations close">
+    <div className="cdc-countdown-panel" aria-label="Time remaining until nominee responses close">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#e4c45e]">
-        {ready && !remaining ? "Nominations are closed" : "Nominations close in"}
+        {ready && !remaining ? "Nominee responses are closed" : "Nominee responses close in"}
       </p>
       {remaining ? (
         <div className="mt-3 grid grid-cols-4 gap-2">
@@ -45,11 +45,11 @@ export default function CdcNominationCountdown() {
           <CountdownUnit label="Seconds" value={remaining.seconds} />
         </div>
       ) : ready ? (
-        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The nomination period ended at midnight on Saturday, 24 October (South African time).</p>
+        <p className="mt-3 text-sm leading-6 text-[#c1d0c0]">The response period ended at midnight on Monday, 26 October (South African time).</p>
       ) : (
         <p className="mt-3 text-sm text-[#c1d0c0]">Calculating time remaining…</p>
       )}
-      {ready && remaining && <p className="mt-3 text-[11px] text-[#aabbaa]">Closes at midnight after Friday, 23 October (South African time).</p>}
+      {ready && remaining && <p className="mt-3 text-[11px] text-[#aabbaa]">Closes at midnight after Sunday, 25 October (South African time).</p>}
     </div>
   );
 }

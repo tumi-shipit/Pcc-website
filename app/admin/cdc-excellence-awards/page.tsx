@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
-import { cdcServiceAwardCategories } from "@/lib/cdcAwards";
+import { cdcApprovedNomineeRoster, cdcServiceAwardCategories } from "@/lib/cdcAwards";
 
 type Nomination = {
   id: string;
@@ -17,7 +17,13 @@ type Nomination = {
   nominator_contact: string;
   criteria_confirmed: boolean;
   created_at: string;
+  eligibility_status: "pending" | "eligible" | "ineligible";
+  acceptance_status: "pending" | "accepted" | "declined";
+  acceptance_token: string | null;
 };
+
+type ApprovedEntry = { category: string; ids: string[]; school_club: string; acceptance_status: Nomination["acceptance_status"] };
+type ApprovedPerson = { key: string; name: string; surname: string; entries: ApprovedEntry[] };
 
 function formatDate(value: string) {
   return new Intl.DateTimeFormat("en-ZA", {
@@ -34,6 +40,9 @@ export default function CdcAwardsAdminPage() {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [privateLinks, setPrivateLinks] = useState<Record<string, string>>({});
+  const [busyKey, setBusyKey] = useState("");
+  const [databaseSetupMissing, setDatabaseSetupMissing] = useState(false);
   const canViewNominations = role === "super_admin" || role === "admin";
 
   const loadNominations = useCallback(async () => {
@@ -48,13 +57,38 @@ export default function CdcAwardsAdminPage() {
     setRole(String(roleResult.data));
     const result = await supabase
       .from("cdc_excellence_nominations")
-      .select("id, award_year, nominee_name, nominee_surname, category, school_club, nominator_name, nominator_contact, criteria_confirmed, created_at")
+      .select("id, award_year, nominee_name, nominee_surname, category, school_club, nominator_name, nominator_contact, criteria_confirmed, created_at, eligibility_status, acceptance_status, acceptance_token")
       .order("created_at", { ascending: false });
     if (result.error) {
-      setError("Could not load nominations. Check that the CDC awards database setup has been applied to the site database.");
-      setRows([]);
+      const fallback = await supabase
+        .from("cdc_excellence_nominations")
+        .select("id, award_year, nominee_name, nominee_surname, category, school_club, nominator_name, nominator_contact, criteria_confirmed, created_at")
+        .order("created_at", { ascending: false });
+      if (fallback.error) {
+        setError("Could not load nominations. Check that the CDC awards database setup has been applied to the site database.");
+        setRows([]);
+        setPrivateLinks({});
+      } else {
+        setDatabaseSetupMissing(true);
+        setError("Nominations loaded. Run database/cdc_excellence_awards_acceptance_setup.sql in the website’s Supabase project to enable private nominee response links and database-level closure.");
+        setRows((fallback.data ?? []).map((row) => ({ ...row, eligibility_status: "pending", acceptance_status: "pending", acceptance_token: null })) as Nomination[]);
+        setPrivateLinks({});
+      }
     } else {
-      setRows((result.data ?? []) as Nomination[]);
+      setDatabaseSetupMissing(false);
+      setError("");
+      const loadedRows = (result.data ?? []) as Nomination[];
+      setRows(loadedRows);
+      const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+      const savedLinks: Record<string, string> = {};
+      for (const approved of cdcApprovedNomineeRoster) {
+        const key = `${normalize(approved.name)}|${normalize(approved.surname)}`;
+        const matchedToken = loadedRows.find((row) => row.category === approved.category
+          && row.acceptance_token
+          && approved.submissionNames.some(([name, surname]) => normalize(row.nominee_name) === normalize(name) && normalize(row.nominee_surname) === normalize(surname)))?.acceptance_token;
+        if (matchedToken) savedLinks[key] = `${window.location.origin}/cdc-excellence-awards/accept/${matchedToken}`;
+      }
+      setPrivateLinks(savedLinks);
     }
     setLoading(false);
   }, []);
@@ -74,6 +108,45 @@ export default function CdcAwardsAdminPage() {
     });
   }, [category, query, rows]);
 
+  const nomineeGroups = useMemo(() => {
+    const normalize = (value: string) => value.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+    const grouped = new Map<string, ApprovedPerson>();
+    for (const approved of cdcApprovedNomineeRoster) {
+      const key = `${normalize(approved.name)}|${normalize(approved.surname)}`;
+      const matches = rows.filter((row) => row.category === approved.category && approved.submissionNames.some(([name, surname]) => normalize(row.nominee_name) === normalize(name) && normalize(row.nominee_surname) === normalize(surname)));
+      const current = grouped.get(key) ?? { key, name: approved.name, surname: approved.surname, entries: [] };
+      current.entries.push({
+        category: approved.category,
+        ids: matches.map((row) => row.id),
+        school_club: matches[0]?.school_club ?? "",
+        acceptance_status: matches.some((row) => row.acceptance_status === "accepted") ? "accepted" : matches.some((row) => row.acceptance_status === "declined") ? "declined" : "pending",
+      });
+      grouped.set(key, current);
+    }
+    return Array.from(grouped.values());
+  }, [rows]);
+
+  async function createAcceptanceLink(person: (typeof nomineeGroups)[number]) {
+    const approvedEntries = person.entries.filter((entry) => entry.ids.length > 0);
+    if (approvedEntries.length === 0) return;
+    setBusyKey(person.key);
+    const ids = approvedEntries.flatMap((entry) => entry.ids);
+    const token = crypto.randomUUID();
+    const result = await supabase.from("cdc_excellence_nominations").update({
+      acceptance_token: token,
+      acceptance_status: "pending",
+      accepted_email: null,
+    }).in("id", ids);
+    setBusyKey("");
+    if (result.error) {
+      setError(`Could not create the private response link: ${result.error.message}`);
+      return;
+    }
+    const link = `${window.location.origin}/cdc-excellence-awards/accept/${token}`;
+    setPrivateLinks((current) => ({ ...current, [person.key]: link }));
+    await loadNominations();
+  }
+
   function exportExcel() {
     const workbook = XLSX.utils.book_new();
     const data = visibleRows.map((row) => ({
@@ -85,12 +158,13 @@ export default function CdcAwardsAdminPage() {
       "Nominator name": row.nominator_name,
       "Nominator contact": row.nominator_contact,
       "Criteria confirmed": row.criteria_confirmed ? "Yes" : "No",
+      "Nominee response": row.acceptance_status,
       "Submitted at (SAST)": formatDate(row.created_at),
     }));
     const sheet = XLSX.utils.json_to_sheet(data);
     sheet["!cols"] = [
       { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 22 }, { wch: 30 },
-      { wch: 26 }, { wch: 30 }, { wch: 20 }, { wch: 24 },
+      { wch: 26 }, { wch: 30 }, { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 20 },
     ];
     XLSX.utils.book_append_sheet(workbook, sheet, "CDC Nominations");
     XLSX.writeFile(workbook, "cdc-excellence-awards-nominations-2026.xlsx");
@@ -125,6 +199,34 @@ export default function CdcAwardsAdminPage() {
                 <Metric label="Categories represented" value={new Set(rows.map((row) => row.category)).size} />
                 <Metric label="Showing" value={`${visibleRows.length} / ${rows.length}`} />
               </div>
+
+              <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div><h2 className="text-xl font-black">Approved nominees and response links</h2><p className="mt-1 text-sm text-zinc-400">This shortlist follows the final nominees poster. Repeated submissions are grouped together.</p></div>
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-200">Response deadline · midnight after 25 October</span>
+                </div>
+                <div className="mt-5 space-y-4">
+                  {nomineeGroups.map((person) => {
+                    const link = privateLinks[person.key];
+                    const hasResponded = person.entries.some((entry) => entry.acceptance_status !== "pending");
+                    return <article key={person.key} className="rounded-xl border border-white/10 bg-black/20 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div><h3 className="font-bold">{person.name} {person.surname}</h3><p className="mt-1 text-xs text-zinc-500">{person.entries.reduce((sum, entry) => sum + entry.ids.length, 0)} matching submission(s)</p></div>
+                        <div className="flex flex-wrap gap-2">
+                          {person.entries.some((entry) => entry.ids.length > 0) && !hasResponded && <button type="button" disabled={busyKey === person.key || databaseSetupMissing} onClick={() => void createAcceptanceLink(person)} className="rounded-lg bg-amber-300 px-3 py-2 text-xs font-black text-zinc-950 disabled:opacity-50">{busyKey === person.key ? "Creating…" : link ? "Regenerate private response link" : "Generate private response link"}</button>}
+                        </div>
+                      </div>
+                      {link && <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input readOnly value={link} aria-label={`Private acceptance link for ${person.name} ${person.surname}`} className="min-h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-zinc-950 px-3 text-xs text-zinc-300"/><button type="button" onClick={() => void navigator.clipboard.writeText(link)} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50">Copy link</button></div>}
+                      <div className="mt-4 space-y-2">
+                        {person.entries.map((entry) => <div key={`${person.key}-${entry.category}`} className="flex flex-wrap items-center justify-between gap-2 border-t border-white/[0.06] pt-3 text-sm">
+                          <span>{entry.category} <span className="ml-1 text-xs text-zinc-500">{entry.school_club && `· ${entry.school_club}`}</span></span>
+                          <span className={`text-[11px] font-bold capitalize ${entry.acceptance_status === "accepted" ? "text-emerald-200" : entry.acceptance_status === "declined" ? "text-red-200" : entry.ids.length ? "text-amber-100" : "text-zinc-500"}`}>{entry.acceptance_status === "pending" && !entry.ids.length ? "No matching submission" : entry.acceptance_status}</span>
+                        </div>)}
+                      </div>
+                    </article>;
+                  })}
+                </div>
+              </section>
 
               <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-white/10 bg-zinc-900/70 p-4 md:flex-row">
                 <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search names, school or contact" className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-4 text-sm outline-none focus:border-amber-300/70" />

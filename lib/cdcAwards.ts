@@ -8,6 +8,28 @@ export const cdcServiceAwardCategories = [
   "Upcoming Manager of the Year",
 ] as const;
 
+// This is the final approved shortlist supplied for the 2026 awards poster.
+// submissionNames maps confirmed spelling/order variants in the nomination sheet
+// back to the final name used on the awards page.
+export const cdcApprovedNomineeRoster = [
+  { name: "Elias", surname: "Mabotja", category: "Administrator of the Year", submissionNames: [["Elias", "Mabotja"]] },
+  { name: "Tumelo", surname: "Mmola", category: "Administrator of the Year", submissionNames: [["Tumelo", "Mmola"]] },
+  { name: "Elias", surname: "Mabotja", category: "Organiser of the Year", submissionNames: [["Elias", "Mabotja"]] },
+  { name: "Tumelo", surname: "Mmola", category: "Organiser of the Year", submissionNames: [["Tumelo", "Mmola"]] },
+  { name: "Elias", surname: "Mabotja", category: "Arbiter of the Year", submissionNames: [["Elias", "Mabotja"]] },
+  { name: "Tumelo", surname: "Mmola", category: "Arbiter of the Year", submissionNames: [["Tumelo", "Mmola"]] },
+  { name: "Kobus", surname: "Verreynne", category: "Arbiter of the Year", submissionNames: [["Kobus", "Verreynne"]] },
+  { name: "Tumelo", surname: "Mmola", category: "Upcoming Arbiter of the Year", submissionNames: [["Tumelo", "Mmola"]] },
+  { name: "Joe", surname: "Mahomole", category: "Coach of the Year", submissionNames: [["Joe", "Mahomole"]] },
+  { name: "Mohololo", surname: "Nkoana", category: "Coach of the Year", submissionNames: [["Mohololo", "Nkoana"], ["Nkoana", "Mohololo"]] },
+  { name: "Tumelo", surname: "Mmola", category: "Coach of the Year", submissionNames: [["Tumelo", "Mmola"]] },
+  { name: "Anna", surname: "Chipape", category: "Coach of the Year", submissionNames: [["Anna", "Chipape"]] },
+  { name: "Thapelo", surname: "Sindani", category: "Upcoming Manager of the Year", submissionNames: [["Thapelo", "Sindani"], ["Thapelo", "Sindane"], ["Sindani", "Thapelo"], ["Sindane", "Thapelo"]] },
+  { name: "Disele", surname: "Malope", category: "Team Manager of the Year", submissionNames: [["Disele", "Malope"]] },
+  { name: "Elias", surname: "Mabotja", category: "Team Manager of the Year", submissionNames: [["Elias", "Mabotja"]] },
+  { name: "Thapelo", surname: "Sindani", category: "Team Manager of the Year", submissionNames: [["Thapelo", "Sindani"], ["Thapelo", "Sindane"], ["Sindani", "Thapelo"], ["Sindane", "Thapelo"]] },
+] as const;
+
 export const cdcAwardGroups = [
   {
     title: "Player awards",
@@ -23,7 +45,7 @@ export const cdcAwardGroups = [
   },
   {
     title: "Chess service and contribution awards",
-    description: "Nominations are open for these seven awards. The public vote will follow.",
+    description: "Nominations are closed. Eligible nominees are being invited to accept or decline before the public list is published.",
     categories: [...cdcServiceAwardCategories],
     mode: "nominations" as const,
   },

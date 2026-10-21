@@ -33,6 +33,10 @@ function uniqueNominees(rows: PublicNominee[]) {
   });
 }
 
+function displayCategory(category: string) {
+  return category === "Upcoming Manager of the Year" ? "Upcoming Team Manager" : category;
+}
+
 export default function CdcPublicNomineeList() {
   const [visible, setVisible] = useState(false);
   const [rows, setRows] = useState<PublicNominee[]>([]);
@@ -42,7 +46,7 @@ export default function CdcPublicNomineeList() {
   useEffect(() => {
     let cancelled = false;
     async function initialize() {
-      const nowOpen = southAfricaDateKey() >= "2026-10-24";
+      const nowOpen = southAfricaDateKey() >= "2026-10-26";
       if (cancelled) return;
       setVisible(nowOpen);
       if (!nowOpen) {
@@ -52,6 +56,8 @@ export default function CdcPublicNomineeList() {
       const { data, error: loadError } = await publicSupabase
         .from("cdc_excellence_nominations")
         .select("nominee_name, nominee_surname, category, school_club, created_at")
+        .eq("eligibility_status", "eligible")
+        .eq("acceptance_status", "accepted")
         .order("created_at", { ascending: true });
       if (cancelled) return;
       if (loadError) {
@@ -77,13 +83,13 @@ export default function CdcPublicNomineeList() {
       <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-18">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="cdc-eyebrow">Published 24 October 2026</p>
-            <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">2026 Nominees</h2>
+            <p className="cdc-eyebrow">Published 26 October 2026</p>
+            <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">Accepted 2026 Nominees</h2>
           </div>
           <p className="max-w-lg text-sm leading-6 text-[#bfccbf]">
             {votingStarted
               ? "Voting information and the closing date will be announced."
-              : "Explore the nominees before public voting begins on Monday, 26 October."}
+              : "These nominees were reviewed and accepted their nominations."}
           </p>
         </div>
 
@@ -100,7 +106,7 @@ export default function CdcPublicNomineeList() {
               if (nominees.length === 0) return null;
               return (
                 <section key={category} className="cdc-category-panel">
-                  <h3 className="font-serif text-xl font-semibold text-white">{category}</h3>
+                  <h3 className="font-serif text-xl font-semibold text-white">{displayCategory(category)}</h3>
                   <ul className="mt-4 grid gap-2 sm:grid-cols-2">
                     {nominees.map((nominee, index) => (
                       <li key={`${nominee.nominee_name}-${nominee.nominee_surname}-${index}`} className="rounded-xl border border-white/[0.07] bg-black/15 px-4 py-3">

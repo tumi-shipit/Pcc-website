@@ -28,7 +28,7 @@ export default function CdcExcellenceAwardsPage() {
                 forward across Capricorn District.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <a href="#nominate" className="cdc-gold-button">Submit a nomination</a>
+                <a href="#nominate" className="cdc-gold-button">Nominee acceptance</a>
                 <a href="#categories" className="cdc-outline-button">Explore the awards</a>
               </div>
               <p className="mt-5 text-sm text-[#c1cfbf]">
@@ -67,7 +67,7 @@ export default function CdcExcellenceAwardsPage() {
               <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">2026 Award Categories</h2>
             </div>
             <p className="max-w-xl text-sm leading-6 text-[#bfccbf]">
-              There are 26 unique awards. Seven service awards are open for nominations;
+              There are 26 unique awards. Nominations for seven service awards are now closed;
               the other awards will be determined from yearly results and records.
             </p>
           </div>
@@ -82,7 +82,7 @@ export default function CdcExcellenceAwardsPage() {
                     <p className="mt-2 text-sm leading-6 text-[#bdcbbd]">{group.description}</p>
                   </div>
                   <span className={`shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] ${group.mode === "nominations" ? "bg-[#dfbd58] text-[#17210f]" : "border border-white/15 text-[#d7ded3]"}`}>
-                    {group.mode === "nominations" ? "Open now" : "2026 results"}
+                    {group.mode === "nominations" ? "Nominations closed" : "2026 results"}
                   </span>
                 </div>
                 <ul className="mt-6 grid gap-2 sm:grid-cols-2">
@@ -111,19 +111,19 @@ export default function CdcExcellenceAwardsPage() {
         <section id="nominate" className="border-y border-[#d3ad47]/25 bg-[#0a2617]">
           <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:grid-cols-[0.8fr_1.2fr] md:px-10 md:py-20">
             <div className="max-w-lg">
-              <p className="cdc-eyebrow">Nominations open · 20–23 October</p>
-              <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Put a remarkable contribution forward.</h2>
+              <p className="cdc-eyebrow">Nominations closed · Acceptance underway</p>
+              <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Nominees: confirm your place.</h2>
               <p className="mt-5 leading-7 text-[#c1d0c0]">
-                Nominate someone whose work has strengthened chess in Capricorn District.
-                Nominations close Friday, 23 October 2026.
+                Nominations are closed. Approved nominees will receive a private link to
+                accept or decline every category in which they were nominated. Responses
+                close at midnight after Sunday, 25 October 2026 (South African time).
               </p>
               <CdcNominationCountdown />
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
                 <p className="text-sm font-bold text-[#e4c45e]">What happens next?</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
-                  The nominee list will be published on 24 and 25 October. Public voting
-                  begins on Monday, 26 October; voting rules and the closing date will
-                  be announced when voting opens.
+                  Only approved nominees who accept will be published when the
+                  response period ends. Voting details will be announced separately.
                 </p>
               </div>
               <p className="mt-6 text-xs leading-5 text-[#9faf9f]">

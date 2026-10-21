@@ -26,24 +26,13 @@ const emptyForm: FormState = {
   website: "",
 };
 
-function southAfricaDateKey() {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: "Africa/Johannesburg",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 export default function CdcNominationForm() {
   const [form, setForm] = useState(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
   const [category, setCategory] = useState("");
-  const nominationOpen = southAfricaDateKey() >= "2026-10-20" && southAfricaDateKey() <= "2026-10-23";
+  const nominationOpen = false;
 
   function update(field: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -98,7 +87,7 @@ export default function CdcNominationForm() {
         <div className="flex min-h-[460px] flex-col justify-center">
           <p className="cdc-eyebrow">Nomination period</p>
           <h3 className="mt-4 font-serif text-3xl font-semibold">Nominations are closed</h3>
-          <p className="mt-3 leading-7 text-[#c1d0c0]">The nominee list will be published on 24 and 25 October. Public voting begins Monday, 26 October.</p>
+          <p className="mt-3 leading-7 text-[#c1d0c0]">Nominations have closed. Nominees will receive private links to accept or decline each eligible category. Accepted nominees will be published when the response period ends.</p>
         </div>
       ) : (
         <>
@@ -137,7 +126,7 @@ export default function CdcNominationForm() {
             <button type="submit" disabled={submitting} className="cdc-gold-button w-full disabled:cursor-wait disabled:opacity-60">
               {submitting ? "Submitting…" : "Submit nomination"}
             </button>
-            <p className="text-center text-[11px] leading-5 text-[#92a491]">Nominations close Friday, 23 October 2026.</p>
+            <p className="text-center text-[11px] leading-5 text-[#92a491]">Nominations are closed.</p>
           </form>
         </>
       )}
