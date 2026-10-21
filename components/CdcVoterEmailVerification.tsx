@@ -12,6 +12,12 @@ export default function CdcVoterEmailVerification() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
+    const authError = new URLSearchParams(window.location.hash.slice(1)).get("error_description");
+    if (authError) {
+      setMessage(`Email verification could not be completed: ${authError}`);
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user.email_confirmed_at) {
         setVerifiedEmail(session.user.email ?? "");
