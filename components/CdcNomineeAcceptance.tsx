@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { cdcAwardsSiteUrl } from "@/lib/cdcAwards";
 
 const acceptanceSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,6 +32,7 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
 
   useEffect(() => {
     let alive = true;
+    const authError = new URLSearchParams(window.location.hash.slice(1)).get("error_description");
     async function load() {
       const [{ data, error }, { data: userData }] = await Promise.all([
         acceptanceSupabase.rpc("cdc_get_nominee_acceptance", { p_token: token }),
@@ -47,6 +49,7 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
       setChoices(Object.fromEntries(details.categories.map(({ category, response }) => [category, response === "pending" ? "" : response])));
       const user = userData.user;
       if (user?.email && user.email_confirmed_at) setVerifiedEmail(user.email);
+      if (authError) setMessage(`Email verification did not complete: ${authError}`);
       setLoading(false);
     }
     void load();
@@ -65,7 +68,7 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
       email: email.trim(),
       options: {
         shouldCreateUser: true,
-        emailRedirectTo: `${window.location.origin}/cdc-excellence-awards/accept/${token}`,
+        emailRedirectTo: `${cdcAwardsSiteUrl}/cdc-excellence-awards/accept/${token}`,
       },
     });
     setBusy(false);

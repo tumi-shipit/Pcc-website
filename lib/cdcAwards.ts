@@ -8,6 +8,8 @@ export const cdcServiceAwardCategories = [
   "Upcoming Manager of the Year",
 ] as const;
 
+export const cdcAwardsSiteUrl = "https://polokwanechessclub.co.za";
+
 // This is the final approved shortlist supplied for the 2026 awards poster.
 // submissionNames maps confirmed spelling/order variants in the nomination sheet
 // back to the final name used on the awards page.

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
 import { supabase } from "@/lib/supabase";
-import { cdcApprovedNomineeRoster, cdcServiceAwardCategories } from "@/lib/cdcAwards";
+import { cdcApprovedNomineeRoster, cdcAwardsSiteUrl, cdcServiceAwardCategories } from "@/lib/cdcAwards";
 
 type Nomination = {
   id: string;
@@ -86,7 +86,7 @@ export default function CdcAwardsAdminPage() {
         const matchedToken = loadedRows.find((row) => row.category === approved.category
           && row.acceptance_token
           && approved.submissionNames.some(([name, surname]) => normalize(row.nominee_name) === normalize(name) && normalize(row.nominee_surname) === normalize(surname)))?.acceptance_token;
-        if (matchedToken) savedLinks[key] = `${window.location.origin}/cdc-excellence-awards/accept/${matchedToken}`;
+        if (matchedToken) savedLinks[key] = `${cdcAwardsSiteUrl}/cdc-excellence-awards/accept/${matchedToken}`;
       }
       setPrivateLinks(savedLinks);
     }
@@ -147,7 +147,7 @@ export default function CdcAwardsAdminPage() {
         setError(`The database updated ${(result.data ?? []).length} of ${ids.length} matching nominations. Check the CDC awards admin update policy, then refresh before generating again.`);
         return;
       }
-      const link = `${window.location.origin}/cdc-excellence-awards/accept/${token}`;
+      const link = `${cdcAwardsSiteUrl}/cdc-excellence-awards/accept/${token}`;
       setPrivateLinks((current) => ({ ...current, [person.key]: link }));
       await loadNominations();
     } catch (cause) {
