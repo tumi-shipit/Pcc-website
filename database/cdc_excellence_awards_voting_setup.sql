@@ -40,6 +40,57 @@ revoke all on public.cdc_excellence_votes from public, anon, authenticated;
 create index if not exists cdc_excellence_votes_result_idx
   on public.cdc_excellence_votes (category, nominee_surname, nominee_name);
 
+create or replace function public.cdc_voting_responses_complete()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.cdc_excellence_nominations n
+    where n.award_year = 2026
+      and n.criteria_confirmed is true
+      and n.eligibility_status = 'eligible'
+  ) and not exists (
+    select 1 from public.cdc_excellence_nominations n
+    where n.award_year = 2026
+      and n.criteria_confirmed is true
+      and n.eligibility_status = 'eligible'
+      and n.acceptance_status = 'pending'
+  );
+$$;
+
+revoke all on function public.cdc_voting_responses_complete() from public, anon, authenticated;
+
+create or replace function public.cdc_voting_is_open()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select now() >= s.opens_at or public.cdc_voting_responses_complete()
+  from public.cdc_excellence_voting_settings s
+  where s.singleton is true;
+$$;
+
+revoke all on function public.cdc_voting_is_open() from public;
+grant execute on function public.cdc_voting_is_open() to anon, authenticated;
+
+drop policy if exists cdc_awards_public_nominee_list_read
+  on public.cdc_excellence_nominations;
+create policy cdc_awards_public_nominee_list_read
+  on public.cdc_excellence_nominations
+  for select
+  to anon
+  using (
+    criteria_confirmed is true
+    and eligibility_status = 'eligible'
+    and acceptance_status = 'accepted'
+    and public.cdc_voting_is_open()
+  );
+
 create or replace function public.cdc_voting_candidates()
 returns table(category text, nominee_name text, nominee_surname text, school_club text)
 language sql
@@ -56,13 +107,40 @@ as $$
     and n.criteria_confirmed is true
     and n.eligibility_status = 'eligible'
     and n.acceptance_status = 'accepted'
-    and (now() at time zone 'Africa/Johannesburg') >= timestamp '2026-10-22 00:00:00'
   group by n.category,
     lower(regexp_replace(btrim(n.nominee_name), '[[:space:]]+', ' ', 'g')),
     lower(regexp_replace(btrim(n.nominee_surname), '[[:space:]]+', ' ', 'g'));
 $$;
 
 revoke all on function public.cdc_voting_candidates() from public, anon, authenticated;
+
+create or replace function public.cdc_voting_winners()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with tallies as (
+    select v.category, v.nominee_name, v.nominee_surname, count(*) as private_tally
+    from public.cdc_excellence_votes v
+    where v.award_year = 2026
+    group by v.category, v.nominee_name, v.nominee_surname
+  ), ranked as (
+    select t.category, t.nominee_name, t.nominee_surname,
+      rank() over (partition by t.category order by t.private_tally desc) as place
+    from tallies t
+  )
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'category', r.category,
+    'name', r.nominee_name,
+    'surname', r.nominee_surname
+  ) order by r.category, r.nominee_surname, r.nominee_name), '[]'::jsonb)
+  from ranked r
+  where r.place = 1;
+$$;
+
+revoke all on function public.cdc_voting_winners() from public, anon, authenticated;
 
 create or replace function public.cdc_get_voting_ballot()
 returns jsonb
@@ -79,13 +157,15 @@ declare
   v_state text;
   v_categories jsonb := '[]'::jsonb;
   v_my_votes jsonb := '[]'::jsonb;
+  v_results_at timestamptz := timestamptz '2026-11-14 21:00:00+02';
+  v_winners jsonb := null;
 begin
   select s.opens_at, s.closes_at
   into v_opens_at, v_closes_at
   from public.cdc_excellence_voting_settings s
   where s.singleton is true;
 
-  if v_now < v_opens_at then
+  if not public.cdc_voting_is_open() then
     v_state := 'not_open';
   elsif v_closes_at is not null and v_now >= v_closes_at then
     v_state := 'closed';
@@ -122,10 +202,16 @@ begin
     where v.voter_id = v_user_id and v.award_year = 2026;
   end if;
 
+  if v_state = 'closed' and v_now >= v_results_at then
+    v_winners := public.cdc_voting_winners();
+  end if;
+
   return jsonb_build_object(
     'state', v_state,
     'opens_at', v_opens_at,
     'closes_at', v_closes_at,
+    'results_at', v_results_at,
+    'winners', v_winners,
     'categories', v_categories,
     'my_votes', v_my_votes
   );
@@ -163,7 +249,7 @@ begin
 
   select s.opens_at, s.closes_at into v_opens_at, v_closes_at
   from public.cdc_excellence_voting_settings s where s.singleton is true;
-  if now() < v_opens_at then
+  if not public.cdc_voting_is_open() then
     raise exception 'Voting has not opened yet.' using errcode = '22023';
   end if;
   if v_closes_at is not null and now() >= v_closes_at then
@@ -236,7 +322,8 @@ declare
   v_opens_at timestamptz;
   v_closes_at timestamptz;
   v_state text;
-  v_results jsonb := null;
+  v_winners jsonb := null;
+  v_results_at timestamptz := timestamptz '2026-11-14 21:00:00+02';
 begin
   if coalesce(public.current_admin_role(), '') not in ('admin', 'super_admin') then
     raise exception 'Admin access required.' using errcode = '42501';
@@ -245,33 +332,21 @@ begin
   select s.opens_at, s.closes_at into v_opens_at, v_closes_at
   from public.cdc_excellence_voting_settings s where s.singleton is true;
   v_state := case
-    when now() < v_opens_at then 'not_open'
+    when not public.cdc_voting_is_open() then 'not_open'
     when v_closes_at is not null and now() >= v_closes_at then 'closed'
     else 'open'
   end;
 
-  if v_state = 'closed' then
-    select coalesce(jsonb_agg(jsonb_build_object(
-      'category', totals.category,
-      'name', totals.nominee_name,
-      'surname', totals.nominee_surname,
-      'votes', totals.vote_count
-    ) order by totals.category, totals.vote_count desc, totals.nominee_surname, totals.nominee_name), '[]'::jsonb)
-    into v_results
-    from (
-      select v.category, v.nominee_name, v.nominee_surname, count(*)::integer as vote_count
-      from public.cdc_excellence_votes v
-      where v.award_year = 2026
-      group by v.category, v.nominee_name, v.nominee_surname
-    ) totals;
+  if v_state = 'closed' and now() >= v_results_at then
+    v_winners := public.cdc_voting_winners();
   end if;
 
   return jsonb_build_object(
     'state', v_state,
     'opens_at', v_opens_at,
     'closes_at', v_closes_at,
-    'voter_count', (select count(distinct v.voter_id) from public.cdc_excellence_votes v where v.award_year = 2026),
-    'results', v_results
+    'results_at', v_results_at,
+    'winners', v_winners
   );
 end;
 $$;
@@ -290,8 +365,8 @@ begin
   end if;
   select s.opens_at into v_opens_at
   from public.cdc_excellence_voting_settings s where s.singleton is true;
-  if p_closes_at is not null and p_closes_at < v_opens_at then
-    raise exception 'The voting close must be at or after the voting open time.' using errcode = '22023';
+  if p_closes_at is not null and p_closes_at <= now() then
+    raise exception 'The voting close must be in the future.' using errcode = '22023';
   end if;
   update public.cdc_excellence_voting_settings
   set closes_at = p_closes_at, updated_at = now()

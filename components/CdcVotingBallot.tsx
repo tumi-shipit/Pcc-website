@@ -8,10 +8,13 @@ import { supabase } from "@/lib/supabase";
 type Nominee = { name: string; surname: string; school_club: string };
 type BallotCategory = { category: string; nominees: Nominee[] };
 type SavedVote = { category: string; name: string; surname: string };
+type Winner = { category: string; name: string; surname: string };
 type Ballot = {
   state: "not_open" | "open" | "closed";
   opens_at: string;
   closes_at: string | null;
+  results_at: string;
+  winners: Winner[] | null;
   categories: BallotCategory[];
   my_votes: SavedVote[];
 };
@@ -119,6 +122,8 @@ export default function CdcVotingBallot() {
   }
 
   const alreadyVoted = (ballot?.my_votes.length ?? 0) > 0;
+  const selectedCategories = ballot?.categories.filter(({ category }) => Boolean(choices[category])).length ?? 0;
+  const ballotProgress = ballot?.categories.length ? (selectedCategories / ballot.categories.length) * 100 : 0;
 
   return (
     <section id="voting" className="mt-12 scroll-mt-28 border-t border-[#d3ad47]/25 pt-10">
@@ -135,9 +140,26 @@ export default function CdcVotingBallot() {
       ) : !ballot ? (
         <p role="status" className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm text-[#d4dfd4]">{message}</p>
       ) : ballot.state === "not_open" ? (
-        <p className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">Voting opens at {formatSast(ballot.opens_at)} (South African time).</p>
+        <p className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">Voting opens as soon as every approved nominee has accepted or declined. If responses are still pending, voting opens at midnight on 22 October 2026 (South African time).</p>
       ) : ballot.state === "closed" ? (
-        <p className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">Voting is closed. Thank you to everyone who took part.</p>
+        <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">
+          <p>Voting is closed. Award winners will be published on this page at {formatSast(ballot.results_at)}.</p>
+          {ballot.winners && (
+            <div className="mt-5 border-t border-white/10 pt-5">
+              <h3 className="font-serif text-2xl font-semibold text-white">2026 Award winners</h3>
+              {ballot.winners.length > 0 ? (
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  {ballot.winners.map((winner) => (
+                    <div key={`${winner.category}-${winner.name}-${winner.surname}`} className="rounded-xl border border-[#d3ad47]/20 bg-black/20 p-4">
+                      <p className="text-xs font-bold uppercase tracking-wider text-[#e4c45e]">{winner.category}</p>
+                      <p className="mt-1 font-semibold text-white">{winner.name} {winner.surname}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="mt-3 text-[#becbbd]">Winner names are not available to display.</p>}
+            </div>
+          )}
+        </div>
       ) : ballot.categories.length === 0 ? (
         <p className="mt-6 rounded-xl border border-white/10 bg-black/20 p-5 text-sm leading-6 text-[#d4dfd4]">There are no accepted nominees available for voting.</p>
       ) : !email ? (
@@ -153,6 +175,20 @@ export default function CdcVotingBallot() {
       ) : (
         <form onSubmit={submitBallot} className="mt-6">
           <p className="mb-5 text-sm text-[#becbbd]">Verified as {email}. Voting closes {ballot.closes_at ? `at ${formatSast(ballot.closes_at)}` : "on a date to be announced"}.</p>
+          <div className="mb-5 rounded-xl border border-white/10 bg-black/20 p-4" aria-live="polite">
+            <div className="mb-2 flex items-center justify-between gap-3 text-xs text-[#becbbd]"><span>Your ballot progress</span><span>{selectedCategories} of {ballot.categories.length} categories selected</span></div>
+            <div
+              role="progressbar"
+              aria-label="Your ballot completion"
+              aria-valuemin={0}
+              aria-valuemax={ballot.categories.length}
+              aria-valuenow={selectedCategories}
+              className="h-2 overflow-hidden rounded-full bg-white/10"
+            >
+              <div className="h-full rounded-full bg-gradient-to-r from-[#d5a92f] to-[#fff0a3] transition-[width] duration-300" style={{ width: `${ballotProgress}%` }} />
+            </div>
+            <p className="mt-2 text-[11px] text-[#9faf9f]">This shows only your selections and does not reflect other voters.</p>
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
             {ballot.categories.map(({ category, nominees }) => (
               <fieldset key={category} className="cdc-category-panel" disabled={busy}>

@@ -13,17 +13,6 @@ type PublicNominee = {
   created_at: string;
 };
 
-function southAfricaDateKey() {
-  const parts = new Intl.DateTimeFormat("en", {
-    timeZone: "Africa/Johannesburg",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
 function uniqueNominees(rows: PublicNominee[]) {
   const seen = new Set<string>();
   return rows.filter((row) => {
@@ -48,7 +37,16 @@ export default function CdcPublicNomineeList() {
     let cancelled = false;
     let listLoaded = false;
     async function initialize() {
-      const nowOpen = southAfricaDateKey() >= "2026-10-22";
+      const { data: statusData, error: statusError } = await publicSupabase.rpc("cdc_get_voting_ballot");
+      if (cancelled) return;
+      if (statusError) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
+      setError(false);
+      const status = statusData as { state?: string };
+      const nowOpen = status.state === "open" || status.state === "closed";
       if (cancelled) return;
       setVisible(nowOpen);
       if (!nowOpen || listLoaded) {
@@ -81,14 +79,14 @@ export default function CdcPublicNomineeList() {
   }, []);
 
   if (!visible) return null;
-  const votingStarted = southAfricaDateKey() >= "2026-10-22";
+  const votingStarted = visible;
 
   return (
     <section id="nominee-list" className="border-t border-[#d3ad47]/25 bg-[#071b10]">
       <div className="mx-auto max-w-7xl px-5 py-14 md:px-10 md:py-18">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="cdc-eyebrow">Published 22 October 2026</p>
+            <p className="cdc-eyebrow">Voting phase</p>
             <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">Accepted 2026 Nominees</h2>
           </div>
           <p className="max-w-lg text-sm leading-6 text-[#bfccbf]">

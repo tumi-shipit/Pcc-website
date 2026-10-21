@@ -123,8 +123,10 @@ export default function CdcExcellenceAwardsPage() {
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
                 <p className="text-sm font-bold text-[#e4c45e]">What happens next?</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
-                  Only nominees on the approved shortlist who accept will be published
-                  for public voting when the response period ends. Any verified email
+                  Only nominees on the approved shortlist who accept will be published.
+                  Voting opens as soon as every approved nominee has accepted or declined;
+                  if responses remain pending, the ballot opens when the response period ends.
+                  Any verified email
                   may submit one vote in each available category; the voting closing date
                   will be announced separately.
                 </p>

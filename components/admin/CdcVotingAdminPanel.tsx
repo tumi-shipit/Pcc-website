@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
 
-type ResultRow = { category: string; name: string; surname: string; votes: number };
+type WinnerRow = { category: string; name: string; surname: string };
 type Summary = {
   state: "not_open" | "open" | "closed";
   opens_at: string;
   closes_at: string | null;
-  voter_count: number;
-  results: ResultRow[] | null;
+  results_at: string;
+  winners: WinnerRow[] | null;
 };
 
 function asSastInput(value: string | null) {
@@ -48,7 +48,11 @@ export default function CdcVotingAdminPanel() {
     setMessage("");
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const timer = window.setInterval(() => { void load(); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [load]);
 
   async function setDeadline(value: string | null) {
     setBusy(true);
@@ -87,17 +91,16 @@ export default function CdcVotingAdminPanel() {
   }
 
   function exportResults() {
-    if (!summary?.results) return;
+    if (!summary?.winners) return;
     const workbook = XLSX.utils.book_new();
-    const rows = summary.results.map((row) => ({
+    const rows = summary.winners.map((row) => ({
       Category: row.category,
-      Nominee: `${row.name} ${row.surname}`,
-      Votes: row.votes,
+      Winner: `${row.name} ${row.surname}`,
     }));
     const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 34 }, { wch: 30 }, { wch: 12 }];
+    sheet["!cols"] = [{ wch: 34 }, { wch: 30 }];
     XLSX.utils.book_append_sheet(workbook, sheet, "CDC Voting Results");
-    XLSX.writeFile(workbook, "cdc-excellence-awards-voting-results-2026.xlsx");
+    XLSX.writeFile(workbook, "cdc-excellence-awards-winners-2026.xlsx");
   }
 
   return (
@@ -105,7 +108,7 @@ export default function CdcVotingAdminPanel() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-black">Voting controls</h2>
-          <p className="mt-1 text-sm text-zinc-400">The ballot opens automatically at 00:00 on 22 October 2026 (South African time). Set the closing date when it is announced.</p>
+          <p className="mt-1 text-sm text-zinc-400">The ballot opens as soon as every approved nominee has accepted or declined. If responses remain pending, it opens at midnight on 22 October 2026 (South African time). Set the closing date when it is announced. Winner names are published on the site at 21:00 on 14 November 2026, once voting is closed.</p>
         </div>
         {summary && <span className="rounded-full border border-white/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-amber-200">{summary.state.replace("_", " ")}</span>}
       </div>
@@ -117,23 +120,26 @@ export default function CdcVotingAdminPanel() {
           </label>
           <button type="button" disabled={busy || summary.state === "closed"} onClick={() => void saveDeadline()} className="rounded-lg bg-amber-300 px-4 py-2.5 text-sm font-black text-zinc-950 disabled:opacity-50">Save closing date</button>
           <button type="button" disabled={busy || summary.state === "closed" || summary.state === "not_open"} onClick={() => void closeNow()} className="rounded-lg border border-red-300/30 px-4 py-2.5 text-sm font-bold text-red-100 disabled:opacity-50">Close voting now</button>
-          <p className="w-full text-xs text-zinc-400">{summary.closes_at ? `Scheduled to close ${formatSast(summary.closes_at)}.` : "No closing date is scheduled yet."} {summary.state === "closed" ? `${summary.voter_count} verified voter(s) took part.` : "Vote totals stay hidden until voting closes."}</p>
+          <p className="w-full text-xs text-zinc-400">{summary.closes_at ? `Scheduled to close ${formatSast(summary.closes_at)}.` : "No closing date is scheduled yet."} Winner names publish {formatSast(summary.results_at)} after voting closes. Vote totals and turnout are never displayed.</p>
         </div>
       )}
 
       {message && <p role="status" className="mt-4 rounded-lg border border-white/10 bg-black/20 p-3 text-sm text-zinc-200">{message}</p>}
 
-      {summary?.state === "closed" && summary.results && (
+      {summary?.state === "closed" && summary.winners && (
         <div className="mt-6 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="font-bold">Final vote totals</h3>
-            <button type="button" onClick={exportResults} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50">Export results to Excel</button>
+            <h3 className="font-bold">Award winners</h3>
+            <button type="button" onClick={exportResults} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50">Export winners to Excel</button>
           </div>
           <div className="mt-4 space-y-2">
-            {summary.results.map((row) => <div key={`${row.category}-${row.name}-${row.surname}`} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr_auto]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span><span className="text-amber-200">{row.votes} vote(s)</span></div>)}
-            {summary.results.length === 0 && <p className="text-sm text-zinc-400">No votes were submitted.</p>}
+            {summary.winners.map((row) => <div key={`${row.category}-${row.name}-${row.surname}`} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span></div>)}
+            {summary.winners.length === 0 && <p className="text-sm text-zinc-400">No winner names are available to display.</p>}
           </div>
         </div>
+      )}
+      {summary?.state === "closed" && summary.winners === null && (
+        <p className="mt-6 border-t border-white/10 pt-5 text-sm text-zinc-300">Voting is closed. Winner names will be published on the site at {formatSast(summary.results_at)}.</p>
       )}
     </section>
   );
