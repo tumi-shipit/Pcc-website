@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import CdcVoterEmailVerification from "@/components/CdcVoterEmailVerification";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Verify Email · 2nd CDC Excellence Awards",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function CdcAwardsVotePage() {
-  return <CdcVoterEmailVerification />;
+  redirect("https://docs.google.com/forms/d/e/1FAIpQLSeuW1rjhAcZIchq1OybxYlwfDr2qTQN5bsO_zZwW769WJEAzw/viewform?usp=publish-editor");
 }
