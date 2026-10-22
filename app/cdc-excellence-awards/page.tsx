@@ -23,7 +23,7 @@ export default function CdcExcellenceAwardsPage() {
                 Honouring the dedication, leadership and achievements that move chess forward across Capricorn District.
               </p>
               <div className="mt-9 flex flex-wrap gap-3">
-                <Link href="/cdc-excellence-awards/vote" className="cdc-gold-button">Start voting</Link>
+                <span className="cdc-gold-button cursor-default">Voting closed</span>
                 <a href="#nominee-list" className="cdc-outline-button">View accepted nominees</a>
                 <a href="#categories" className="cdc-outline-button">Explore the awards</a>
               </div>

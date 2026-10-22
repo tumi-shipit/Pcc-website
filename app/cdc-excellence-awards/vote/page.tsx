@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import PublicPageShell from "@/components/PublicPageShell";
 
 export const metadata: Metadata = {
-  title: "Verify Email · 2nd CDC Excellence Awards",
-  description: "Verify your email address for the 2nd Capricorn District Chess Excellence Awards voting process.",
+  title: "Voting Closed · 2nd CDC Excellence Awards",
+  description: "Voting has closed for the 2nd Capricorn District Chess Excellence Awards.",
   robots: { index: false, follow: false },
 };
 
