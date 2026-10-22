@@ -45,11 +45,10 @@ begin
   for row_data in select value from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) loop
     select lower(trim(value)) into response_email
     from jsonb_each_text(row_data)
-    where lower(trim(replace(key, chr(65279), ''))) in ('email address', 'email')
+    where lower(trim(replace(key, chr(65279), ''))) like '%email%'
     limit 1;
-    response_email := coalesce(response_email, '');
+    response_email := coalesce(response_email, 'unknown');
     response_timestamp := trim(coalesce(row_data->>'Timestamp', row_data->>'timestamp', ''));
-    if response_email = '' then continue; end if;
     -- Keep separate submissions from the same email as separate responses.
     response_key := response_email || '|' || coalesce(response_timestamp, '') || '|' || md5(row_data::text);
     insert into public.cdc_google_form_responses(response_key, email, submitted_at, answers)
