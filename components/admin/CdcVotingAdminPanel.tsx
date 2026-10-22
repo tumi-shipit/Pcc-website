@@ -21,6 +21,22 @@ type GoogleTallyRow = TallyRow;
 type GoogleResponse = Record<string, string>;
 const GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026";
 
+const MANUAL_GOOGLE_TALLY: GoogleTallyRow[] = [
+  { category: "Administrator of the Year", name: "Elias", surname: "Mabotja", votes: 68 },
+  { category: "Administrator of the Year", name: "Tumelo", surname: "Mmola", votes: 49 },
+  { category: "Team Manager of the Year", name: "Disele", surname: "Malope", votes: 47 },
+  { category: "Team Manager of the Year", name: "Elias", surname: "Mabotja", votes: 67 },
+  { category: "Team Manager of the Year", name: "Thapelo", surname: "Sindani", votes: 3 },
+  { category: "Arbiter of the Year", name: "Elias", surname: "Mabotja", votes: 60 },
+  { category: "Arbiter of the Year", name: "Tumelo", surname: "Mmola", votes: 48 },
+  { category: "Arbiter of the Year", name: "Kobus", surname: "Verreynne", votes: 9 },
+  { category: "Coach of the Year", name: "Mohololo", surname: "Nkoana", votes: 19 },
+  { category: "Coach of the Year", name: "Tumelo", surname: "Mmola", votes: 73 },
+  { category: "Coach of the Year", name: "Anna", surname: "Chipape", votes: 25 },
+  { category: "Organiser of the Year", name: "Elias", surname: "Mabotja", votes: 72 },
+  { category: "Organiser of the Year", name: "Tumelo", surname: "Mmola", votes: 45 },
+];
+
 function asSastInput(value: string | null) {
   if (!value) return "";
   const parts = new Intl.DateTimeFormat("en", {
@@ -43,9 +59,9 @@ export default function CdcVotingAdminPanel() {
   const [closeAt, setCloseAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [googleTally, setGoogleTally] = useState<GoogleTallyRow[]>([]);
-  const [googleVoters, setGoogleVoters] = useState(0);
-  const [googleImportMessage, setGoogleImportMessage] = useState("");
+  const [googleTally, setGoogleTally] = useState<GoogleTallyRow[]>(MANUAL_GOOGLE_TALLY);
+  const [googleVoters, setGoogleVoters] = useState(117);
+  const [googleImportMessage, setGoogleImportMessage] = useState("Manual snapshot loaded: 117 Google Forms responses.");
   const [googleResponses, setGoogleResponses] = useState<GoogleResponse[]>([]);
 
   const load = useCallback(async () => {
@@ -159,7 +175,7 @@ export default function CdcVotingAdminPanel() {
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
-      complete: (result) => {
+      complete: ({ data: rows }) => {
         const existing = new Set(googleResponses.map((row) => responseKey(row)));
         const additions = rows.filter((row) => !existing.has(responseKey(row)));
         const merged = [...googleResponses, ...additions];
