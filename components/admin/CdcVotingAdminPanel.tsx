@@ -18,8 +18,6 @@ type Summary = {
 };
 type GoogleTallyRow = TallyRow;
 type GoogleResponse = Record<string, string>;
-const GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026-clean";
-const LEGACY_GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026";
 
 function asSastInput(value: string | null) {
   if (!value) return "";
@@ -67,13 +65,14 @@ export default function CdcVotingAdminPanel() {
   }, [load]);
 
   useEffect(() => {
-    try {
-      window.localStorage.removeItem(LEGACY_GOOGLE_RESPONSES_STORAGE_KEY);
-      const saved = window.localStorage.getItem(GOOGLE_RESPONSES_STORAGE_KEY);
-      if (saved) setGoogleResponses(JSON.parse(saved) as GoogleResponse[]);
-    } catch {
-      setGoogleImportMessage("Previously imported Google Forms responses could not be loaded from this browser.");
-    }
+    void (async () => {
+      const { data, error } = await supabase.rpc("cdc_admin_get_google_form_responses");
+      if (error) {
+        setGoogleImportMessage("Shared Google Forms responses could not be loaded. Apply the Google Forms storage migration in Supabase.");
+        return;
+      }
+      setGoogleResponses((data ?? []) as GoogleResponse[]);
+    })();
   }, []);
 
   useEffect(() => {
@@ -137,27 +136,24 @@ export default function CdcVotingAdminPanel() {
       header: true,
       skipEmptyLines: true,
       complete: ({ data: rows }) => {
-        const existing = new Set(googleResponses.map((row) => responseKey(row)));
-        const additions: GoogleResponse[] = [];
-        for (const row of rows) {
-          const key = responseKey(row);
-          if (existing.has(key)) continue;
-          existing.add(key);
-          additions.push(row);
-        }
-        const merged = [...googleResponses, ...additions];
-        setGoogleResponses(merged);
-        window.localStorage.setItem(GOOGLE_RESPONSES_STORAGE_KEY, JSON.stringify(merged));
-        setGoogleImportMessage(`Added ${additions.length} new response${additions.length === 1 ? "" : "s"}; ${merged.length} unique responses are counted.`);
+        void (async () => {
+          const { data: added, error } = await supabase.rpc("cdc_admin_import_google_form_responses", { p_rows: rows });
+          if (error) {
+            setGoogleImportMessage(`Could not save the CSV responses: ${error.message}`);
+            return;
+          }
+          const { data: saved, error: loadError } = await supabase.rpc("cdc_admin_get_google_form_responses");
+          if (loadError) {
+            setGoogleImportMessage(`Imported responses, but could not refresh the shared tally: ${loadError.message}`);
+            return;
+          }
+          const merged = (saved ?? []) as GoogleResponse[];
+          setGoogleResponses(merged);
+          setGoogleImportMessage(`Added ${Number(added ?? 0)} new response${Number(added ?? 0) === 1 ? "" : "s"}; ${merged.length} unique responses are counted for all admins.`);
+        })();
       },
       error: (error) => setGoogleImportMessage(`Could not read the CSV: ${error.message}`),
     });
-  }
-
-  function responseKey(row: GoogleResponse) {
-    const email = String(row["Email Address"] ?? row.email ?? "").trim().toLowerCase();
-    const timestamp = String(row.Timestamp ?? row.timestamp ?? "").trim();
-    return email || timestamp || JSON.stringify(row);
   }
 
   const combinedTally = new Map<string, GoogleTallyRow>();
