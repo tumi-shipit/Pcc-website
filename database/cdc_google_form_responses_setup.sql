@@ -46,7 +46,8 @@ begin
     response_email := lower(trim(coalesce(row_data->>'Email Address', row_data->>'email', '')));
     response_timestamp := trim(coalesce(row_data->>'Timestamp', row_data->>'timestamp', ''));
     if response_email = '' then continue; end if;
-    response_key := response_email;
+    -- Keep separate submissions from the same email as separate responses.
+    response_key := response_email || '|' || coalesce(response_timestamp, '') || '|' || md5(row_data::text);
     insert into public.cdc_google_form_responses(response_key, email, submitted_at, answers)
     values (
       response_key,
