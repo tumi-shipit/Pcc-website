@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
-import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
 
 type WinnerRow = { category: string; name: string; surname: string };
@@ -44,7 +43,6 @@ export default function CdcVotingAdminPanel() {
   const [message, setMessage] = useState("");
   const [googleTally, setGoogleTally] = useState<GoogleTallyRow[]>([]);
   const [googleVoters, setGoogleVoters] = useState(0);
-  const [googleImportMessage, setGoogleImportMessage] = useState("");
   const [googleResponses, setGoogleResponses] = useState<GoogleResponse[]>([]);
 
   const load = useCallback(async () => {
@@ -69,7 +67,6 @@ export default function CdcVotingAdminPanel() {
     void (async () => {
       const { data, error } = await supabase.rpc("cdc_admin_get_google_form_responses");
       if (error) {
-        setGoogleImportMessage("Shared Google Forms responses could not be loaded. Apply the Google Forms storage migration in Supabase.");
         return;
       }
       setGoogleResponses((data ?? []) as GoogleResponse[]);
@@ -145,33 +142,6 @@ export default function CdcVotingAdminPanel() {
     XLSX.writeFile(workbook, "cdc-excellence-awards-all-votes-2026.xlsx");
   }
 
-  function importGoogleFormsCsv(file: File) {
-    setGoogleImportMessage("Reading Google Forms responses…");
-    Papa.parse<Record<string, string>>(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (header) => header.replace(/^\uFEFF/, "").trim(),
-      complete: ({ data: rows }) => {
-        void (async () => {
-          const { data: added, error } = await supabase.rpc("cdc_admin_import_google_form_responses", { p_rows: rows });
-          if (error) {
-            setGoogleImportMessage(`Could not save the CSV responses: ${error.message}`);
-            return;
-          }
-          const { data: saved, error: loadError } = await supabase.rpc("cdc_admin_get_google_form_responses");
-          if (loadError) {
-            setGoogleImportMessage(`Imported responses, but could not refresh the shared tally: ${loadError.message}`);
-            return;
-          }
-          const merged = (saved ?? []) as GoogleResponse[];
-          setGoogleResponses(merged);
-          setGoogleImportMessage(`Added ${Number(added ?? 0)} new response${Number(added ?? 0) === 1 ? "" : "s"}; ${merged.length} unique responses are counted for all admins.`);
-        })();
-      },
-      error: (error) => setGoogleImportMessage(`Could not read the CSV: ${error.message}`),
-    });
-  }
-
   const combinedTally = new Map<string, GoogleTallyRow>();
   for (const row of [...(summary?.tallies ?? []), ...googleTally]) {
     const key = `${row.category}|${row.name}|${row.surname}`;
@@ -241,25 +211,6 @@ export default function CdcVotingAdminPanel() {
           )}
         </div>
       )}
-
-      <div className="mt-6 border-t border-white/10 pt-5">
-        <h3 className="font-bold">Temporary Google Forms tally</h3>
-        <p className="mt-1 text-xs text-zinc-400">Download the Google Forms responses as CSV, then import it here. This tally is kept separate from Supabase votes.</p>
-        <label className="mt-3 inline-flex cursor-pointer rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50">
-          Import Google Forms CSV
-          <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { const file = event.target.files?.[0]; if (file) importGoogleFormsCsv(file); event.currentTarget.value = ""; }} />
-        </label>
-        {googleImportMessage && <p role="status" className="mt-3 text-xs text-zinc-300">{googleImportMessage}</p>}
-        {googleTally.length > 0 && <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Google Forms voters</p><p className="mt-1 text-2xl font-black">{googleVoters}</p></div>
-          <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Google selections</p><p className="mt-1 text-2xl font-black">{googleTally.reduce((total, row) => total + row.votes, 0)}</p></div>
-        </div>}
-        {googleTally.length > 0 && <div className="mt-4 space-y-4">{Array.from(new Set(googleTally.map((row) => row.category))).map((category) => {
-          const rows = googleTally.filter((row) => row.category === category);
-          const maxVotes = Math.max(1, ...rows.map((row) => row.votes));
-          return <article key={category} className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><div className="mb-3 flex items-center justify-between gap-2"><h4 className="font-bold">{category}</h4><span className="text-xs text-zinc-400">{rows.reduce((total, row) => total + row.votes, 0)} votes</span></div>{rows.map((row) => <div key={`${row.category}-${row.name}-${row.surname}`} className="mb-3 last:mb-0"><div className="mb-1 flex items-center justify-between gap-3 text-sm"><span>{row.name} {row.surname}</span><span className="font-bold text-amber-200">{row.votes}</span></div><div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-sky-300" style={{ width: `${(row.votes / maxVotes) * 100}%` }} /></div></div>)}</article>;
-        })}</div>}
-      </div>
 
       {summary?.state === "closed" && summary.winners && (
         <div className="mt-6 border-t border-white/10 pt-5">
