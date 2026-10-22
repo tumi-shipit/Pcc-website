@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import AdminGuard from "@/components/AdminGuard";
 import CdcVotingAdminPanel from "@/components/admin/CdcVotingAdminPanel";
 import { supabase } from "@/lib/supabase";
@@ -158,29 +157,6 @@ export default function CdcAwardsAdminPage() {
     }
   }
 
-  function exportExcel() {
-    const workbook = XLSX.utils.book_new();
-    const data = visibleRows.map((row) => ({
-      "Award year": row.award_year,
-      Category: row.category,
-      "Nominee name": row.nominee_name,
-      "Nominee surname": row.nominee_surname,
-      "School / club": row.school_club,
-      "Nominator name": row.nominator_name,
-      "Nominator contact": row.nominator_contact,
-      "Criteria confirmed": row.criteria_confirmed ? "Yes" : "No",
-      "Nominee response": row.acceptance_status,
-      "Submitted at (SAST)": formatDate(row.created_at),
-    }));
-    const sheet = XLSX.utils.json_to_sheet(data);
-    sheet["!cols"] = [
-      { wch: 12 }, { wch: 30 }, { wch: 22 }, { wch: 22 }, { wch: 30 },
-      { wch: 26 }, { wch: 30 }, { wch: 20 }, { wch: 24 }, { wch: 20 }, { wch: 20 },
-    ];
-    XLSX.utils.book_append_sheet(workbook, sheet, "CDC Nominations");
-    XLSX.writeFile(workbook, "cdc-excellence-awards-nominations-2026.xlsx");
-  }
-
   return (
     <AdminGuard>
       <main className="min-h-screen bg-zinc-950 px-4 pb-16 pt-28 text-white md:px-8">
@@ -191,11 +167,6 @@ export default function CdcAwardsAdminPage() {
               <h1 className="mt-3 text-3xl font-black md:text-4xl">Excellence Awards nominations</h1>
               <p className="mt-2 text-sm text-zinc-400">Private nomination records · 2026</p>
             </div>
-            {canViewNominations && (
-              <button type="button" onClick={exportExcel} disabled={visibleRows.length === 0} className="rounded-xl bg-amber-300 px-5 py-3 text-sm font-black text-zinc-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-40">
-                Export {visibleRows.length === rows.length ? "all" : "filtered"} to Excel
-              </button>
-            )}
           </div>
 
           {role && !canViewNominations && !loading ? (
