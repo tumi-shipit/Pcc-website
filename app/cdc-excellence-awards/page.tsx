@@ -95,26 +95,25 @@ export default function CdcExcellenceAwardsPage() {
         <section id="nominate" className="border-y border-[#d3ad47]/25 bg-[#0a2617]">
           <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:grid-cols-[0.8fr_1.2fr] md:px-10 md:py-20">
             <div className="max-w-lg">
-              <p className="cdc-eyebrow">Public voting is open</p>
-              <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Choose this year’s award recipients.</h2>
+              <p className="cdc-eyebrow">Voting has closed</p>
+              <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Thank you for voting.</h2>
               <p className="mt-5 leading-7 text-[#c1d0c0]">
-                The nomination and nominee response periods have ended. Accepted nominees are listed below. Verify your email to cast one vote in each available category. Voting closes at 12:00 midday on Thursday, 22 October 2026 (South African time).
+                Voting has now closed. Thank you to everyone who managed to cast a vote and support the awards. The results will be announced soon.
               </p>
               <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
-                <p className="text-sm font-bold text-[#e4c45e]">How voting works</p>
+                <p className="text-sm font-bold text-[#e4c45e]">Results coming soon</p>
                 <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
-                  Review the accepted nominees below, then verify your email to open the ballot. Choose one nominee in each available category. You cannot change a vote after submitting it.
+                  The official results will be revealed in due course.
                 </p>
               </div>
             </div>
             <div className="cdc-form-card flex min-h-[360px] flex-col items-start justify-center">
-              <p className="cdc-eyebrow">Ready to vote?</p>
-              <h3 className="mt-4 font-serif text-3xl font-semibold">Cast your ballot</h3>
+              <p className="cdc-eyebrow">Thank you for participating</p>
+              <h3 className="mt-4 font-serif text-3xl font-semibold">Voting is closed</h3>
               <p className="mt-3 max-w-md leading-7 text-[#c1d0c0]">
-                Any voter with a verified email can vote once in each available category. Sign in securely to continue to the ballot.
+                Thank you to everyone who managed to vote and support the Capricorn District Chess Excellence Awards.
               </p>
-              <Link href="/cdc-excellence-awards/vote" className="cdc-gold-button mt-7 inline-flex w-full justify-center">Verify email and vote</Link>
-              <p className="mt-4 text-center text-xs leading-5 text-[#92a491]">Voting closes Thursday, 22 October 2026 at 12:00 midday (South African time).</p>
+              <p className="mt-7 text-center text-sm leading-6 text-[#92a491]">Results will be announced soon.</p>
             </div>
           </div>
         </section>
