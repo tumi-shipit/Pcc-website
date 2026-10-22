@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
 
@@ -130,6 +131,20 @@ export default function CdcVotingAdminPanel() {
     await setDeadline(new Date().toISOString());
   }
 
+  function exportAllVotes() {
+    if (displayTally.length === 0) return;
+    const workbook = XLSX.utils.book_new();
+    const rows = displayTally.map((row) => ({
+      Category: row.category,
+      Nominee: row.name + " " + row.surname,
+      Votes: row.votes,
+    }));
+    const sheet = XLSX.utils.json_to_sheet(rows);
+    sheet["!cols"] = [{ wch: 34 }, { wch: 30 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(workbook, sheet, "All Votes");
+    XLSX.writeFile(workbook, "cdc-excellence-awards-all-votes-2026.xlsx");
+  }
+
   function importGoogleFormsCsv(file: File) {
     setGoogleImportMessage("Reading Google Forms responses…");
     Papa.parse<Record<string, string>>(file, {
@@ -198,6 +213,7 @@ export default function CdcVotingAdminPanel() {
               <h3 className="font-bold">Current CDC vote tally</h3>
               <p className="mt-1 text-xs text-zinc-400">Combined Supabase and Google Forms tally</p>
             </div>
+            <button type="button" onClick={exportAllVotes} disabled={displayTally.length === 0} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50 disabled:opacity-40">Export all votes</button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Voters counted</p><p className="mt-1 text-2xl font-black">{displayVoters}</p></div>
