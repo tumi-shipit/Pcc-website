@@ -35,7 +35,7 @@ declare
   row_data jsonb;
   response_email text;
   response_timestamp text;
-  response_key text;
+  v_response_key text;
   imported_count integer := 0;
 begin
   if coalesce(public.current_admin_role(), '') not in ('admin', 'super_admin') then
@@ -50,10 +50,10 @@ begin
     response_email := coalesce(response_email, 'unknown');
     response_timestamp := trim(coalesce(row_data->>'Timestamp', row_data->>'timestamp', ''));
     -- Count each submitted response; email is not used for deduplication.
-    response_key := coalesce(response_timestamp, '') || '|' || md5(row_data::text);
+    v_response_key := coalesce(response_timestamp, '') || '|' || md5(row_data::text);
     insert into public.cdc_google_form_responses(response_key, email, submitted_at, answers)
     values (
-      response_key,
+      v_response_key,
       response_email,
       null,
       row_data
