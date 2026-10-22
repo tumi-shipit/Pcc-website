@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import * as XLSX from "xlsx";
 import Papa from "papaparse";
 import { supabase } from "@/lib/supabase";
 
@@ -146,16 +145,6 @@ export default function CdcVotingAdminPanel() {
     await setDeadline(new Date().toISOString());
   }
 
-  function exportResults() {
-    if (!summary?.winners) return;
-    const workbook = XLSX.utils.book_new();
-    const rows = summary.winners.map((row) => ({ Category: row.category, Winner: row.name + " " + row.surname }));
-    const sheet = XLSX.utils.json_to_sheet(rows);
-    sheet["!cols"] = [{ wch: 34 }, { wch: 30 }];
-    XLSX.utils.book_append_sheet(workbook, sheet, "CDC Award Winners");
-    XLSX.writeFile(workbook, "cdc-excellence-awards-winners-2026.xlsx");
-  }
-
   function importGoogleFormsCsv(file: File) {
     setGoogleImportMessage("Reading Google Forms responses…");
     Papa.parse<Record<string, string>>(file, {
@@ -271,7 +260,6 @@ export default function CdcVotingAdminPanel() {
         <div className="mt-6 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-bold">Award winners</h3>
-            <button type="button" onClick={exportResults} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50">Export winners to Excel</button>
           </div>
           <div className="mt-4 space-y-2">
             {summary.winners.map((row) => <div key={row.category + "-" + row.name + "-" + row.surname} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span></div>)}
