@@ -18,6 +18,8 @@ type Summary = {
   tallies: TallyRow[];
 };
 type GoogleTallyRow = TallyRow;
+type GoogleResponse = Record<string, string>;
+const GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026";
 
 function asSastInput(value: string | null) {
   if (!value) return "";
@@ -44,6 +46,7 @@ export default function CdcVotingAdminPanel() {
   const [googleTally, setGoogleTally] = useState<GoogleTallyRow[]>([]);
   const [googleVoters, setGoogleVoters] = useState(0);
   const [googleImportMessage, setGoogleImportMessage] = useState("");
+  const [googleResponses, setGoogleResponses] = useState<GoogleResponse[]>([]);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase.rpc("cdc_admin_get_voting_summary");
@@ -62,6 +65,34 @@ export default function CdcVotingAdminPanel() {
     const timer = window.setInterval(() => { void load(); }, 30_000);
     return () => window.clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(GOOGLE_RESPONSES_STORAGE_KEY);
+      if (saved) setGoogleResponses(JSON.parse(saved) as GoogleResponse[]);
+    } catch {
+      setGoogleImportMessage("Previously imported Google Forms responses could not be loaded from this browser.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (googleResponses.length === 0) return;
+    const counts = new Map<string, GoogleTallyRow>();
+    const categories = new Set(["Coach of the Year", "Arbiter of the Year", "Upcoming Arbiter of the Year", "Organiser of the Year", "Administrator of the Year", "Team Manager of the Year", "Upcoming Manager of the Year"]);
+    for (const row of googleResponses) for (const category of categories) {
+      const answer = String(row[category] ?? "").trim();
+      if (!answer) continue;
+      const [name, ...surnameParts] = answer.split(/\s+/);
+      const surname = surnameParts.join(" ");
+      if (!name || !surname) continue;
+      const key = `${category}|${name}|${surname}`;
+      const current = counts.get(key) ?? { category, name, surname, votes: 0 };
+      current.votes += 1;
+      counts.set(key, current);
+    }
+    setGoogleVoters(googleResponses.length);
+    setGoogleTally(Array.from(counts.values()).sort((a, b) => a.category.localeCompare(b.category) || b.votes - a.votes));
+  }, [googleResponses]);
 
   async function setDeadline(value: string | null) {
     setBusy(true);
@@ -129,30 +160,21 @@ export default function CdcVotingAdminPanel() {
       header: true,
       skipEmptyLines: true,
       complete: (result) => {
-        const rows = result.data;
-        const counts = new Map<string, GoogleTallyRow>();
-        const categories = new Set(["Coach of the Year", "Arbiter of the Year", "Upcoming Arbiter of the Year", "Organiser of the Year", "Administrator of the Year", "Team Manager of the Year", "Upcoming Manager of the Year"]);
-        let voters = 0;
-        for (const row of rows) {
-          voters += 1;
-          for (const category of categories) {
-            const answer = String(row[category] ?? "").trim();
-            if (!answer) continue;
-            const [name, ...surnameParts] = answer.split(/\s+/);
-            const surname = surnameParts.join(" ");
-            if (!name || !surname) continue;
-            const key = `${category}|${name}|${surname}`;
-            const current = counts.get(key) ?? { category, name, surname, votes: 0 };
-            current.votes += 1;
-            counts.set(key, current);
-          }
-        }
-        setGoogleVoters(voters);
-        setGoogleTally(Array.from(counts.values()).sort((a, b) => a.category.localeCompare(b.category) || b.votes - a.votes));
-        setGoogleImportMessage(`Imported ${voters} Google Forms response${voters === 1 ? "" : "s"}.`);
+        const existing = new Set(googleResponses.map((row) => responseKey(row)));
+        const additions = rows.filter((row) => !existing.has(responseKey(row)));
+        const merged = [...googleResponses, ...additions];
+        setGoogleResponses(merged);
+        window.localStorage.setItem(GOOGLE_RESPONSES_STORAGE_KEY, JSON.stringify(merged));
+        setGoogleImportMessage(`Added ${additions.length} new response${additions.length === 1 ? "" : "s"}; ${merged.length} unique responses are counted.`);
       },
       error: (error) => setGoogleImportMessage(`Could not read the CSV: ${error.message}`),
     });
+  }
+
+  function responseKey(row: GoogleResponse) {
+    const timestamp = String(row.Timestamp ?? row.timestamp ?? "").trim();
+    const email = String(row["Email Address"] ?? row.email ?? "").trim().toLowerCase();
+    return timestamp || email ? `${timestamp}|${email}` : JSON.stringify(row);
   }
 
   return (
