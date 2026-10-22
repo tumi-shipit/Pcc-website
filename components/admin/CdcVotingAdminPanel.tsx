@@ -135,6 +135,7 @@ export default function CdcVotingAdminPanel() {
     Papa.parse<Record<string, string>>(file, {
       header: true,
       skipEmptyLines: true,
+      transformHeader: (header) => header.replace(/^\uFEFF/, "").trim(),
       complete: ({ data: rows }) => {
         void (async () => {
           const { data: added, error } = await supabase.rpc("cdc_admin_import_google_form_responses", { p_rows: rows });

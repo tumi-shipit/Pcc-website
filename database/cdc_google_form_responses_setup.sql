@@ -43,7 +43,11 @@ begin
   end if;
 
   for row_data in select value from jsonb_array_elements(coalesce(p_rows, '[]'::jsonb)) loop
-    response_email := lower(trim(coalesce(row_data->>'Email Address', row_data->>'email', '')));
+    select lower(trim(value)) into response_email
+    from jsonb_each_text(row_data)
+    where lower(trim(replace(key, chr(65279), ''))) in ('email address', 'email')
+    limit 1;
+    response_email := coalesce(response_email, '');
     response_timestamp := trim(coalesce(row_data->>'Timestamp', row_data->>'timestamp', ''));
     if response_email = '' then continue; end if;
     -- Keep separate submissions from the same email as separate responses.
