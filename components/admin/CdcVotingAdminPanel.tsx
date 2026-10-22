@@ -18,23 +18,8 @@ type Summary = {
 };
 type GoogleTallyRow = TallyRow;
 type GoogleResponse = Record<string, string>;
-const GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026";
-
-const MANUAL_GOOGLE_TALLY: GoogleTallyRow[] = [
-  { category: "Administrator of the Year", name: "Elias", surname: "Mabotja", votes: 68 },
-  { category: "Administrator of the Year", name: "Tumelo", surname: "Mmola", votes: 49 },
-  { category: "Team Manager of the Year", name: "Disele", surname: "Malope", votes: 47 },
-  { category: "Team Manager of the Year", name: "Elias", surname: "Mabotja", votes: 67 },
-  { category: "Team Manager of the Year", name: "Thapelo", surname: "Sindani", votes: 3 },
-  { category: "Arbiter of the Year", name: "Elias", surname: "Mabotja", votes: 60 },
-  { category: "Arbiter of the Year", name: "Tumelo", surname: "Mmola", votes: 48 },
-  { category: "Arbiter of the Year", name: "Kobus", surname: "Verreynne", votes: 9 },
-  { category: "Coach of the Year", name: "Mohololo", surname: "Nkoana", votes: 19 },
-  { category: "Coach of the Year", name: "Tumelo", surname: "Mmola", votes: 73 },
-  { category: "Coach of the Year", name: "Anna", surname: "Chipape", votes: 25 },
-  { category: "Organiser of the Year", name: "Elias", surname: "Mabotja", votes: 72 },
-  { category: "Organiser of the Year", name: "Tumelo", surname: "Mmola", votes: 45 },
-];
+const GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026-clean";
+const LEGACY_GOOGLE_RESPONSES_STORAGE_KEY = "pcc-cdc-google-form-responses-2026";
 
 function asSastInput(value: string | null) {
   if (!value) return "";
@@ -58,9 +43,9 @@ export default function CdcVotingAdminPanel() {
   const [closeAt, setCloseAt] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [googleTally, setGoogleTally] = useState<GoogleTallyRow[]>(MANUAL_GOOGLE_TALLY);
-  const [googleVoters, setGoogleVoters] = useState(117);
-  const [googleImportMessage, setGoogleImportMessage] = useState("Manual snapshot loaded: 117 Google Forms responses.");
+  const [googleTally, setGoogleTally] = useState<GoogleTallyRow[]>([]);
+  const [googleVoters, setGoogleVoters] = useState(0);
+  const [googleImportMessage, setGoogleImportMessage] = useState("");
   const [googleResponses, setGoogleResponses] = useState<GoogleResponse[]>([]);
 
   const load = useCallback(async () => {
@@ -83,6 +68,7 @@ export default function CdcVotingAdminPanel() {
 
   useEffect(() => {
     try {
+      window.localStorage.removeItem(LEGACY_GOOGLE_RESPONSES_STORAGE_KEY);
       const saved = window.localStorage.getItem(GOOGLE_RESPONSES_STORAGE_KEY);
       if (saved) setGoogleResponses(JSON.parse(saved) as GoogleResponse[]);
     } catch {
@@ -152,7 +138,13 @@ export default function CdcVotingAdminPanel() {
       skipEmptyLines: true,
       complete: ({ data: rows }) => {
         const existing = new Set(googleResponses.map((row) => responseKey(row)));
-        const additions = rows.filter((row) => !existing.has(responseKey(row)));
+        const additions: GoogleResponse[] = [];
+        for (const row of rows) {
+          const key = responseKey(row);
+          if (existing.has(key)) continue;
+          existing.add(key);
+          additions.push(row);
+        }
         const merged = [...googleResponses, ...additions];
         setGoogleResponses(merged);
         window.localStorage.setItem(GOOGLE_RESPONSES_STORAGE_KEY, JSON.stringify(merged));
@@ -163,9 +155,9 @@ export default function CdcVotingAdminPanel() {
   }
 
   function responseKey(row: GoogleResponse) {
-    const timestamp = String(row.Timestamp ?? row.timestamp ?? "").trim();
     const email = String(row["Email Address"] ?? row.email ?? "").trim().toLowerCase();
-    return timestamp || email ? `${timestamp}|${email}` : JSON.stringify(row);
+    const timestamp = String(row.Timestamp ?? row.timestamp ?? "").trim();
+    return email || timestamp || JSON.stringify(row);
   }
 
   const combinedTally = new Map<string, GoogleTallyRow>();
