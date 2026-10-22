@@ -1,139 +1,34 @@
 import Image from "next/image";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
-import CdcPublicNomineeList from "@/components/CdcPublicNomineeList";
-import { cdcAwardGroups, cdcNominationEligibility } from "@/lib/cdcAwards";
+import { cdcAwardGroups } from "@/lib/cdcAwards";
+
+const highlights = [
+  { number: "01", title: "Leadership", text: "Celebrating the people who guide, organise and grow chess across the district." },
+  { number: "02", title: "Excellence", text: "Honouring outstanding contribution, commitment and achievement." },
+  { number: "03", title: "Community", text: "Bringing the Capricorn District chess family together for one unforgettable evening." },
+];
 
 export default function CdcExcellenceAwardsPage() {
   return (
     <PublicPageShell>
-      <main className="cdc-awards min-h-screen bg-[#061b10] text-[#f7f4e9]">
-        <section className="cdc-hero relative overflow-hidden border-b border-[#d3ad47]/30">
-          <div aria-hidden="true" className="cdc-hero-glow" />
-          <div className="relative mx-auto grid max-w-7xl items-center gap-10 px-5 pb-16 pt-28 md:grid-cols-[1fr_320px] md:px-10 md:pb-24 md:pt-36">
-            <div>
-              <div className="flex items-center gap-3">
-                <span className="h-px w-10 bg-[#e4c45e]" />
-                <p className="text-xs font-bold uppercase tracking-[0.32em] text-[#e4c45e]">Capricorn District Chess</p>
-              </div>
-              <h1 className="mt-6 max-w-3xl font-serif text-5xl font-semibold leading-[0.98] tracking-[-0.035em] text-white md:text-7xl">
-                2nd CDC Excellence <span className="text-[#e5c560]">Awards</span>
-              </h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-[#d4dfd4]">
-                Honouring the dedication, leadership and achievements that move chess forward across Capricorn District.
-              </p>
-              <div className="mt-9 flex flex-wrap gap-3">
-                <span className="cdc-gold-button cursor-default">Voting closed</span>
-                <a href="#nominee-list" className="cdc-outline-button">View accepted nominees</a>
-                <a href="#categories" className="cdc-outline-button">Explore the awards</a>
-              </div>
-              <p className="mt-5 text-sm text-[#c1cfbf]">Presented by Capricorn District Chess with support from Polokwane Chess Club.</p>
-            </div>
+      <main className="cdc-awards min-h-screen overflow-hidden bg-[#061b10] text-[#f7f4e9]">
+        <section className="cdc-hero relative border-b border-[#d3ad47]/30"><div aria-hidden="true" className="cdc-hero-glow" /><div className="relative mx-auto max-w-7xl px-5 pb-20 pt-28 md:px-10 md:pb-28 md:pt-40"><div className="grid items-center gap-12 lg:grid-cols-[1.2fr_0.8fr]">
+          <div><div className="flex items-center gap-3 text-[#e4c45e]"><span className="h-px w-12 bg-current" /><p className="text-xs font-bold uppercase tracking-[0.32em]">Capricorn District Chess</p></div><p className="mt-8 inline-flex rounded-full border border-[#dfbd58]/40 bg-[#dfbd58]/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#f0d878]">The countdown to celebration begins</p><h1 className="mt-7 max-w-4xl font-serif text-6xl font-semibold leading-[0.9] tracking-[-0.045em] text-white md:text-8xl">The people who make chess <span className="text-[#e5c560]">exceptional.</span></h1><p className="mt-8 max-w-2xl text-lg leading-8 text-[#d4dfd4] md:text-xl">The 2nd Capricorn District Chess Excellence Awards is an evening dedicated to the people, passion and progress behind our chess community.</p><div className="mt-10 flex flex-wrap gap-3"><span className="cdc-gold-button cursor-default">Voting closed</span><a href="#the-evening" className="cdc-outline-button">Discover the evening</a></div></div>
+          <div className="relative mx-auto w-full max-w-[340px]"><div className="absolute -inset-8 rounded-full bg-[#d3ad47]/10 blur-3xl" /><div className="relative rounded-[2rem] border border-[#dfbd58]/45 bg-[#f7f4e9] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.35)]"><Image src="/images/organisations/capricorn-district-chess.png" alt="Capricorn District Chess crest" width={500} height={500} priority className="h-auto w-full rounded-[1.4rem]" /><div className="mt-4 border-t border-[#17210f]/15 pt-4 text-center"><p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#17210f]">Excellence · Dedication · Chess</p></div></div></div>
+        </div></div></section>
 
-            <div className="mx-auto w-full max-w-[270px] rounded-full border border-[#dfbd58]/40 bg-[#082616]/70 p-3 shadow-[0_0_80px_rgba(197,156,50,0.15)]">
-              <div className="rounded-full border border-[#dfbd58]/30 bg-[#f7f4e9] p-5">
-                <Image src="/images/organisations/capricorn-district-chess.png" alt="Capricorn District Chess crest" width={500} height={500} priority className="h-auto w-full rounded-full" />
-              </div>
-              <p className="pb-2 pt-4 text-center text-xs font-bold uppercase tracking-[0.25em] text-[#e4c45e]">Excellence • Dedication • Chess</p>
-            </div>
-          </div>
-        </section>
+        <section id="the-evening" className="mx-auto max-w-7xl px-5 py-10 md:px-10 md:py-14"><div className="grid gap-4 md:grid-cols-3"><EventFact label="The date" value="14 November 2026" /><EventFact label="The venue" value="Northern Academy Secondary School" /><EventFact label="The time" value="17:00" /></div></section>
 
-        <section className="mx-auto grid max-w-7xl gap-4 px-5 py-8 md:grid-cols-3 md:px-10">
-          <EventFact label="Awards evening" value="14 November 2026" />
-          <EventFact label="Venue" value="Northern Academy Secondary School" />
-          <EventFact label="Time" value="17:00" />
-        </section>
+        <section className="mx-auto max-w-7xl px-5 pb-20 md:px-10 md:pb-28"><div className="max-w-3xl"><p className="cdc-eyebrow">A night worth celebrating</p><h2 className="mt-4 font-serif text-4xl font-semibold leading-tight md:text-6xl">More than an award. A moment for the whole district.</h2><p className="mt-6 text-lg leading-8 text-[#c1d0c0]">From the first move to the final handshake, chess is built by people. This evening brings those people into the spotlight and gives the district a chance to celebrate together.</p></div><div className="mt-12 grid gap-4 md:grid-cols-3">{highlights.map((item) => <article key={item.number} className="cdc-category-panel"><p className="text-sm font-black text-[#dfbd58]">{item.number}</p><h3 className="mt-10 font-serif text-3xl font-semibold">{item.title}</h3><p className="mt-4 leading-7 text-[#bdcbbd]">{item.text}</p></article>)}</div></section>
 
-        <section className="mx-auto max-w-7xl px-5 pb-14 pt-8 md:px-10 md:pb-20">
-          <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <p className="cdc-eyebrow">The honours</p>
-              <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">2026 Award Categories</h2>
-            </div>
-            <p className="max-w-xl text-sm leading-6 text-[#bfccbf]">
-              There are 26 unique awards. Nominations for seven service awards are now closed; the other awards will be determined from yearly results and records.
-            </p>
-          </div>
+        <section className="border-y border-[#d3ad47]/25 bg-[#0a2617]"><div className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28"><div className="flex flex-col justify-between gap-8 md:flex-row md:items-end"><div><p className="cdc-eyebrow">The honours</p><h2 className="mt-4 font-serif text-4xl font-semibold md:text-6xl">A stage for excellence.</h2></div><p className="max-w-md leading-7 text-[#c1d0c0]">Every category tells a story of service, achievement and dedication to chess in Capricorn District.</p></div><div className="mt-12 grid gap-4 md:grid-cols-2">{cdcAwardGroups.map((group, index) => <article key={group.title} className="cdc-category-panel"><div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#dfbd58]">0{index + 1}</p><h3 className="mt-3 font-serif text-2xl font-semibold">{group.title}</h3></div><span className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-[#d7ded3]">{group.categories.length} awards</span></div><p className="mt-6 leading-7 text-[#bdcbbd]">{group.description}</p></article>)}</div></div></section>
 
-          <div id="categories" className="grid gap-5 lg:grid-cols-2">
-            {cdcAwardGroups.map((group, groupIndex) => (
-              <section key={group.title} className={"cdc-category-panel " + (group.mode === "nominations" ? "cdc-category-featured" : "")}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="cdc-panel-index">0{groupIndex + 1}</p>
-                    <h3 className="mt-2 font-serif text-2xl font-semibold">{group.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-[#bdcbbd]">{group.description}</p>
-                  </div>
-                  <span className={"shrink-0 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.16em] " + (group.mode === "nominations" ? "bg-[#dfbd58] text-[#17210f]" : "border border-white/15 text-[#d7ded3]")}>
-                    {group.mode === "nominations" ? "Nominations closed" : "2026 results"}
-                  </span>
-                </div>
-                <ul className="mt-6 grid gap-2 sm:grid-cols-2">
-                  {group.categories.map((category) => (
-                    <li key={category} className="flex items-start gap-3 rounded-xl border border-white/[0.07] bg-black/15 px-3.5 py-3 text-sm leading-5 text-[#f3f1e8]">
-                      <span aria-hidden="true" className="mt-0.5 text-[#dfbd58]">✦</span>
-                      <span>{category}</span>
-                    </li>
-                  ))}
-                </ul>
-                {group.mode === "nominations" && (
-                  <div className="mt-5 border-t border-white/10 pt-5">
-                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#dfbd58]">Who can be nominated</p>
-                    <ul className="mt-3 space-y-2 text-sm leading-6 text-[#cbd5c9]">
-                      {group.categories.map((category) => (
-                        <li key={category}><strong className="font-semibold text-white">{category}:</strong> {cdcNominationEligibility[category as keyof typeof cdcNominationEligibility]}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </section>
-            ))}
-          </div>
-        </section>
-
-        <section id="nominate" className="border-y border-[#d3ad47]/25 bg-[#0a2617]">
-          <div className="mx-auto grid max-w-7xl gap-10 px-5 py-16 md:grid-cols-[0.8fr_1.2fr] md:px-10 md:py-20">
-            <div className="max-w-lg">
-              <p className="cdc-eyebrow">Voting has closed</p>
-              <h2 className="mt-4 font-serif text-4xl font-semibold leading-tight">Thank you for voting.</h2>
-              <p className="mt-5 leading-7 text-[#c1d0c0]">
-                Voting has now closed. Thank you to everyone who managed to cast a vote and support the awards. The results will be announced soon.
-              </p>
-              <div className="mt-8 rounded-2xl border border-[#d8b64e]/25 bg-[#071b11] p-5">
-                <p className="text-sm font-bold text-[#e4c45e]">Results coming soon</p>
-                <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">
-                  The official results will be revealed in due course.
-                </p>
-              </div>
-            </div>
-            <div className="cdc-form-card flex min-h-[360px] flex-col items-start justify-center">
-              <p className="cdc-eyebrow">Thank you for participating</p>
-              <h3 className="mt-4 font-serif text-3xl font-semibold">Voting is closed</h3>
-              <p className="mt-3 max-w-md leading-7 text-[#c1d0c0]">
-                Thank you to everyone who managed to vote and support the Capricorn District Chess Excellence Awards.
-              </p>
-              <p className="mt-7 text-center text-sm leading-6 text-[#92a491]">Results will be announced soon.</p>
-            </div>
-          </div>
-        </section>
-
-        <CdcPublicNomineeList />
-
-        <footer className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-8 text-xs text-[#9faf9f] sm:flex-row sm:items-center sm:justify-between md:px-10">
-          <p>2nd Capricorn District Chess Excellence Awards · 2026</p>
-          <Link href="/" className="font-semibold text-[#d9bd69] hover:text-white">Polokwane Chess Club</Link>
-        </footer>
+        <section className="mx-auto max-w-5xl px-5 py-20 text-center md:px-10 md:py-28"><p className="cdc-eyebrow">Thank you for taking part</p><h2 className="mt-5 font-serif text-5xl font-semibold leading-tight md:text-7xl">Voting has closed.</h2><p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#c1d0c0]">Thank you to everyone who managed to vote and support the Capricorn District Chess Excellence Awards. The results will be announced soon.</p><div className="mt-10 flex flex-wrap justify-center gap-3"><a href="#the-evening" className="cdc-gold-button">Save the date</a><Link href="/" className="cdc-outline-button">Back to Polokwane Chess Club</Link></div></section>
+        <footer className="border-t border-white/10 px-5 py-8 text-center text-xs text-[#9faf9f] md:px-10"><p>2nd Capricorn District Chess Excellence Awards · 2026</p></footer>
       </main>
     </PublicPageShell>
   );
 }
 
-function EventFact({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="cdc-event-fact">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d8bb59]">{label}</p>
-      <p className="mt-2 text-lg font-semibold leading-6 text-white">{value}</p>
-    </div>
-  );
-}
+function EventFact({ label, value }: { label: string; value: string }) { return <div className="cdc-event-fact"><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d8bb59]">{label}</p><p className="mt-2 text-lg font-semibold leading-6 text-white">{value}</p></div>; }
