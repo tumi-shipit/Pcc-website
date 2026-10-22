@@ -179,11 +179,16 @@ export default function CdcVotingAdminPanel() {
     return timestamp || email ? `${timestamp}|${email}` : JSON.stringify(row);
   }
 
-  const displayTally = googleTally.length > 0 ? googleTally : (summary?.tallies ?? []);
-  const displayVoters = googleTally.length > 0 ? googleVoters : (summary?.total_voters ?? 0);
-  const displaySelections = googleTally.length > 0
-    ? googleTally.reduce((total, row) => total + row.votes, 0)
-    : (summary?.total_votes ?? 0);
+  const combinedTally = new Map<string, GoogleTallyRow>();
+  for (const row of [...(summary?.tallies ?? []), ...googleTally]) {
+    const key = `${row.category}|${row.name}|${row.surname}`;
+    const current = combinedTally.get(key) ?? { ...row, votes: 0 };
+    current.votes += row.votes;
+    combinedTally.set(key, current);
+  }
+  const displayTally = Array.from(combinedTally.values()).sort((a, b) => a.category.localeCompare(b.category) || b.votes - a.votes);
+  const displayVoters = (summary?.total_voters ?? 0) + googleVoters;
+  const displaySelections = (summary?.total_votes ?? 0) + googleTally.reduce((total, row) => total + row.votes, 0);
 
   return (
     <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
@@ -213,7 +218,7 @@ export default function CdcVotingAdminPanel() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-bold">Current CDC vote tally</h3>
-              <p className="mt-1 text-xs text-zinc-400">Temporary Google Forms tally · Supabase controls remain below</p>
+              <p className="mt-1 text-xs text-zinc-400">Combined Supabase and Google Forms tally</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
