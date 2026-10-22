@@ -157,9 +157,9 @@ export default function CdcVotingAdminPanel() {
   }
 
   function exportTally() {
-    if (!summary) return;
+    if (displayTally.length === 0) return;
     const workbook = XLSX.utils.book_new();
-    const rows = summary.tallies.map((row) => ({
+    const rows = displayTally.map((row) => ({
       Category: row.category,
       Nominee: row.name + " " + row.surname,
       Votes: row.votes,
@@ -193,6 +193,12 @@ export default function CdcVotingAdminPanel() {
     return timestamp || email ? `${timestamp}|${email}` : JSON.stringify(row);
   }
 
+  const displayTally = googleTally.length > 0 ? googleTally : (summary?.tallies ?? []);
+  const displayVoters = googleTally.length > 0 ? googleVoters : (summary?.total_voters ?? 0);
+  const displaySelections = googleTally.length > 0
+    ? googleTally.reduce((total, row) => total + row.votes, 0)
+    : (summary?.total_votes ?? 0);
+
   return (
     <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -220,21 +226,21 @@ export default function CdcVotingAdminPanel() {
         <div className="mt-6 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="font-bold">Live vote tally</h3>
-              <p className="mt-1 text-xs text-zinc-400">Admin only · refreshes automatically every 30 seconds</p>
+              <h3 className="font-bold">Current CDC vote tally</h3>
+              <p className="mt-1 text-xs text-zinc-400">Temporary Google Forms tally · Supabase controls remain below</p>
             </div>
-            <button type="button" onClick={exportTally} disabled={summary.tallies.length === 0} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50 disabled:opacity-40">Export tally to Excel</button>
+            <button type="button" onClick={exportTally} disabled={displayTally.length === 0} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-bold hover:border-amber-300/50 disabled:opacity-40">Export tally to Excel</button>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Voters who submitted</p><p className="mt-1 text-2xl font-black">{summary.total_voters}</p></div>
-            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Selections recorded</p><p className="mt-1 text-2xl font-black">{summary.total_votes}</p></div>
+            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Voters counted</p><p className="mt-1 text-2xl font-black">{displayVoters}</p></div>
+            <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4"><p className="text-xs font-bold uppercase tracking-wider text-zinc-500">Selections counted</p><p className="mt-1 text-2xl font-black">{displaySelections}</p></div>
           </div>
-          {summary.tallies.length === 0 ? (
+          {displayTally.length === 0 ? (
             <p className="mt-4 rounded-lg border border-white/[0.07] bg-black/15 p-4 text-sm text-zinc-400">No votes have been submitted yet.</p>
           ) : (
             <div className="mt-4 space-y-4">
-              {Array.from(new Set(summary.tallies.map((row) => row.category))).map((category) => {
-                const categoryRows = summary.tallies.filter((row) => row.category === category);
+              {Array.from(new Set(displayTally.map((row) => row.category))).map((category) => {
+                const categoryRows = displayTally.filter((row) => row.category === category);
                 const categoryTotal = categoryRows.reduce((total, row) => total + row.votes, 0);
                 const maxVotes = Math.max(1, ...categoryRows.map((row) => row.votes));
                 return <article key={category} className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
