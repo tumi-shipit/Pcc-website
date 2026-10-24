@@ -494,6 +494,7 @@ export default function AdminImportRatingsPage() {
     let imported = 0;
     let failed = 0;
     let ratingImportId: string | null = null;
+    let previousImportIds: string[] = [];
     const ratingFileRows: Array<{
       rating_import_id: string;
       rating_type: TournamentRatingType;
@@ -537,6 +538,20 @@ export default function AdminImportRatingsPage() {
 
     ratingImportId = importRecord.id;
     setLastImport(importRecord as RatingImportRecord);
+
+    const { data: previousImports, error: previousImportsError } = await supabase
+      .from("rating_import_players")
+      .select("rating_import_id")
+      .eq("rating_type", ratingType)
+      .neq("rating_import_id", ratingImportId);
+    if (previousImportsError) {
+      setMessage(`Could not prepare the previous ${ratingLabel(ratingType)} snapshot for replacement: ${previousImportsError.message}`);
+      setImporting(false);
+      setProgress(emptyProgress);
+      return;
+    }
+    previousImportIds = Array.from(new Set((previousImports ?? []).map((row) => row.rating_import_id).filter(Boolean)));
+    setMessage(`Saving the new ${ratingLabel(ratingType)} snapshot...`);
 
     const rowIndexByNumber = new Map<number, number>();
     nextRows.forEach((row, index) => rowIndexByNumber.set(row.rowNumber, index));
@@ -608,6 +623,16 @@ export default function AdminImportRatingsPage() {
         startedAt: importStartedAt,
       });
       await pauseForPaint();
+    }
+
+    if (failed === 0 && previousImportIds.length > 0) {
+      const { error: replaceError } = await supabase
+        .from("rating_import_players")
+        .delete()
+        .in("rating_import_id", previousImportIds);
+      if (replaceError) {
+        setMessage(`New snapshot imported, but the previous snapshot could not be removed: ${replaceError.message}`);
+      }
     }
 
     setProgress({
