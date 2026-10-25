@@ -37,7 +37,36 @@ function profileStrength(player: IdentityPlayer) {
   return score;
 }
 
-function chooseBulkPrimary(match: IdentityMatch) {
+type TournamentRegistrationEvidence = {
+  count: number;
+  latestAt: string | null;
+};
+
+function chooseBulkPrimary(
+  match: IdentityMatch,
+  registrationEvidence: Map<string, TournamentRegistrationEvidence>
+) {
+  const playerARegistration = registrationEvidence.get(match.playerA.id);
+  const playerBRegistration = registrationEvidence.get(match.playerB.id);
+
+  // Prefer the profile actually used by the tournament registration system.
+  // If both profiles are registered, prefer the one with the latest registration.
+  if (playerARegistration?.count && !playerBRegistration?.count) {
+    return { primary: match.playerA, duplicate: match.playerB };
+  }
+  if (playerBRegistration?.count && !playerARegistration?.count) {
+    return { primary: match.playerB, duplicate: match.playerA };
+  }
+  if (playerARegistration?.count && playerBRegistration?.count) {
+    const aLatest = playerARegistration.latestAt ?? "";
+    const bLatest = playerBRegistration.latestAt ?? "";
+    if (aLatest !== bLatest) {
+      return aLatest > bLatest
+        ? { primary: match.playerA, duplicate: match.playerB }
+        : { primary: match.playerB, duplicate: match.playerA };
+    }
+  }
+
   const playerAStrength = profileStrength(match.playerA);
   const playerBStrength = profileStrength(match.playerB);
 
@@ -56,6 +85,7 @@ function chooseBulkPrimary(match: IdentityMatch) {
 
 export default function PlayerDuplicatesPage() {
   const [players, setPlayers] = useState<IdentityPlayer[]>([]);
+  const [registrationEvidence, setRegistrationEvidence] = useState<Map<string, TournamentRegistrationEvidence>>(new Map());
   const [ignoredRows, setIgnoredRows] = useState<IgnoreRow[]>([]);
   const [search, setSearch] = useState("");
   const [minimumScore, setMinimumScore] = useState(70);
@@ -83,10 +113,30 @@ export default function PlayerDuplicatesPage() {
       .from("player_duplicate_ignores")
       .select("player_a, player_b").abortSignal(AbortSignal.timeout(30000));
 
+    const { data: registrationData, error: registrationError } = await supabase
+      .from("registrations")
+      .select("player_id, created_at, tournaments(start_date)")
+      .not("player_id", "is", null)
+      .abortSignal(AbortSignal.timeout(30000));
+
     if (playerError) setMessage(`Could not load players: ${playerError.message}`);
     else {
       setPlayers((playerData ?? []) as unknown as IdentityPlayer[]);
       setIgnoredRows((ignoreData ?? []) as unknown as IgnoreRow[]);
+      if (registrationError) {
+        setMessage(`Could not load tournament registration links: ${registrationError.message}`);
+      } else {
+        const evidence = new Map<string, TournamentRegistrationEvidence>();
+        for (const row of (registrationData ?? []) as Array<{ player_id: string | null; created_at: string | null; tournaments?: { start_date?: string | null } | null }>) {
+          if (!row.player_id) continue;
+          const current = evidence.get(row.player_id) ?? { count: 0, latestAt: null };
+          current.count += 1;
+          const timestamp = row.created_at ?? row.tournaments?.start_date ?? null;
+          if (timestamp && (!current.latestAt || timestamp > current.latestAt)) current.latestAt = timestamp;
+          evidence.set(row.player_id, current);
+        }
+        setRegistrationEvidence(evidence);
+      }
     }
 
     } catch { setMessage("Could not refresh duplicate records. Check your connection and refresh again."); }
@@ -292,7 +342,7 @@ export default function PlayerDuplicatesPage() {
 
     const mergePlan = selectedMatches.map((match) => ({
       match,
-      ...chooseBulkPrimary(match),
+      ...chooseBulkPrimary(match, registrationEvidence),
     }));
 
     const confirmed = window.confirm(
@@ -465,7 +515,7 @@ export default function PlayerDuplicatesPage() {
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${confidenceClass(match.confidence)}`}>{match.confidence} confidence</span>
                             <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">{match.score}% match</span>
                             <span className="rounded-full bg-zinc-950 px-3 py-1 text-xs font-bold text-gray-300">
-                              Bulk keeps {chooseBulkPrimary(match).primary.full_name}
+                              Bulk keeps {chooseBulkPrimary(match, registrationEvidence).primary.full_name}
                             </span>
                           </div>
                           <p className="mt-4 text-sm text-gray-400">{match.reasons.join("  -  ")}</p>
