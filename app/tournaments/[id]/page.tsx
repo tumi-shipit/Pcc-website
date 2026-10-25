@@ -1258,7 +1258,7 @@ export default function TournamentHubPage() {
         )}
 
         {(registeredPlayers.length > 0 || !isCompleted) && (
-          <RegisteredPlayersPanel players={registeredPlayers} />
+          <RegisteredPlayersPanel players={registeredPlayers} results={results} />
         )}
 
         {!isCompleted && standingUpdates.length > 0 && (
@@ -1372,21 +1372,13 @@ function publicRegistrationName(player: PublicRegistrationRow) {
   return player.full_name?.trim() || "Player name pending";
 }
 
-function statusBadgeClass(value: string | null | undefined) {
-  const status = (value ?? "").toLowerCase();
-
-  if (status.includes("paid") || status.includes("approved")) {
-    return "border-green-500/30 bg-green-500/10 text-green-200";
-  }
-
-  if (status.includes("reject") || status.includes("withdraw")) {
-    return "border-red-500/30 bg-red-500/10 text-red-200";
-  }
-
-  return "border-amber-500/30 bg-amber-500/10 text-amber-100";
-}
-
-function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] }) {
+function RegisteredPlayersPanel({
+  players,
+  results,
+}: {
+  players: PublicRegistrationRow[];
+  results: ResultWithPlayer[];
+}) {
   const [search, setSearch] = useState("");
   const cleanSearch = search.trim().toLowerCase();
 
@@ -1399,8 +1391,7 @@ function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] 
         player.section_name,
         player.chess_sa_id,
         player.pcc_id,
-        player.registration_status,
-        player.payment_status,
+        player.province,
       ]
         .filter(Boolean)
         .join(" ")
@@ -1413,10 +1404,10 @@ function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] 
     const groups = new Map<string, PublicRegistrationRow[]>();
 
     filteredPlayers.forEach((player) => {
-      const sectionName = player.section_name ?? "Section pending";
-      const current = groups.get(sectionName) ?? [];
+      const provinceName = player.province ?? "Province pending";
+      const current = groups.get(provinceName) ?? [];
       current.push(player);
-      groups.set(sectionName, current);
+      groups.set(provinceName, current);
     });
 
     return Array.from(groups.entries());
@@ -1432,9 +1423,9 @@ function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] 
           <h2 className="mt-2 text-2xl font-black md:text-3xl">
             Registered players
           </h2>
-          <p className="mt-2 text-sm leading-6 text-gray-400">
-            Search the entry list to confirm whether a player appears for
-            this tournament. Private contact details are not shown.
+      <p className="mt-2 text-sm leading-6 text-gray-400">
+            National entry list by province. Points and rank will appear here
+            when official results are published.
           </p>
         </div>
 
@@ -1442,7 +1433,7 @@ function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] 
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search player, section or ID"
+          placeholder="Search player, province or ID"
           className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
         />
       </div>
@@ -1468,73 +1459,49 @@ function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] 
         </p>
       ) : (
         <div className="mt-5 max-h-[560px] space-y-5 overflow-y-auto pr-1">
-          {groupedPlayers.map(([sectionName, sectionPlayers]) => (
+          {groupedPlayers.map(([provinceName, provincePlayers]) => (
             <div
-              key={sectionName}
+              key={provinceName}
               className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
             >
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/30 px-4 py-3">
-                <h3 className="font-black text-white">{sectionName}</h3>
+                <h3 className="font-black text-white">{provinceName}</h3>
                 <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-gray-300">
-                  {sectionPlayers.length} player
-                  {sectionPlayers.length === 1 ? "" : "s"}
+                  {provincePlayers.length} player
+                  {provincePlayers.length === 1 ? "" : "s"}
                 </span>
               </div>
 
-              <div className="divide-y divide-white/10">
-                {sectionPlayers.map((player) => (
-                  <div
-                    key={player.registration_id}
-                    className="grid gap-3 px-4 py-3 sm:grid-cols-[1fr_auto] sm:items-center"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <PlayerAvatar
-                        name={publicRegistrationName(player)}
-                        photoUrl={player.profile_photo_url}
-                        size="sm"
-                        className="border-red-500/25"
-                      />
-
-                      <div className="min-w-0">
-                        {player.player_id ? (
-                          <Link
-                            href={`/players/${player.player_id}`}
-                            className="block truncate font-bold text-white transition hover:text-red-300"
-                          >
-                            {publicRegistrationName(player)}
-                          </Link>
-                        ) : (
-                          <p className="truncate font-bold text-white">
-                            {publicRegistrationName(player)}
-                          </p>
-                        )}
-
-                        <p className="mt-1 text-xs text-gray-500">
-                          PCC ID {player.pcc_id ?? "-"}  -  Chess SA{" "}
-                          {player.chess_sa_id ?? "-"}  -  Province{" "}
-                          {player.province ?? "-"}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 sm:justify-end">
-                      <span
-                        className={`rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(
-                          player.registration_status
-                        )}`}
-                      >
-                        {player.registration_status ?? "Pending"}
-                      </span>
-                      <span
-                        className={`rounded-full border px-3 py-1 text-[11px] font-bold ${statusBadgeClass(
-                          player.payment_status
-                        )}`}
-                      >
-                        {player.payment_status ?? "Payment pending"}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-white/10 bg-black/20 text-xs uppercase tracking-[0.16em] text-gray-500">
+                    <tr>
+                      <th className="px-4 py-3">Player</th>
+                      <th className="px-4 py-3">CHESSA ID</th>
+                      <th className="px-4 py-3">Section</th>
+                      <th className="px-4 py-3 text-right">Points</th>
+                      <th className="px-4 py-3 text-right">Rank</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/10">
+                    {provincePlayers
+                      .sort((a, b) => (a.section_name ?? "").localeCompare(b.section_name ?? "") || publicRegistrationName(a).localeCompare(publicRegistrationName(b)))
+                      .map((player) => {
+                        const result = results.find((item) => item.player_id === player.player_id && item.section_id === player.section_id);
+                        return (
+                          <tr key={player.registration_id}>
+                            <td className="px-4 py-3 font-bold text-white">
+                              {player.player_id ? <Link href={`/players/${player.player_id}`} className="hover:text-red-300">{publicRegistrationName(player)}</Link> : publicRegistrationName(player)}
+                            </td>
+                            <td className="px-4 py-3 text-gray-400">{player.chess_sa_id ?? "—"}</td>
+                            <td className="px-4 py-3 text-gray-400">{player.section_name ?? "—"}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-white">{result?.points ?? "—"}</td>
+                            <td className="px-4 py-3 text-right font-semibold text-white">{result?.final_position ?? "—"}</td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
               </div>
             </div>
           ))}
