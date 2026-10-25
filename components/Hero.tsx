@@ -22,7 +22,7 @@ const quickLinks = [
   {
     href: "/store",
     title: "PCC Store",
-    text: "Merchandise coming soon",
+    text: "Equipment, apparel and services",
   },
   {
     href: "/members",
@@ -38,7 +38,7 @@ const quickLinks = [
   {
     href: "/cdc-excellence-awards",
     title: "2nd CDC Excellence Awards",
-    text: "Nominate a Capricorn District chess contributor",
+    text: "Celebrating the people behind district chess",
   },
 ];
 
@@ -133,7 +133,7 @@ export default function Hero() {
               href="/store"
               className="rounded-lg border border-white/20 bg-black/30 px-5 py-3 text-center text-sm font-bold text-white transition hover:border-red-500"
             >
-              Store Coming Soon
+              Visit the PCC Store
             </Link>
             <a
               href={whatsappJoinLink}

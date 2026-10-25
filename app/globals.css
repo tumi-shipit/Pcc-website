@@ -23,6 +23,15 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #f0c94d;
+  outline-offset: 3px;
+}
+
 ::selection {
   background: #dc2626;
   color: #ffffff;

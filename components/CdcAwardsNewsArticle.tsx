@@ -27,6 +27,9 @@ const fallbackArticle: Article = {
 export default function CdcAwardsNewsArticle() {
   const [article, setArticle] = useState(fallbackArticle);
   const [unpublished, setUnpublished] = useState(false);
+  const currentTitle = "2nd CDC Excellence Awards 2026";
+  const currentExcerpt =
+    "Nominations and voting have closed. Thank you to everyone who took part; the results will be announced soon.";
 
   useEffect(() => {
     async function loadArticle() {
@@ -67,8 +70,9 @@ export default function CdcAwardsNewsArticle() {
                 </div>
                 <div className="flex flex-col justify-center p-6 md:p-10">
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Awards announcement · 20 October 2026</p>
-                  <h1 className="mt-4 text-3xl font-black leading-tight md:text-5xl">{article.title}</h1>
-                  <p className="mt-5 whitespace-pre-line leading-7 text-zinc-300">{article.excerpt}</p>
+                  <h1 className="mt-4 text-3xl font-black leading-tight md:text-5xl">{currentTitle}</h1>
+                  <p className="mt-5 whitespace-pre-line leading-7 text-zinc-300">{currentExcerpt}</p>
+                  <p className="mt-5 inline-flex w-fit rounded-full border border-amber-200/30 bg-amber-300/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.16em] text-amber-200">Voting closed</p>
                   <Link href="/cdc-excellence-awards" className="mt-7 inline-flex w-fit rounded-xl bg-amber-300 px-6 py-3 font-bold text-emerald-950 transition hover:bg-amber-200">View the awards</Link>
                 </div>
               </div>
@@ -78,7 +82,7 @@ export default function CdcAwardsNewsArticle() {
                   <div className="mt-3 space-y-4 leading-7 text-zinc-300">
                     {article.content.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
                   </div>
-                  <h3 className="mt-7 text-lg font-black">Nomination categories</h3>
+                  <h3 className="mt-7 text-lg font-black">Award categories</h3>
                   <ul className="mt-3 grid gap-2 sm:grid-cols-2">
                     {cdcServiceAwardCategories.map((category) => <li key={category} className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-semibold text-zinc-100">{category}</li>)}
                   </ul>

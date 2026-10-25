@@ -7,7 +7,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "2nd CDC Excellence Awards 2026",
     description:
-      "Nominate a Capricorn District Chess contributor and celebrate excellence across the district.",
+      "Celebrating the people, passion and progress behind Capricorn District Chess. Voting has closed.",
     images: [
       {
         url: "/images/organisations/capricorn-district-chess.png",
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "2nd CDC Excellence Awards 2026",
     description:
-      "Nominate a Capricorn District Chess contributor and celebrate excellence across the district.",
+      "Celebrating the people, passion and progress behind Capricorn District Chess. Voting has closed.",
     images: ["/images/organisations/capricorn-district-chess.png"],
   },
 };

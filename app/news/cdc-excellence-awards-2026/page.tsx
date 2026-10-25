@@ -2,13 +2,13 @@ import type { Metadata } from "next";
 import CdcAwardsNewsArticleContent from "@/components/CdcAwardsNewsArticle";
 
 export const metadata: Metadata = {
-  title: "Nominate for the 2nd CDC Excellence Awards",
+  title: "2nd CDC Excellence Awards 2026",
   description:
-    "Nominations are open for the 2nd Capricorn District Chess Excellence Awards. Nominate a chess contributor by 23 October 2026.",
+    "Nominations and voting have closed for the 2nd Capricorn District Chess Excellence Awards. Results will be announced soon.",
   openGraph: {
-    title: "Nominate for the 2nd CDC Excellence Awards",
+    title: "2nd CDC Excellence Awards 2026",
     description:
-      "Nominations are open for the 2nd Capricorn District Chess Excellence Awards. Nominate a chess contributor by 23 October 2026.",
+      "Nominations and voting have closed for the 2nd Capricorn District Chess Excellence Awards. Results will be announced soon.",
     type: "article",
     images: [
       {
@@ -21,9 +21,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Nominate for the 2nd CDC Excellence Awards",
+    title: "2nd CDC Excellence Awards 2026",
     description:
-      "Nominations are open for the 2nd Capricorn District Chess Excellence Awards. Nominate a chess contributor by 23 October 2026.",
+      "Nominations and voting have closed for the 2nd Capricorn District Chess Excellence Awards. Results will be announced soon.",
     images: ["/images/organisations/capricorn-district-chess.png"],
   },
 };

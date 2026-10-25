@@ -687,7 +687,7 @@ export default function TournamentHubPage() {
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id, team_points_grouping"
+          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id, team_points_grouping, postponement_reason, competition_document_url, competition_document_label, external_gallery_url, external_gallery_label"
         )
         .eq("id", tournamentId)
         .single();
@@ -699,35 +699,14 @@ export default function TournamentHubPage() {
         return;
       }
 
-      const [postponementFields, documentFields, galleryFields] =
-        await Promise.all([
-          supabase
-            .from("tournaments")
-            .select("postponement_reason")
-            .eq("id", tournamentId)
-            .maybeSingle(),
-          supabase
-            .from("tournaments")
-            .select("competition_document_url, competition_document_label")
-            .eq("id", tournamentId)
-            .maybeSingle(),
-          supabase
-            .from("tournaments")
-            .select("external_gallery_url, external_gallery_label")
-            .eq("id", tournamentId)
-            .maybeSingle(),
-        ]);
-
       const loadedTournament = {
         ...tournamentData,
-        postponement_reason: postponementFields.data?.postponement_reason ?? null,
+        postponement_reason: tournamentData.postponement_reason ?? null,
         team_points_grouping: normalizeTeamPointsGrouping(tournamentData.team_points_grouping),
-        competition_document_url:
-          documentFields.data?.competition_document_url ?? null,
-        competition_document_label:
-          documentFields.data?.competition_document_label ?? null,
-        external_gallery_url: galleryFields.data?.external_gallery_url ?? null,
-        external_gallery_label: galleryFields.data?.external_gallery_label ?? null,
+        competition_document_url: tournamentData.competition_document_url ?? null,
+        competition_document_label: tournamentData.competition_document_label ?? null,
+        external_gallery_url: tournamentData.external_gallery_url ?? null,
+        external_gallery_label: tournamentData.external_gallery_label ?? null,
       } as Tournament;
 
       const { data: sectionData } = await supabase
