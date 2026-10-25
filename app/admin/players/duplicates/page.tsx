@@ -86,6 +86,7 @@ function chooseBulkPrimary(
 export default function PlayerDuplicatesPage() {
   const [players, setPlayers] = useState<IdentityPlayer[]>([]);
   const [registrationEvidence, setRegistrationEvidence] = useState<Map<string, TournamentRegistrationEvidence>>(new Map());
+  const [adminRole, setAdminRole] = useState<string | null>(null);
   const [ignoredRows, setIgnoredRows] = useState<IgnoreRow[]>([]);
   const [search, setSearch] = useState("");
   const [minimumScore, setMinimumScore] = useState(70);
@@ -113,6 +114,8 @@ export default function PlayerDuplicatesPage() {
       .from("player_duplicate_ignores")
       .select("player_a, player_b").abortSignal(AbortSignal.timeout(30000));
 
+    const { data: roleData } = await supabase.rpc("current_admin_role").abortSignal(AbortSignal.timeout(30000));
+
     const { data: registrationData, error: registrationError } = await supabase
       .from("registrations")
       .select("player_id, created_at, tournaments(start_date)")
@@ -123,6 +126,7 @@ export default function PlayerDuplicatesPage() {
     else {
       setPlayers((playerData ?? []) as unknown as IdentityPlayer[]);
       setIgnoredRows((ignoreData ?? []) as unknown as IgnoreRow[]);
+      setAdminRole(typeof roleData === "string" ? roleData : null);
       if (registrationError) {
         setMessage(`Could not load tournament registration links: ${registrationError.message}`);
       } else {
@@ -317,8 +321,8 @@ export default function PlayerDuplicatesPage() {
 
   async function mergeSelectedPairs() {
     if (selectedMatches.length === 0 || mergingKey) return;
-    if (selectedMatches.some(match => identityConflicts(match.playerA, match.playerB).length || match.score < 100)) {
-      setMessage("Bulk merge requires non-conflicting, exact identity matches. Review uncertain pairs individually.");
+    if (adminRole !== "super_admin") {
+      setMessage("Only a super admin can force merge profiles with conflicting identity fields.");
       return;
     }
 
@@ -346,7 +350,7 @@ export default function PlayerDuplicatesPage() {
     }));
 
     const confirmed = window.confirm(
-      `Bulk merge ${mergePlan.length} selected pair(s)?\n\nThe page will keep the stronger profile in each pair and move history/results into it.`
+      `Force merge ${mergePlan.length} selected pair(s)?\n\nThe selected profile will be kept for each pair, and registrations/history will be moved into it. This cannot be undone automatically.`
     );
     if (!confirmed) return;
 
@@ -474,7 +478,7 @@ export default function PlayerDuplicatesPage() {
                     disabled={Boolean(mergingKey) || selectedMatches.length === 0}
                     className="rounded-xl bg-red-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:opacity-50"
                   >
-                    Merge selected
+                    Force merge selected
                   </button>
                 </div>
               </div>
