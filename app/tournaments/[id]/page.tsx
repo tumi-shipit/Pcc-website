@@ -179,6 +179,7 @@ type PublicRegistrationRow = {
   player_id: string | null;
   full_name: string | null;
   chess_sa_id: string | null;
+  gender: string | null;
   province: string | null;
   pcc_id: string | null;
   profile_photo_url: string | null;
@@ -820,7 +821,7 @@ export default function TournamentHubPage() {
       const { data: registrationListData } = await supabase
         .from("public_tournament_registration_list")
         .select(
-          "registration_id, tournament_id, section_id, section_name, section_display_order, player_id, full_name, chess_sa_id, province, pcc_id, profile_photo_url, registration_status, payment_status, created_at"
+          "registration_id, tournament_id, section_id, section_name, section_display_order, player_id, full_name, chess_sa_id, gender, province, pcc_id, profile_photo_url, registration_status, payment_status, created_at"
         )
         .eq("tournament_id", tournamentId)
         .order("section_display_order", { ascending: true, nullsFirst: false })
@@ -1258,7 +1259,7 @@ export default function TournamentHubPage() {
         )}
 
         {(registeredPlayers.length > 0 || !isCompleted) && (
-          <RegisteredPlayersPanel players={registeredPlayers} results={results} />
+          <RegisteredPlayersPanel players={registeredPlayers} />
         )}
 
         {!isCompleted && standingUpdates.length > 0 && (
@@ -1374,10 +1375,8 @@ function publicRegistrationName(player: PublicRegistrationRow) {
 
 function RegisteredPlayersPanel({
   players,
-  results,
 }: {
   players: PublicRegistrationRow[];
-  results: ResultWithPlayer[];
 }) {
   const [search, setSearch] = useState("");
   const cleanSearch = search.trim().toLowerCase();
@@ -1479,15 +1478,13 @@ function RegisteredPlayersPanel({
                       <th className="px-3 py-2">Player</th>
                       <th className="px-3 py-2">CHESSA ID</th>
                       <th className="px-3 py-2">Section</th>
-                      <th className="px-3 py-2 text-right">Pts</th>
-                      <th className="px-3 py-2 text-right">Rank</th>
+                      <th className="px-3 py-2">Gender</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
                     {provincePlayers
                       .sort((a, b) => (a.section_name ?? "").localeCompare(b.section_name ?? "") || publicRegistrationName(a).localeCompare(publicRegistrationName(b)))
                       .map((player) => {
-                        const result = results.find((item) => item.player_id === player.player_id && item.section_id === player.section_id);
                         return (
                           <tr key={player.registration_id}>
                             <td className="px-3 py-2 font-bold text-white">
@@ -1495,8 +1492,7 @@ function RegisteredPlayersPanel({
                             </td>
                             <td className="px-3 py-2 text-gray-400">{player.chess_sa_id ?? "—"}</td>
                             <td className="px-3 py-2 text-gray-400">{player.section_name ?? "—"}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-white">{result?.points ?? "—"}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-white">{result?.final_position ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-400">{player.gender ?? "—"}</td>
                           </tr>
                         );
                       })}

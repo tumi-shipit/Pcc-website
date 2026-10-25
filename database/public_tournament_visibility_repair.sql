@@ -219,6 +219,7 @@ select
   registrations.player_id,
   players.full_name,
   players.chess_sa_id,
+  players.gender,
   players.province,
   players.pcc_id,
   players.profile_photo_url,
