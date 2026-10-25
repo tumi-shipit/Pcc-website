@@ -1458,11 +1458,11 @@ function RegisteredPlayersPanel({
           No registered player matches that search.
         </p>
       ) : (
-        <div className="mt-5 max-h-[560px] space-y-5 overflow-y-auto pr-1">
+        <div className="mt-5 grid max-h-[560px] gap-4 overflow-y-auto pr-1 lg:grid-cols-3">
           {groupedPlayers.map(([provinceName, provincePlayers]) => (
             <div
               key={provinceName}
-              className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950"
+              className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950"
             >
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/30 px-4 py-3">
                 <h3 className="font-black text-white">{provinceName}</h3>
@@ -1473,14 +1473,14 @@ function RegisteredPlayersPanel({
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-white/10 bg-black/20 text-xs uppercase tracking-[0.16em] text-gray-500">
+                <table className="min-w-full text-left text-xs">
+                  <thead className="border-b border-white/10 bg-black/20 text-[10px] uppercase tracking-[0.12em] text-gray-500">
                     <tr>
-                      <th className="px-4 py-3">Player</th>
-                      <th className="px-4 py-3">CHESSA ID</th>
-                      <th className="px-4 py-3">Section</th>
-                      <th className="px-4 py-3 text-right">Points</th>
-                      <th className="px-4 py-3 text-right">Rank</th>
+                      <th className="px-3 py-2">Player</th>
+                      <th className="px-3 py-2">CHESSA ID</th>
+                      <th className="px-3 py-2">Section</th>
+                      <th className="px-3 py-2 text-right">Pts</th>
+                      <th className="px-3 py-2 text-right">Rank</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/10">
@@ -1490,13 +1490,13 @@ function RegisteredPlayersPanel({
                         const result = results.find((item) => item.player_id === player.player_id && item.section_id === player.section_id);
                         return (
                           <tr key={player.registration_id}>
-                            <td className="px-4 py-3 font-bold text-white">
+                            <td className="px-3 py-2 font-bold text-white">
                               {player.player_id ? <Link href={`/players/${player.player_id}`} className="hover:text-red-300">{publicRegistrationName(player)}</Link> : publicRegistrationName(player)}
                             </td>
-                            <td className="px-4 py-3 text-gray-400">{player.chess_sa_id ?? "—"}</td>
-                            <td className="px-4 py-3 text-gray-400">{player.section_name ?? "—"}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-white">{result?.points ?? "—"}</td>
-                            <td className="px-4 py-3 text-right font-semibold text-white">{result?.final_position ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-400">{player.chess_sa_id ?? "—"}</td>
+                            <td className="px-3 py-2 text-gray-400">{player.section_name ?? "—"}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-white">{result?.points ?? "—"}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-white">{result?.final_position ?? "—"}</td>
                           </tr>
                         );
                       })}
