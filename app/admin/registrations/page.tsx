@@ -670,12 +670,18 @@ function RegistrationsPageContent() {
     setUpdating(true);
     setMessage("");
 
-    const { error } = await supabase.rpc("admin_delete_registration", {
+    const { data: deletionResult, error } = await supabase.rpc("request_registration_deletion", {
       p_registration_id: registration.registration_id,
     });
 
     if (error) {
       setMessage(`Could not delete registration: ${error.message}`);
+      setUpdating(false);
+      return;
+    }
+
+    if (deletionResult === "Requested") {
+      setMessage("Deletion request submitted for super-admin review.");
       setUpdating(false);
       return;
     }
@@ -703,10 +709,11 @@ function RegistrationsPageContent() {
     try {
       for (const registrationId of targets) {
         setMessage(`Deleting ${deleted.length + 1} of ${targets.length} selected entries...`);
-        const { error } = await supabase.rpc("admin_delete_registration", {
+        const { data: deletionResult, error } = await supabase.rpc("request_registration_deletion", {
           p_registration_id: registrationId,
         }).abortSignal(AbortSignal.timeout(30000));
         if (error) throw new Error(error.message);
+        if (deletionResult === "Requested") throw new Error("Deletion request submitted for super-admin review.");
         deleted.push(registrationId);
       }
       setMessage(`Deleted ${deleted.length} registration(s). This cannot be undone.`);
