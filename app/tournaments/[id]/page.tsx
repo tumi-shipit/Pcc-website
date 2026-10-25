@@ -179,6 +179,7 @@ type PublicRegistrationRow = {
   player_id: string | null;
   full_name: string | null;
   chess_sa_id: string | null;
+  province: string | null;
   pcc_id: string | null;
   profile_photo_url: string | null;
   registration_status: string | null;
@@ -819,7 +820,7 @@ export default function TournamentHubPage() {
       const { data: registrationListData } = await supabase
         .from("public_tournament_registration_list")
         .select(
-          "registration_id, tournament_id, section_id, section_name, section_display_order, player_id, full_name, chess_sa_id, pcc_id, profile_photo_url, registration_status, payment_status, created_at"
+          "registration_id, tournament_id, section_id, section_name, section_display_order, player_id, full_name, chess_sa_id, province, pcc_id, profile_photo_url, registration_status, payment_status, created_at"
         )
         .eq("tournament_id", tournamentId)
         .order("section_display_order", { ascending: true, nullsFirst: false })
@@ -1246,18 +1247,18 @@ export default function TournamentHubPage() {
         <EventProgrammePanel items={programmeItems} />
 
         {!isCompleted && (
-          <>
-            <EntryBoard
-              tournament={tournament}
-              sections={sections}
-              registeredPlayers={registeredPlayers}
-              registeredCount={registeredCount}
-              resultsCount={results.length}
-              feeSummary={feeSummary}
-            />
+          <EntryBoard
+            tournament={tournament}
+            sections={sections}
+            registeredPlayers={registeredPlayers}
+            registeredCount={registeredCount}
+            resultsCount={results.length}
+            feeSummary={feeSummary}
+          />
+        )}
 
-            <RegisteredPlayersPanel players={registeredPlayers} />
-          </>
+        {(registeredPlayers.length > 0 || !isCompleted) && (
+          <RegisteredPlayersPanel players={registeredPlayers} />
         )}
 
         {!isCompleted && standingUpdates.length > 0 && (
@@ -1510,7 +1511,8 @@ function RegisteredPlayersPanel({ players }: { players: PublicRegistrationRow[] 
 
                         <p className="mt-1 text-xs text-gray-500">
                           PCC ID {player.pcc_id ?? "-"}  -  Chess SA{" "}
-                          {player.chess_sa_id ?? "-"}
+                          {player.chess_sa_id ?? "-"}  -  Province{" "}
+                          {player.province ?? "-"}
                         </p>
                       </div>
                     </div>
