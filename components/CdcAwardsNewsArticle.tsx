@@ -69,7 +69,7 @@ export default function CdcAwardsNewsArticle() {
                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-amber-300">Awards announcement · 20 October 2026</p>
                   <h1 className="mt-4 text-3xl font-black leading-tight md:text-5xl">{article.title}</h1>
                   <p className="mt-5 whitespace-pre-line leading-7 text-zinc-300">{article.excerpt}</p>
-                  <Link href="/cdc-excellence-awards" className="mt-7 inline-flex w-fit rounded-xl bg-amber-300 px-6 py-3 font-bold text-emerald-950 transition hover:bg-amber-200">Make a nomination</Link>
+                  <Link href="/cdc-excellence-awards" className="mt-7 inline-flex w-fit rounded-xl bg-amber-300 px-6 py-3 font-bold text-emerald-950 transition hover:bg-amber-200">View the awards</Link>
                 </div>
               </div>
               <div className="grid gap-8 border-t border-white/10 p-6 md:grid-cols-[1fr_0.8fr] md:p-10">
