@@ -90,6 +90,20 @@ type TournamentResult = {
   notes: string | null;
 };
 
+const provincePalettes: Record<string, { border: string; header: string; headerText: string; badge: string; row: string }> = {
+  Gauteng: { border: "#9CA3AF", header: "linear-gradient(135deg, #6B7280 0%, #D4AF37 48%, #1D4ED8 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.2)", row: "rgba(156,163,175,0.06)" },
+  "Western Cape": { border: "#2563EB", header: "linear-gradient(135deg, #1D4ED8 0%, #FFFFFF 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.22)", row: "rgba(37,99,235,0.06)" },
+  "KwaZulu-Natal": { border: "#FFFFFF", header: "linear-gradient(135deg, #111827 0%, #374151 52%, #FFFFFF 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.2)", row: "rgba(255,255,255,0.05)" },
+  "Free State": { border: "#F97316", header: "linear-gradient(135deg, #EA580C 0%, #FB923C 55%, #FFFFFF 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.22)", row: "rgba(249,115,22,0.06)" },
+  "Eastern Cape": { border: "#16A34A", header: "linear-gradient(135deg, #15803D 0%, #FACC15 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.22)", row: "rgba(22,163,74,0.06)" },
+  Limpopo: { border: "#166534", header: "linear-gradient(135deg, #166534 0%, #2563EB 55%, #D4AF37 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.22)", row: "rgba(22,101,52,0.06)" },
+  "North West": { border: "#DC2626", header: "linear-gradient(135deg, #B91C1C 0%, #FFFFFF 50%, #1D4ED8 100%)", headerText: "#111827", badge: "rgba(17,24,39,0.12)", row: "rgba(220,38,38,0.06)" },
+  Mpumalanga: { border: "#16A34A", header: "linear-gradient(135deg, #15803D 0%, #7E22CE 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.22)", row: "rgba(126,34,206,0.06)" },
+  "Northern Cape": { border: "#7F1D1D", header: "linear-gradient(135deg, #7F1D1D 0%, #1D4ED8 100%)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.22)", row: "rgba(127,29,29,0.06)" },
+};
+
+const defaultProvincePalette = { border: "#52525B", header: "linear-gradient(135deg, #27272A, #52525B)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.12)", row: "rgba(255,255,255,0.03)" };
+
 type TournamentTeamResult = {
   id: string;
   tournament_id: string;
@@ -1461,11 +1475,21 @@ function RegisteredPlayersPanel({
           {groupedPlayers.map(([provinceName, provincePlayers]) => (
             <div
               key={provinceName}
-              className="overflow-hidden rounded-xl border border-white/10 bg-zinc-950"
+              className="overflow-hidden rounded-xl border bg-zinc-950"
+              style={{ borderColor: (provincePalettes[provinceName] ?? defaultProvincePalette).border }}
             >
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-black/30 px-4 py-3">
-                <h3 className="font-black text-white">{provinceName}</h3>
-                <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold text-gray-300">
+              <div
+                className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-4 py-3"
+                style={{
+                  background: (provincePalettes[provinceName] ?? defaultProvincePalette).header,
+                  color: (provincePalettes[provinceName] ?? defaultProvincePalette).headerText,
+                }}
+              >
+                <h3 className="font-black" style={{ color: (provincePalettes[provinceName] ?? defaultProvincePalette).headerText }}>{provinceName}</h3>
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-bold"
+                  style={{ backgroundColor: (provincePalettes[provinceName] ?? defaultProvincePalette).badge, color: (provincePalettes[provinceName] ?? defaultProvincePalette).headerText }}
+                >
                   {provincePlayers.length} player
                   {provincePlayers.length === 1 ? "" : "s"}
                 </span>
@@ -1473,7 +1497,10 @@ function RegisteredPlayersPanel({
 
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-xs">
-                  <thead className="border-b border-white/10 bg-black/20 text-[10px] uppercase tracking-[0.12em] text-gray-500">
+                  <thead
+                    className="border-b border-white/10 text-[10px] uppercase tracking-[0.12em]"
+                    style={{ backgroundColor: (provincePalettes[provinceName] ?? defaultProvincePalette).row, color: "rgba(255,255,255,0.7)" }}
+                  >
                     <tr>
                       <th className="px-3 py-2">Player</th>
                       <th className="px-3 py-2">CHESSA ID</th>
@@ -1486,7 +1513,7 @@ function RegisteredPlayersPanel({
                       .sort((a, b) => (a.section_name ?? "").localeCompare(b.section_name ?? "") || publicRegistrationName(a).localeCompare(publicRegistrationName(b)))
                       .map((player) => {
                         return (
-                          <tr key={player.registration_id}>
+                          <tr key={player.registration_id} style={{ backgroundColor: (provincePalettes[provinceName] ?? defaultProvincePalette).row }}>
                             <td className="px-3 py-2 font-bold text-white">
                               {player.player_id ? <Link href={`/players/${player.player_id}`} className="hover:text-red-300">{publicRegistrationName(player)}</Link> : publicRegistrationName(player)}
                             </td>
