@@ -13,6 +13,7 @@ export default function CdcNomineeRsvpForm() {
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(false);
   const [attending, setAttending] = useState<"yes" | "no" | "">("");
+  const [respondentRole, setRespondentRole] = useState<"nominee" | "guest" | "">("");
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -23,10 +24,15 @@ export default function CdcNomineeRsvpForm() {
     const { error } = await rsvpSupabase.from("cdc_excellence_awards_rsvps").insert({
       nominee_name: String(values.get("name") ?? "").trim(),
       nominee_surname: String(values.get("surname") ?? "").trim(),
+      respondent_role: respondentRole,
+      nominee_host_name: respondentRole === "nominee"
+        ? `${String(values.get("name") ?? "").trim()} ${String(values.get("surname") ?? "").trim()}`
+        : String(values.get("host") ?? "").trim(),
       email: String(values.get("email") ?? "").trim(),
       phone: String(values.get("phone") ?? "").trim() || null,
       attending: attending === "yes",
-      guest_count: attending === "yes" ? Number(values.get("guests") ?? 0) : 0,
+      guest_count: 0,
+      guest_name: null,
       dietary_requirements: String(values.get("dietary") ?? "").trim() || null,
     });
     setBusy(false);
@@ -37,15 +43,25 @@ export default function CdcNomineeRsvpForm() {
     setSaved(true);
     setMessage("Thank you. Your RSVP has been recorded.");
     form.reset();
+    setRespondentRole("");
+    setAttending("");
   }
 
   const fieldClass = "mt-2 block w-full rounded-xl border border-white/15 bg-[#071b10] px-4 py-3 text-white outline-none placeholder:text-[#8d9d8c] focus:border-[#dfbd58]";
 
   return (
     <form onSubmit={submit} className="mt-8 space-y-5">
+      <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">
+        <legend className="px-1 font-semibold text-white">Who are you?</legend>
+        <div className="mt-2 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#d4dfd4]">
+          <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="nominee" checked={respondentRole === "nominee"} onChange={() => setRespondentRole("nominee")} className="accent-amber-300" />I’m the nominee</label>
+          <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="guest" checked={respondentRole === "guest"} onChange={() => setRespondentRole("guest")} className="accent-amber-300" />I’m a nominee’s guest</label>
+        </div>
+      </fieldset>
+      {respondentRole === "guest" && <label className="block text-sm font-semibold text-white">Nominee you are a guest of<input required name="host" maxLength={161} placeholder="Nominee’s full name" className={fieldClass} /></label>}
       <div className="grid gap-5 sm:grid-cols-2">
-        <label className="block text-sm font-semibold text-white">First name<input required name="name" maxLength={80} autoComplete="given-name" className={fieldClass} /></label>
-        <label className="block text-sm font-semibold text-white">Surname<input required name="surname" maxLength={80} autoComplete="family-name" className={fieldClass} /></label>
+        <label className="block text-sm font-semibold text-white">Your first name<input required name="name" maxLength={80} autoComplete="given-name" className={fieldClass} /></label>
+        <label className="block text-sm font-semibold text-white">Your surname<input required name="surname" maxLength={80} autoComplete="family-name" className={fieldClass} /></label>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
         <label className="block text-sm font-semibold text-white">Email address<input required type="email" name="email" maxLength={254} autoComplete="email" className={fieldClass} /></label>
@@ -58,7 +74,6 @@ export default function CdcNomineeRsvpForm() {
           <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="attending" value="no" checked={attending === "no"} onChange={() => setAttending("no")} className="accent-amber-300" />Sorry, I can’t attend</label>
         </div>
       </fieldset>
-      {attending === "yes" && <label className="block text-sm font-semibold text-white">Will you bring one guest?<select name="guests" defaultValue="0" className={fieldClass}><option value="0">No guest</option><option value="1">Yes, 1 guest</option></select></label>}
       {attending === "yes" && <label className="block text-sm font-semibold text-white">Dietary requirements <span className="font-normal text-[#aebbaa]">(optional)</span><textarea name="dietary" maxLength={300} rows={3} placeholder="Let us know about any dietary needs" className={fieldClass} /></label>}
       {message && <p role={saved ? "status" : "alert"} className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-[#d4dfd4]">{message}</p>}
       {!saved && <button disabled={busy || !attending} className="cdc-gold-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Saving your RSVP…" : "Submit my RSVP"}</button>}

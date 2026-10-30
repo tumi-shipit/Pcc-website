@@ -7,6 +7,8 @@ type Rsvp = {
   id: string;
   nominee_name: string;
   nominee_surname: string;
+  respondent_role: "nominee" | "guest";
+  nominee_host_name: string;
   email: string;
   phone: string | null;
   attending: boolean;
@@ -24,7 +26,7 @@ export default function CdcRsvpAdminPanel() {
     setLoading(true);
     const { data, error: queryError } = await supabase
       .from("cdc_excellence_awards_rsvps")
-      .select("id, nominee_name, nominee_surname, email, phone, attending, guest_count, dietary_requirements, created_at")
+      .select("id, nominee_name, nominee_surname, respondent_role, nominee_host_name, email, phone, attending, guest_count, dietary_requirements, created_at")
       .order("created_at", { ascending: false });
     if (queryError) {
       setError("RSVPs are unavailable. Apply database/cdc_excellence_awards_rsvp_setup.sql to enable RSVP storage.");
@@ -53,13 +55,14 @@ export default function CdcRsvpAdminPanel() {
       {error && <p role="alert" className="mt-4 rounded-xl border border-amber-300/20 bg-amber-950/20 p-4 text-sm text-amber-100">{error}</p>}
       <div className="mt-5 overflow-x-auto rounded-xl border border-white/10">
         {loading ? <p className="p-5 text-sm text-zinc-400">Loading RSVPs…</p> : rows.length === 0 ? <p className="p-5 text-sm text-zinc-400">No RSVPs have been submitted yet.</p> : (
-          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
-            <thead className="bg-white/[0.04] text-xs uppercase tracking-wider text-zinc-400"><tr>{["Nominee", "Response", "Contact", "Guests", "Dietary requirements", "Received"].map((heading) => <th key={heading} className="px-4 py-3 font-bold">{heading}</th>)}</tr></thead>
+          <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
+            <thead className="bg-white/[0.04] text-xs uppercase tracking-wider text-zinc-400"><tr>{["Person", "RSVP for nominee", "Response", "Contact", "Guest", "Dietary requirements", "Received"].map((heading) => <th key={heading} className="px-4 py-3 font-bold">{heading}</th>)}</tr></thead>
             <tbody className="divide-y divide-white/[0.07]">{rows.map((row) => <tr key={row.id} className="align-top hover:bg-white/[0.025]">
-              <td className="px-4 py-3 font-semibold">{row.nominee_name} {row.nominee_surname}</td>
+              <td className="px-4 py-3"><p className="font-semibold">{row.nominee_name} {row.nominee_surname}</p><p className="mt-1 text-xs capitalize text-zinc-500">{row.respondent_role}</p></td>
+              <td className="px-4 py-3 text-amber-100">{row.nominee_host_name}</td>
               <td className={`px-4 py-3 font-semibold ${row.attending ? "text-emerald-200" : "text-zinc-400"}`}>{row.attending ? "Attending" : "Unable to attend"}</td>
               <td className="px-4 py-3 text-zinc-300">{row.email}{row.phone && <span className="mt-1 block text-xs text-zinc-500">{row.phone}</span>}</td>
-              <td className="px-4 py-3 text-zinc-300">{row.attending ? row.guest_count : "—"}</td>
+              <td className="px-4 py-3 text-zinc-400">{row.respondent_role === "guest" ? "Guest of nominee above" : "—"}</td>
               <td className="px-4 py-3 text-zinc-400">{row.dietary_requirements || "—"}</td>
               <td className="whitespace-nowrap px-4 py-3 text-xs text-zinc-500">{new Intl.DateTimeFormat("en-ZA", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Johannesburg" }).format(new Date(row.created_at))}</td>
             </tr>)}</tbody>
