@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import AdminGuard from "@/components/AdminGuard";
 import CdcVotingAdminPanel from "@/components/admin/CdcVotingAdminPanel";
+import CdcRsvpAdminPanel from "@/components/admin/CdcRsvpAdminPanel";
 import { supabase } from "@/lib/supabase";
 import { cdcApprovedNomineeRoster, cdcAwardsSiteUrl, cdcServiceAwardCategories } from "@/lib/cdcAwards";
 
@@ -183,6 +184,7 @@ export default function CdcAwardsAdminPage() {
               </div>
 
               {canViewNominations && <CdcVotingAdminPanel />}
+              {canViewNominations && <CdcRsvpAdminPanel />}
 
               <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
                 <div className="flex flex-wrap items-end justify-between gap-3">
