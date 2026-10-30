@@ -84,6 +84,24 @@ textarea:focus-visible {
 .cdc-awards .cdc-outline-button { border: 1px solid rgba(227, 199, 112, 0.45); color: #f0d783; }
 .cdc-awards .cdc-outline-button:hover { border-color: #f0d783; background: rgba(223, 189, 88, 0.08); }
 
+@keyframes cdc-rsvp-success-pop {
+  0% { opacity: 0; transform: scale(0.35) rotate(-20deg); }
+  65% { opacity: 1; transform: scale(1.12) rotate(5deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+@keyframes cdc-rsvp-success-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+.cdc-rsvp-success-mark { animation: cdc-rsvp-success-pop 650ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.cdc-rsvp-success-check { stroke-dasharray: 64; stroke-dashoffset: 64; animation: cdc-rsvp-success-draw 450ms ease-out 420ms forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .cdc-rsvp-success-mark { animation: none; }
+  .cdc-rsvp-success-check { stroke-dashoffset: 0; animation: none; }
+}
+
 .cdc-awards .cdc-event-fact {
   min-height: 100px;
   border: 1px solid rgba(222, 190, 88, 0.2);

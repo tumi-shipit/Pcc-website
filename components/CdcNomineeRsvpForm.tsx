@@ -68,6 +68,20 @@ export default function CdcNomineeRsvpForm() {
 
   const fieldClass = "mt-2 block w-full rounded-xl border border-white/15 bg-[#071b10] px-4 py-3 text-white outline-none placeholder:text-[#8d9d8c] focus:border-[#dfbd58]";
 
+  if (saved) {
+    return (
+      <section role="status" aria-live="polite" className="mt-8 rounded-2xl border border-emerald-300/30 bg-emerald-950/35 px-6 py-10 text-center">
+        <div className="cdc-rsvp-success-mark mx-auto mb-5 flex h-28 w-28 items-center justify-center rounded-full border-4 border-emerald-300 bg-emerald-400/10 text-emerald-200 shadow-[0_0_45px_rgba(52,211,153,0.32)]" aria-hidden="true">
+          <svg viewBox="0 0 64 64" className="h-16 w-16" fill="none">
+            <path className="cdc-rsvp-success-check" d="m15 33 11 11 23-25" stroke="currentColor" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <p className="text-2xl font-black text-white md:text-3xl">RSVP submitted!</p>
+        <p className="mt-3 text-base leading-7 text-emerald-100">Your response has been recorded. Thank you.</p>
+      </section>
+    );
+  }
+
   return (
     <form onSubmit={submit} className="mt-8 space-y-5">
       <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">
@@ -103,7 +117,7 @@ export default function CdcNomineeRsvpForm() {
         </div>
       </fieldset>
       {attending === "yes" && <label className="block text-sm font-semibold text-white">Dietary requirements <span className="font-normal text-[#aebbaa]">(optional)</span><textarea name="dietary" maxLength={300} rows={3} placeholder="Let us know about any dietary needs" className={fieldClass} /></label>}
-      {message && <p role={saved ? "status" : "alert"} className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-[#d4dfd4]">{message}</p>}
+      {message && <p role="alert" className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-[#d4dfd4]">{message}</p>}
       {!saved && <button disabled={busy || !attending} className="cdc-gold-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Saving your RSVP…" : "Submit my RSVP"}</button>}
     </form>
   );

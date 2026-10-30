@@ -76,6 +76,7 @@ revoke all on public.cdc_excellence_awards_rsvps from public, anon, authenticate
 grant insert (nominee_name, nominee_surname, respondent_role, nominee_host_name, nomination_categories, email, phone, attending, guest_count, guest_name, dietary_requirements)
   on public.cdc_excellence_awards_rsvps to anon, authenticated;
 grant select on public.cdc_excellence_awards_rsvps to authenticated;
+grant delete on public.cdc_excellence_awards_rsvps to authenticated;
 
 drop policy if exists cdc_awards_public_rsvp_insert on public.cdc_excellence_awards_rsvps;
 create policy cdc_awards_public_rsvp_insert
@@ -120,4 +121,10 @@ drop policy if exists cdc_awards_admin_rsvp_read on public.cdc_excellence_awards
 create policy cdc_awards_admin_rsvp_read
   on public.cdc_excellence_awards_rsvps
   for select to authenticated
+  using ((select public.current_admin_role()) in ('super_admin', 'admin'));
+
+drop policy if exists cdc_awards_admin_rsvp_delete on public.cdc_excellence_awards_rsvps;
+create policy cdc_awards_admin_rsvp_delete
+  on public.cdc_excellence_awards_rsvps
+  for delete to authenticated
   using ((select public.current_admin_role()) in ('super_admin', 'admin'));
