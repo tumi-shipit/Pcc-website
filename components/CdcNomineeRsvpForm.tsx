@@ -30,6 +30,8 @@ export default function CdcNomineeRsvpForm() {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
+    const guestName = String(values.get("guest_name") ?? "").trim();
+    const nomineeBringingGuest = respondentRole === "nominee" && attending === "yes" && guestName.length > 0;
     if (respondentRole === "nominee" && categories.length === 0) {
       setMessage("Please select at least one nomination category.");
       return;
@@ -47,8 +49,8 @@ export default function CdcNomineeRsvpForm() {
       email: String(values.get("email") ?? "").trim(),
       phone: String(values.get("phone") ?? "").trim() || null,
       attending: attending === "yes",
-      guest_count: 0,
-      guest_name: null,
+      guest_count: nomineeBringingGuest ? 1 : 0,
+      guest_name: nomineeBringingGuest ? guestName : null,
       dietary_requirements: String(values.get("dietary") ?? "").trim() || null,
     });
     setBusy(false);
@@ -116,6 +118,7 @@ export default function CdcNomineeRsvpForm() {
           <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="attending" value="no" checked={attending === "no"} onChange={() => setAttending("no")} className="accent-amber-300" />Sorry, I can’t attend</label>
         </div>
       </fieldset>
+      {respondentRole === "nominee" && attending === "yes" && <label className="block text-sm font-semibold text-white">Guest’s full name <span className="font-normal text-[#aebbaa]">(optional)</span><input name="guest_name" maxLength={161} autoComplete="off" placeholder="Leave blank if you’re attending alone" className={fieldClass} /></label>}
       {attending === "yes" && <label className="block text-sm font-semibold text-white">Dietary requirements <span className="font-normal text-[#aebbaa]">(optional)</span><textarea name="dietary" maxLength={300} rows={3} placeholder="Let us know about any dietary needs" className={fieldClass} /></label>}
       {message && <p role="alert" className="rounded-xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-[#d4dfd4]">{message}</p>}
       {!saved && <button disabled={busy || !attending} className="cdc-gold-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Saving your RSVP…" : "Submit my RSVP"}</button>}
