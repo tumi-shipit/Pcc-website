@@ -8,23 +8,39 @@ const rsvpSupabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
 );
 
+const nomineeCategories = [
+  "Arbiter of the Year",
+  "Coach of the Year",
+  "Administrator of the Year",
+  "Manager of the Year",
+  "Upcoming Arbiter of the Year",
+  "Upcoming Manager of the Year",
+  "Organiser of the Year",
+] as const;
+
 export default function CdcNomineeRsvpForm() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [saved, setSaved] = useState(false);
   const [attending, setAttending] = useState<"yes" | "no" | "">("");
   const [respondentRole, setRespondentRole] = useState<"nominee" | "guest" | "">("");
+  const [categories, setCategories] = useState<string[]>([]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
+    if (categories.length === 0) {
+      setMessage("Please select at least one nomination category.");
+      return;
+    }
     setBusy(true);
     setMessage("");
     const { error } = await rsvpSupabase.from("cdc_excellence_awards_rsvps").insert({
       nominee_name: String(values.get("name") ?? "").trim(),
       nominee_surname: String(values.get("surname") ?? "").trim(),
       respondent_role: respondentRole,
+      nomination_categories: categories,
       nominee_host_name: respondentRole === "nominee"
         ? `${String(values.get("name") ?? "").trim()} ${String(values.get("surname") ?? "").trim()}`
         : String(values.get("host") ?? "").trim(),
@@ -45,6 +61,7 @@ export default function CdcNomineeRsvpForm() {
     form.reset();
     setRespondentRole("");
     setAttending("");
+    setCategories([]);
   }
 
   const fieldClass = "mt-2 block w-full rounded-xl border border-white/15 bg-[#071b10] px-4 py-3 text-white outline-none placeholder:text-[#8d9d8c] focus:border-[#dfbd58]";
@@ -56,6 +73,15 @@ export default function CdcNomineeRsvpForm() {
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#d4dfd4]">
           <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="nominee" checked={respondentRole === "nominee"} onChange={() => setRespondentRole("nominee")} className="accent-amber-300" />I’m the nominee</label>
           <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="guest" checked={respondentRole === "guest"} onChange={() => setRespondentRole("guest")} className="accent-amber-300" />I’m a nominee’s guest</label>
+        </div>
+      </fieldset>
+      <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">
+        <legend className="px-1 font-semibold text-white">Which category are you nominated for? <span className="text-amber-200">Select all that apply</span></legend>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {nomineeCategories.map((category) => <label key={category} className="flex cursor-pointer items-start gap-3 text-sm text-[#d4dfd4]">
+            <input type="checkbox" name="nomination_categories" value={category} checked={categories.includes(category)} onChange={(event) => setCategories((current) => event.target.checked ? [...current, category] : current.filter((item) => item !== category))} className="mt-0.5 accent-amber-300" />
+            <span>{category}</span>
+          </label>)}
         </div>
       </fieldset>
       {respondentRole === "guest" && <label className="block text-sm font-semibold text-white">Nominee you are a guest of<input required name="host" maxLength={161} placeholder="Nominee’s full name" className={fieldClass} /></label>}

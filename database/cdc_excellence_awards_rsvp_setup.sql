@@ -5,6 +5,7 @@ create table if not exists public.cdc_excellence_awards_rsvps (
   nominee_surname text not null check (length(btrim(nominee_surname)) between 1 and 80),
   respondent_role text not null default 'nominee',
   nominee_host_name text,
+  nomination_categories text[] not null default '{}',
   email text not null check (length(btrim(email)) between 3 and 254),
   phone text check (phone is null or length(btrim(phone)) <= 40),
   attending boolean not null,
@@ -19,6 +20,7 @@ create table if not exists public.cdc_excellence_awards_rsvps (
 alter table public.cdc_excellence_awards_rsvps
   add column if not exists respondent_role text not null default 'nominee',
   add column if not exists nominee_host_name text,
+  add column if not exists nomination_categories text[] not null default '{}',
   add column if not exists guest_name text;
 
 update public.cdc_excellence_awards_rsvps
@@ -30,6 +32,7 @@ alter table public.cdc_excellence_awards_rsvps
   drop constraint if exists cdc_awards_rsvp_attendance_guests_check,
   drop constraint if exists cdc_awards_rsvp_respondent_role_check,
   drop constraint if exists cdc_awards_rsvp_host_name_check,
+  drop constraint if exists cdc_awards_rsvp_categories_check,
   drop constraint if exists cdc_awards_rsvp_guest_name_check,
   add constraint cdc_excellence_awards_rsvps_guest_count_check check (guest_count between 0 and 1),
   add constraint cdc_awards_rsvp_attendance_guests_check
@@ -45,6 +48,21 @@ alter table public.cdc_excellence_awards_rsvps
     ),
   add constraint cdc_awards_rsvp_respondent_role_check check (respondent_role in ('nominee', 'guest')),
   add constraint cdc_awards_rsvp_host_name_check check (length(btrim(nominee_host_name)) between 1 and 161),
+  add constraint cdc_awards_rsvp_categories_check check (
+    cardinality(nomination_categories) = 0
+    or (
+      cardinality(nomination_categories) between 1 and 7
+      and nomination_categories <@ array[
+        'Arbiter of the Year',
+        'Coach of the Year',
+        'Administrator of the Year',
+        'Manager of the Year',
+        'Upcoming Arbiter of the Year',
+        'Upcoming Manager of the Year',
+        'Organiser of the Year'
+      ]::text[]
+    )
+  ),
   add constraint cdc_awards_rsvp_guest_name_check check (guest_name is null or length(btrim(guest_name)) between 1 and 161);
 
 alter table public.cdc_excellence_awards_rsvps alter column nominee_host_name set not null;
@@ -55,7 +73,7 @@ create unique index if not exists cdc_awards_rsvps_one_attending_guest_idx
 
 alter table public.cdc_excellence_awards_rsvps enable row level security;
 revoke all on public.cdc_excellence_awards_rsvps from public, anon, authenticated;
-grant insert (nominee_name, nominee_surname, respondent_role, nominee_host_name, email, phone, attending, guest_count, guest_name, dietary_requirements)
+grant insert (nominee_name, nominee_surname, respondent_role, nominee_host_name, nomination_categories, email, phone, attending, guest_count, guest_name, dietary_requirements)
   on public.cdc_excellence_awards_rsvps to anon, authenticated;
 grant select on public.cdc_excellence_awards_rsvps to authenticated;
 
@@ -68,6 +86,16 @@ create policy cdc_awards_public_rsvp_insert
     and length(btrim(nominee_surname)) between 1 and 80
     and respondent_role in ('nominee', 'guest')
     and length(btrim(nominee_host_name)) between 1 and 161
+    and cardinality(nomination_categories) between 1 and 7
+    and nomination_categories <@ array[
+      'Arbiter of the Year',
+      'Coach of the Year',
+      'Administrator of the Year',
+      'Manager of the Year',
+      'Upcoming Arbiter of the Year',
+      'Upcoming Manager of the Year',
+      'Organiser of the Year'
+    ]::text[]
     and length(btrim(email)) between 3 and 254
     and guest_count between 0 and 1
     and (attending or guest_count = 0)
