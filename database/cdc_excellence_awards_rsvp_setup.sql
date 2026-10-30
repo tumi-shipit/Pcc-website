@@ -86,16 +86,22 @@ create policy cdc_awards_public_rsvp_insert
     and length(btrim(nominee_surname)) between 1 and 80
     and respondent_role in ('nominee', 'guest')
     and length(btrim(nominee_host_name)) between 1 and 161
-    and cardinality(nomination_categories) between 1 and 7
-    and nomination_categories <@ array[
-      'Arbiter of the Year',
-      'Coach of the Year',
-      'Administrator of the Year',
-      'Manager of the Year',
-      'Upcoming Arbiter of the Year',
-      'Upcoming Manager of the Year',
-      'Organiser of the Year'
-    ]::text[]
+    and (
+      (
+        respondent_role = 'nominee'
+        and cardinality(nomination_categories) between 1 and 7
+        and nomination_categories <@ array[
+          'Arbiter of the Year',
+          'Coach of the Year',
+          'Administrator of the Year',
+          'Manager of the Year',
+          'Upcoming Arbiter of the Year',
+          'Upcoming Manager of the Year',
+          'Organiser of the Year'
+        ]::text[]
+      )
+      or (respondent_role = 'guest' and cardinality(nomination_categories) = 0)
+    )
     and length(btrim(email)) between 3 and 254
     and guest_count between 0 and 1
     and (attending or guest_count = 0)

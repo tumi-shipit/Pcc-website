@@ -30,7 +30,7 @@ export default function CdcNomineeRsvpForm() {
     event.preventDefault();
     const form = event.currentTarget;
     const values = new FormData(form);
-    if (categories.length === 0) {
+    if (respondentRole === "nominee" && categories.length === 0) {
       setMessage("Please select at least one nomination category.");
       return;
     }
@@ -40,7 +40,7 @@ export default function CdcNomineeRsvpForm() {
       nominee_name: String(values.get("name") ?? "").trim(),
       nominee_surname: String(values.get("surname") ?? "").trim(),
       respondent_role: respondentRole,
-      nomination_categories: categories,
+      nomination_categories: respondentRole === "nominee" ? categories : [],
       nominee_host_name: respondentRole === "nominee"
         ? `${String(values.get("name") ?? "").trim()} ${String(values.get("surname") ?? "").trim()}`
         : String(values.get("host") ?? "").trim(),
@@ -53,7 +53,9 @@ export default function CdcNomineeRsvpForm() {
     });
     setBusy(false);
     if (error) {
-      setMessage("We could not save your RSVP. Please try again, or contact the organisers directly.");
+      setMessage(error.code === "23505"
+        ? "An attending guest RSVP has already been submitted for this nominee. Please contact the organisers if you need help."
+        : "We could not save your RSVP. Please try again, or contact the organisers directly.");
       return;
     }
     setSaved(true);
@@ -71,11 +73,11 @@ export default function CdcNomineeRsvpForm() {
       <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">
         <legend className="px-1 font-semibold text-white">Who are you?</legend>
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-3 text-sm text-[#d4dfd4]">
-          <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="nominee" checked={respondentRole === "nominee"} onChange={() => setRespondentRole("nominee")} className="accent-amber-300" />I’m the nominee</label>
-          <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="guest" checked={respondentRole === "guest"} onChange={() => setRespondentRole("guest")} className="accent-amber-300" />I’m a nominee’s guest</label>
+          <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="nominee" checked={respondentRole === "nominee"} onChange={() => { setRespondentRole("nominee"); setCategories([]); }} className="accent-amber-300" />I’m the nominee</label>
+          <label className="flex cursor-pointer items-center gap-2"><input required type="radio" name="respondent_role" value="guest" checked={respondentRole === "guest"} onChange={() => { setRespondentRole("guest"); setCategories([]); }} className="accent-amber-300" />I’m a nominee’s guest</label>
         </div>
       </fieldset>
-      <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">
+      {respondentRole === "nominee" && <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">
         <legend className="px-1 font-semibold text-white">Which category are you nominated for? <span className="text-amber-200">Select all that apply</span></legend>
         <div className="mt-3 grid gap-3 sm:grid-cols-2">
           {nomineeCategories.map((category) => <label key={category} className="flex cursor-pointer items-start gap-3 text-sm text-[#d4dfd4]">
@@ -83,14 +85,14 @@ export default function CdcNomineeRsvpForm() {
             <span>{category}</span>
           </label>)}
         </div>
-      </fieldset>
+      </fieldset>}
       {respondentRole === "guest" && <label className="block text-sm font-semibold text-white">Nominee you are a guest of<input required name="host" maxLength={161} placeholder="Nominee’s full name" className={fieldClass} /></label>}
       <div className="grid gap-5 sm:grid-cols-2">
-        <label className="block text-sm font-semibold text-white">Your first name<input required name="name" maxLength={80} autoComplete="given-name" className={fieldClass} /></label>
-        <label className="block text-sm font-semibold text-white">Your surname<input required name="surname" maxLength={80} autoComplete="family-name" className={fieldClass} /></label>
+        <label className="block text-sm font-semibold text-white">{respondentRole === "guest" ? "Guest first name" : "Your first name"}<input required name="name" maxLength={80} autoComplete="given-name" className={fieldClass} /></label>
+        <label className="block text-sm font-semibold text-white">{respondentRole === "guest" ? "Guest surname" : "Your surname"}<input required name="surname" maxLength={80} autoComplete="family-name" className={fieldClass} /></label>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
-        <label className="block text-sm font-semibold text-white">Email address<input required type="email" name="email" maxLength={254} autoComplete="email" className={fieldClass} /></label>
+        <label className="block text-sm font-semibold text-white">{respondentRole === "guest" ? "Guest email address" : "Email address"}<input required type="email" name="email" maxLength={254} autoComplete="email" className={fieldClass} /></label>
         <label className="block text-sm font-semibold text-white">Phone number <span className="font-normal text-[#aebbaa]">(optional)</span><input type="tel" name="phone" maxLength={40} autoComplete="tel" className={fieldClass} /></label>
       </div>
       <fieldset className="rounded-xl border border-white/10 bg-black/15 p-4">

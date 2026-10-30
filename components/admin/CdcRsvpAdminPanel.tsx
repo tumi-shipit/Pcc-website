@@ -60,7 +60,7 @@ export default function CdcRsvpAdminPanel() {
             <thead className="bg-white/[0.04] text-xs uppercase tracking-wider text-zinc-400"><tr>{["Person", "Categories", "RSVP for nominee", "Response", "Contact", "Guest", "Dietary requirements", "Received"].map((heading) => <th key={heading} className="px-4 py-3 font-bold">{heading}</th>)}</tr></thead>
             <tbody className="divide-y divide-white/[0.07]">{rows.map((row) => <tr key={row.id} className="align-top hover:bg-white/[0.025]">
               <td className="px-4 py-3"><p className="font-semibold">{row.nominee_name} {row.nominee_surname}</p><p className="mt-1 text-xs capitalize text-zinc-500">{row.respondent_role}</p></td>
-              <td className="px-4 py-3 text-zinc-300">{row.nomination_categories?.length ? row.nomination_categories.join(", ") : "Not recorded"}</td>
+              <td className="px-4 py-3 text-zinc-300">{row.respondent_role === "guest" ? "—" : row.nomination_categories?.length ? row.nomination_categories.join(", ") : "Not recorded"}</td>
               <td className="px-4 py-3 text-amber-100">{row.nominee_host_name}</td>
               <td className={`px-4 py-3 font-semibold ${row.attending ? "text-emerald-200" : "text-zinc-400"}`}>{row.attending ? "Attending" : "Unable to attend"}</td>
               <td className="px-4 py-3 text-zinc-300">{row.email}{row.phone && <span className="mt-1 block text-xs text-zinc-500">{row.phone}</span>}</td>
