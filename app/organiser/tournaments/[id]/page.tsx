@@ -109,11 +109,15 @@ function TournamentEntries({
   const [bulkSectionId, setBulkSectionId] = useState("");
   const [bulkContactEmail, setBulkContactEmail] = useState(email);
   const [bulkContactPhone, setBulkContactPhone] = useState("");
+  const [bulkProvince, setBulkProvince] = useState("");
   const [bulkEntries, setBulkEntries] = useState<BulkEntry[]>([]);
   const [bulkIssues, setBulkIssues] = useState<string[]>([]);
   const [importingBulkEntries, setImportingBulkEntries] = useState(false);
 
   const allowed = isAdmin || access.some((row) => row.tournament_id === tournamentId);
+  const isAuthorisedTeamImport =
+    tournament?.registration_status === "Closed" ||
+    tournament?.registration_status === "Completed";
   const bulkAssignments = bulkEntries.map(entry => ({ entry, ...resolveBulkSection(entry,tournamentSections,bulkSectionId) }));
 
   async function loadEntries() {
@@ -430,13 +434,18 @@ function TournamentEntries({
 
     try {
       const workbook = XLSX.read(await file.arrayBuffer(), { cellDates: true });
-      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<unknown[]>(worksheet, {
-        header: 1,
-        defval: "",
-        raw: true,
-      });
-      const parsed = parseBulkRows(rows);
+      const parsed = workbook.SheetNames
+        .map((sheetName) => {
+          const rows = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
+            header: 1,
+            defval: "",
+            raw: true,
+          });
+          return parseBulkRows(rows);
+        })
+        .sort((left, right) =>
+          right.entries.length - left.entries.length || left.issues.length - right.issues.length
+        )[0];
       setBulkEntries(parsed.entries);
       setBulkIssues(parsed.issues);
     } catch {
@@ -451,7 +460,11 @@ function TournamentEntries({
       setMessage("Resolve all file and section issues in the preview before importing.");
       return;
     }
-    if (!bulkContactEmail.trim() || !bulkContactPhone.trim()) {
+    if (isAuthorisedTeamImport && !bulkProvince.trim()) {
+      setMessage("Enter the selected team's province before importing.");
+      return;
+    }
+    if (!isAuthorisedTeamImport && (!bulkContactEmail.trim() || !bulkContactPhone.trim())) {
       setMessage("Enter the organiser or group contact email and phone number before importing.");
       return;
     }
@@ -461,30 +474,44 @@ function TournamentEntries({
     const failures: string[] = [];
     const remaining: BulkEntry[] = [];
     let imported = 0;
+    let alreadyRegistered = 0;
     let nextIndex = 0;
     try {
     for (const [index, assignment] of bulkAssignments.entries()) {
       const { entry, section } = assignment;
       if (!section) continue;
       setMessage(`Importing ${index+1} of ${bulkAssignments.length}: ${entry.fullName} → ${section.section_name}`);
-      const { error } = await supabase.rpc("submit_tournament_registration_named", {
-        p_full_name: entry.fullName,
-        p_first_names: entry.firstNames,
-        p_surname: entry.surname,
-        p_pcc_id: "",
-        p_chess_sa_id: "",
-        p_date_of_birth: entry.dateOfBirth,
-        p_gender: entry.gender,
-        p_rating: entry.rating,
-        p_email: bulkContactEmail.trim(),
-        p_phone: bulkContactPhone.trim(),
-        p_club: entry.club,
-        p_province: "",
-        p_tournament_id: tournamentId,
-        p_section_id: section.id,
-        p_payment_status: "Pending",
-        p_proof_of_payment_url: "",
-      }).abortSignal(AbortSignal.timeout(30000));
+      const result = isAuthorisedTeamImport
+        ? await supabase.rpc("import_authorised_team_entry", {
+            p_full_name: entry.fullName,
+            p_first_names: entry.firstNames,
+            p_surname: entry.surname,
+            p_date_of_birth: entry.dateOfBirth,
+            p_gender: entry.gender,
+            p_club: entry.club,
+            p_province: bulkProvince.trim(),
+            p_tournament_id: tournamentId,
+            p_section_id: section.id,
+          }).abortSignal(AbortSignal.timeout(30000))
+        : await supabase.rpc("submit_tournament_registration_named", {
+            p_full_name: entry.fullName,
+            p_first_names: entry.firstNames,
+            p_surname: entry.surname,
+            p_pcc_id: "",
+            p_chess_sa_id: "",
+            p_date_of_birth: entry.dateOfBirth,
+            p_gender: entry.gender,
+            p_rating: entry.rating,
+            p_email: bulkContactEmail.trim(),
+            p_phone: bulkContactPhone.trim(),
+            p_club: entry.club,
+            p_province: "",
+            p_tournament_id: tournamentId,
+            p_section_id: section.id,
+            p_payment_status: "Pending",
+            p_proof_of_payment_url: "",
+          }).abortSignal(AbortSignal.timeout(30000));
+      const { data, error } = result;
       if (error && /abort|timeout|fetch/i.test(error.message)) {
         throw new Error("Registration request interrupted");
       }
@@ -499,7 +526,11 @@ function TournamentEntries({
         }
         failures.push(`Row ${entry.rowNumber} (${entry.fullName}): ${error.message}`);
       } else {
-        imported += 1;
+        if (isAuthorisedTeamImport && (data as { outcome?: string } | null)?.outcome === "already_registered") {
+          alreadyRegistered += 1;
+        } else {
+          imported += 1;
+        }
       }
     }
     } catch {
@@ -509,7 +540,7 @@ function TournamentEntries({
 
     const completionMessage = failures.length
       ? `${imported} player${imported === 1 ? "" : "s"} imported. ${failures.length} row${failures.length === 1 ? " needs" : "s need"} attention below.`
-      : `${imported} player${imported === 1 ? "" : "s"} imported as pending entries.`;
+      : `${imported} player${imported === 1 ? "" : "s"} imported as pending entries.${alreadyRegistered ? ` ${alreadyRegistered} already registered.` : ""}`;
 
     setImportingBulkEntries(false);
     setBulkEntries(remaining);
@@ -609,13 +640,12 @@ function TournamentEntries({
                 PCC bulk entry
               </p>
               <h2 className="mt-2 text-2xl font-black text-white">
-                Import players from the PCC template
+                {isAuthorisedTeamImport ? "Import an authorised selected team" : "Import players from the PCC template"}
               </h2>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-300">
-                Download the standard PCC Excel sheet, complete one player per row,
-                then upload it here. Each imported player is added as a pending entry
-                and still follows the tournament&apos;s normal section, duplicate and
-                capacity checks.
+                {isAuthorisedTeamImport
+                  ? "Only the super admin can use this closed-event import. It does not reopen public registration, and every player still follows section and duplicate checks."
+                  : "Download the standard PCC Excel sheet, complete one player per row, then upload it here. Each imported player is added as a pending entry and still follows the tournament's normal section, duplicate and capacity checks."}
               </p>
             </div>
             <button
@@ -643,7 +673,17 @@ function TournamentEntries({
                 ))}
               </select>
             </label>
-            <label className="text-sm font-semibold text-zinc-200">
+            {isAuthorisedTeamImport ? <label className="text-sm font-semibold text-zinc-200">
+              Team province
+              <input
+                type="text"
+                value={bulkProvince}
+                disabled={importingBulkEntries}
+                onChange={(event) => setBulkProvince(event.target.value)}
+                placeholder="e.g. Western Cape"
+                className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
+              />
+            </label> : <label className="text-sm font-semibold text-zinc-200">
               Group contact email
               <input
                 type="email"
@@ -653,8 +693,8 @@ function TournamentEntries({
                 placeholder="organiser@example.com"
                 className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
               />
-            </label>
-            <label className="text-sm font-semibold text-zinc-200">
+            </label>}
+            {!isAuthorisedTeamImport && <label className="text-sm font-semibold text-zinc-200">
               Group contact phone
               <input
                 type="tel"
@@ -664,7 +704,7 @@ function TournamentEntries({
                 placeholder="e.g. 082 000 0000"
                 className="mt-2 w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-white outline-none focus:border-red-500"
               />
-            </label>
+            </label>}
             <label className="text-sm font-semibold text-zinc-200">
               Completed PCC template
               <input
@@ -680,8 +720,9 @@ function TournamentEntries({
           <p className="mt-4 text-xs leading-5 text-zinc-400">
             First names, Surname and Date of birth are required. Add a Section per
             player to request a specific section. Rating and gender are needed when
-            section rules require them. The group contact details are recorded on each
-            player&apos;s entry so PCC can follow up where necessary.
+            section rules require them. {isAuthorisedTeamImport
+              ? "A selected-team import does not copy a team official's contact details onto player profiles."
+              : "The group contact details are recorded on each player's entry so PCC can follow up where necessary."}
           </p>
 
           {bulkEntries.length > 0 && (
@@ -696,7 +737,7 @@ function TournamentEntries({
                   disabled={importingBulkEntries || bulkIssues.length > 0 || bulkAssignments.some(item=>!item.section)}
                   className="rounded-xl bg-red-600 px-5 py-3 text-sm font-black text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {importingBulkEntries ? "Importing players..." : "Import pending entries"}
+                  {importingBulkEntries ? "Importing players..." : isAuthorisedTeamImport ? "Import selected team" : "Import pending entries"}
                 </button>
               </div>
               <div className="mt-3 max-h-96 space-y-2 overflow-y-auto text-sm">

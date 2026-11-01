@@ -73,3 +73,16 @@ test('xlsx round trip keeps requested section and separate names',()=>{
   const parsed=parseBulkRows(xlsx.utils.sheet_to_json(result.Sheets.Players,{header:1,defval:''}));
   assert.equal(parsed.entries[0].requestedSection,'U14');assert.equal(parsed.entries[0].surname,'Player');assert.equal(parsed.issues.length,0);
 });
+test('official team-selection sheets accept Name, e.g.School and M/F headers',()=>{
+  const result=parseBulkRows([
+    ['Name','','Surname','e.g.School','Athlete','District','Attire Size','M/F','Race','Date of Birth','', 'Contact no'],
+    [1,'Haojia','Sun','Pinelands North Primary','Athlete','Cape Town','Medium','Female','Asian','2013-10-10','', '062 994 0306'],
+  ]);
+  assert.equal(result.issues.length,0);
+  assert.equal(result.entries.length,1);
+  assert.equal(result.entries[0].firstNames,'Haojia');
+  assert.equal(result.entries[0].surname,'Sun');
+  assert.equal(result.entries[0].club,'Pinelands North Primary');
+  assert.equal(result.entries[0].gender,'Female');
+  assert.equal(result.entries[0].dateOfBirth,'2013-10-10');
+});
