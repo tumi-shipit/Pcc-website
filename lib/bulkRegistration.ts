@@ -59,26 +59,16 @@ export function bulkDate(value: unknown): string {
 }
 
 export function parseBulkRows(rows: unknown[][]): { entries: BulkEntry[]; issues: string[] } {
-  // Official school-sport selection sheets label given names simply as "Name".
-  // We still require a separate Surname column, so a combined-name file is not
-  // accepted accidentally.
-  const firstHeaders = ["first names","first name","given names", "name"];
+  const firstHeaders = ["first names","first name","given names"];
   const lastHeaders = ["surname","last name","family name"];
   const headerIndex = rows.findIndex(row => row.some(c => firstHeaders.includes(key(text(c)))) && row.some(c => lastHeaders.includes(key(text(c)))) && row.some(c => key(text(c)) === "date of birth"));
   if (headerIndex < 0) return { entries: [], issues: ["Use separate First names, Surname and Date of birth columns. Download the current template."] };
   const headers = rows[headerIndex].map(c => key(text(c)));
   const col = (...names: string[]) => headers.findIndex(h => names.includes(h));
-  // The school-sport form uses a merged "Name" heading across the sequence
-  // number and first-name columns. XLSX keeps the heading in the first cell,
-  // while player names are in the following blank-header column.
-  const firstNameHeader = col(...firstHeaders);
-  const firstNameColumn = headers[firstNameHeader] === "name" && headers[firstNameHeader + 1] === ""
-    ? firstNameHeader + 1
-    : firstNameHeader;
   const entries: BulkEntry[] = []; const issues: string[] = []; const seen = new Set<string>();
   rows.slice(headerIndex+1).forEach((row,index) => {
     const rowNumber = headerIndex+index+2;
-    const firstNames = text(row[firstNameColumn]); const surname = text(row[col(...lastHeaders)]);
+    const firstNames = text(row[col(...firstHeaders)]); const surname = text(row[col(...lastHeaders)]);
     const dob = row[col("date of birth")];
     if (!firstNames && !surname && !text(dob) && row.every(c => !text(c))) return;
     const dateOfBirth = bulkDate(dob);
@@ -92,10 +82,9 @@ export function parseBulkRows(rows: unknown[][]): { entries: BulkEntry[]; issues
     const identity = key(fullName).split(" ").sort().join(" ")+dateOfBirth;
     if (seen.has(identity)) { issues.push(`Row ${rowNumber}: duplicate name and date of birth in this file.`); return; }
     seen.add(identity);
-    const genderValue = text(row[col("gender", "m/f")]);
-    const rawGender = key(genderValue);
-    const gender = ["m","male","boy"].includes(rawGender) ? "Male" : ["f","female","girl"].includes(rawGender) ? "Female" : genderValue;
-    entries.push({rowNumber,firstNames,surname,fullName,dateOfBirth,rating,gender,club:text(row[col("club/city","club","school", "e.g.school")]),requestedSection:text(row[col("section","requested section")])});
+    const rawGender = key(text(row[col("gender")]));
+    const gender = ["m","male","boy"].includes(rawGender) ? "Male" : ["f","female","girl"].includes(rawGender) ? "Female" : text(row[col("gender")]);
+    entries.push({rowNumber,firstNames,surname,fullName,dateOfBirth,rating,gender,club:text(row[col("club/city","club","school")]),requestedSection:text(row[col("section","requested section")])});
   });
   if (entries.length > 200) return { entries: [], issues: [...issues,"This file contains more than 200 players. Split it into batches of at most 200; no rows were imported."] };
   return {entries,issues};
