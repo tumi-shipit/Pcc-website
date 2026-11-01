@@ -454,6 +454,11 @@ function TournamentEntries({
     }
   }
 
+  function excludeBulkEntry(rowNumber: number) {
+    setBulkEntries((current) => current.filter((entry) => entry.rowNumber !== rowNumber));
+    setBulkIssues((current) => current.filter((issue) => !issue.startsWith(`Row ${rowNumber}:`)));
+  }
+
   async function importBulkEntries() {
     if (importingBulkEntries) return;
     if (bulkEntries.length === 0 || bulkIssues.length || bulkAssignments.some(item => !item.section)) {
@@ -743,7 +748,17 @@ function TournamentEntries({
               <div className="mt-3 max-h-96 space-y-2 overflow-y-auto text-sm">
                 {bulkAssignments.map(({entry,section,reason}) => (
                   <div key={entry.rowNumber} className="rounded-lg border border-white/10 p-3">
-                    <p className="font-bold text-white">Row {entry.rowNumber}: {entry.fullName}</p>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="font-bold text-white">Row {entry.rowNumber}: {entry.fullName}</p>
+                      <button
+                        type="button"
+                        onClick={() => excludeBulkEntry(entry.rowNumber)}
+                        disabled={importingBulkEntries}
+                        className="shrink-0 rounded-lg border border-white/15 px-2 py-1 text-xs font-bold text-zinc-300 transition hover:border-red-400 hover:text-white disabled:opacity-50"
+                      >
+                        Exclude
+                      </button>
+                    </div>
                     <p className="text-zinc-400">Requested: {entry.requestedSection || tournamentSections.find(s=>s.id===bulkSectionId)?.section_name || "Automatic"}</p>
                     <p className={section ? "text-green-300" : "text-amber-300"}>{section?.section_name || "Needs review"} — {reason}</p>
                   </div>
