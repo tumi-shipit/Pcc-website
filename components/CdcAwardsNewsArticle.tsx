@@ -90,8 +90,8 @@ export default function CdcAwardsNewsArticle() {
                 <aside className="h-fit rounded-2xl border border-amber-200/20 bg-black/20 p-5">
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-300">Awards evening</p>
                   <p className="mt-3 text-xl font-black">14 November 2026</p>
-                  <p className="mt-1 text-zinc-300">17:00</p>
-                  <p className="mt-4 border-t border-white/10 pt-4 text-sm leading-6 text-zinc-300">Northern Academy Secondary School</p>
+                  <p className="mt-1 text-zinc-300">Arrival 17:00 · Programme 18:00</p>
+                  <p className="mt-4 border-t border-white/10 pt-4 text-sm leading-6 text-zinc-300">SABC Polokwane<br />19 Hospital Street, corner of Landros Mare Street<br />Polokwane, 0700</p>
                   <Link href="/cdc-excellence-awards#categories" className="mt-5 inline-flex text-sm font-bold text-amber-200 hover:text-white">See all award categories →</Link>
                 </aside>
               </div>
