@@ -18,7 +18,48 @@ export default function CdcExcellenceAwardsPage() {
           <div className="relative mx-auto w-full max-w-[340px]"><div className="absolute -inset-8 rounded-full bg-[#d3ad47]/10 blur-3xl" /><div className="relative rounded-[2rem] border border-[#dfbd58]/45 bg-[#f7f4e9] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.35)]"><Image src="/images/organisations/capricorn-district-chess.png" alt="Capricorn District Chess crest" width={500} height={500} priority className="h-auto w-full rounded-[1.4rem]" /><div className="mt-4 border-t border-[#17210f]/15 pt-4 text-center"><p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#17210f]">Excellence · Dedication · Chess</p></div></div></div>
         </div></div></section>
 
-        <section id="the-evening" className="mx-auto max-w-7xl px-5 py-10 md:px-10 md:py-14"><div className="grid gap-4 md:grid-cols-3"><EventFact label="The date" value="Saturday, 14 November 2026" /><EventFact label="The venue" value="SABC Polokwane, 19 Hospital Street, corner of Landros Mare Street, Polokwane, 0700" /><EventFact label="Arrival · Programme" value="17:00 · 18:00" /></div></section>
+        <section id="the-evening" className="mx-auto max-w-7xl px-5 py-10 md:px-10 md:py-14">
+          <div className="grid gap-4 md:grid-cols-3">
+            <EventFact label="The date" value="Saturday, 14 November 2026" />
+            <EventFact label="Arrival" value="17:00" />
+            <EventFact label="Programme begins" value="18:00" />
+          </div>
+        </section>
+
+        <section aria-labelledby="venue-heading" className="mx-auto max-w-7xl px-5 pb-16 md:px-10 md:pb-24">
+          <div className="grid overflow-hidden rounded-[2rem] border border-[#d3ad47]/30 bg-[#0a2617] shadow-[0_30px_100px_rgba(0,0,0,0.28)] lg:grid-cols-[1.15fr_0.85fr]">
+            <figure className="relative min-h-[280px] sm:min-h-[380px]">
+              <Image
+                src="/images/events/sabc-polokwane-awards-venue.png"
+                alt="SABC Polokwane building beside the intersection and Polokwane direction signs"
+                width={1450}
+                height={1080}
+                sizes="(max-width: 1024px) 100vw, 60vw"
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+              <figcaption className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent px-5 pb-5 pt-14 text-sm font-semibold text-white sm:px-7 sm:pb-7">
+                The new venue for the 2nd CDC Excellence Awards
+              </figcaption>
+            </figure>
+            <div className="flex flex-col justify-center p-6 sm:p-9 lg:p-12">
+              <p className="cdc-eyebrow">Official venue</p>
+              <h2 id="venue-heading" className="mt-3 font-serif text-3xl font-semibold text-white md:text-4xl">SABC Polokwane</h2>
+              <p className="mt-5 text-base leading-7 text-[#d4dfd4]">
+                19 Hospital Street, corner of Landros Mare Street, Polokwane, 0700.
+              </p>
+              <div className="mt-7 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-white/10 bg-black/15 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#d8bb59]">Arrival</p>
+                  <p className="mt-1 text-xl font-semibold text-white">17:00</p>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-black/15 p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#d8bb59]">Programme</p>
+                  <p className="mt-1 text-xl font-semibold text-white">18:00</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="mx-auto max-w-7xl px-5 pb-20 md:px-10 md:pb-28"><div className="max-w-3xl"><p className="cdc-eyebrow">A night worth celebrating</p><h2 className="mt-4 font-serif text-4xl font-semibold leading-tight md:text-6xl">More than an award. A moment for the whole district.</h2><p className="mt-6 text-lg leading-8 text-[#c1d0c0]">From the first move to the final handshake, chess is built by people. This evening brings those people into the spotlight and gives the district a chance to celebrate together.</p></div><div className="mt-12 grid gap-4 md:grid-cols-3">{highlights.map((item) => <article key={item.number} className="cdc-category-panel"><p className="text-sm font-black text-[#dfbd58]">{item.number}</p><h3 className="mt-10 font-serif text-3xl font-semibold">{item.title}</h3><p className="mt-4 leading-7 text-[#bdcbbd]">{item.text}</p></article>)}</div></section>
 
