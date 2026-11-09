@@ -1,6 +1,6 @@
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
-import CdcNomineeRsvpForm from "@/components/CdcNomineeRsvpForm";
+import CdcAwardsCountdown from "@/components/CdcAwardsCountdown";
 
 export default function CdcNomineeRsvpPage() {
   return (
@@ -9,9 +9,12 @@ export default function CdcNomineeRsvpPage() {
         <section className="mx-auto max-w-2xl rounded-3xl border border-[#d3ad47]/30 bg-[#0a2617] p-6 shadow-2xl shadow-black/30 md:p-10">
           <p className="cdc-eyebrow">2nd CDC Excellence Awards · 2026</p>
           <h1 className="mt-4 font-serif text-4xl font-semibold text-white md:text-5xl">Nominee RSVP</h1>
-          <p className="mt-4 leading-7 text-[#c1d0c0]">Please let us know if you can join us on Saturday, 14 November 2026. Arrival is at 17:00 and the programme begins at 18:00 at SABC Polokwane, 19 Hospital Street, corner of Landros Mare Street, Polokwane, 0700. Choose whether you’re the nominee or their guest to see the relevant questions. Each nominee may bring one guest; guests should enter the nominee’s name.</p>
-          <CdcNomineeRsvpForm />
-          <p className="mt-8 border-t border-white/10 pt-5 text-xs leading-5 text-[#9faf9f]">Your contact and attendance details will be used by the awards organisers to plan the event.</p>
+          <p className="mt-4 leading-7 text-[#c1d0c0]">The awards evening is on Saturday, 14 November 2026. Arrival is at 17:00 and the programme begins at 18:00 at SABC Polokwane, 19 Hospital Street, corner of Landros Mare Street, Polokwane, 0700.</p>
+          <CdcAwardsCountdown />
+          <div role="status" className="mt-8 rounded-2xl border border-amber-200/20 bg-black/20 p-5">
+            <p className="font-bold text-amber-200">RSVP submissions are closed</p>
+            <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">The organisers are finalising arrangements for the awards evening. We look forward to seeing confirmed nominees and guests at SABC Polokwane.</p>
+          </div>
           <Link href="/cdc-excellence-awards" className="mt-6 inline-flex text-sm font-semibold text-amber-200 hover:text-white">← Back to the awards</Link>
         </section>
       </main>

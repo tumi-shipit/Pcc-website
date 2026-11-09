@@ -73,49 +73,12 @@ create unique index if not exists cdc_awards_rsvps_one_attending_guest_idx
 
 alter table public.cdc_excellence_awards_rsvps enable row level security;
 revoke all on public.cdc_excellence_awards_rsvps from public, anon, authenticated;
-grant insert (nominee_name, nominee_surname, respondent_role, nominee_host_name, nomination_categories, email, phone, attending, guest_count, guest_name, dietary_requirements)
-  on public.cdc_excellence_awards_rsvps to anon, authenticated;
 grant select on public.cdc_excellence_awards_rsvps to authenticated;
 grant delete on public.cdc_excellence_awards_rsvps to authenticated;
 
 drop policy if exists cdc_awards_public_rsvp_insert on public.cdc_excellence_awards_rsvps;
-create policy cdc_awards_public_rsvp_insert
-  on public.cdc_excellence_awards_rsvps
-  for insert to anon, authenticated
-  with check (
-    length(btrim(nominee_name)) between 1 and 80
-    and length(btrim(nominee_surname)) between 1 and 80
-    and respondent_role in ('nominee', 'guest')
-    and length(btrim(nominee_host_name)) between 1 and 161
-    and (
-      (
-        respondent_role = 'nominee'
-        and cardinality(nomination_categories) between 1 and 7
-        and nomination_categories <@ array[
-          'Arbiter of the Year',
-          'Coach of the Year',
-          'Administrator of the Year',
-          'Manager of the Year',
-          'Upcoming Arbiter of the Year',
-          'Upcoming Manager of the Year',
-          'Organiser of the Year'
-        ]::text[]
-      )
-      or (respondent_role = 'guest' and cardinality(nomination_categories) = 0)
-    )
-    and length(btrim(email)) between 3 and 254
-    and guest_count between 0 and 1
-    and (attending or guest_count = 0)
-    and (guest_name is null or length(btrim(guest_name)) between 1 and 161)
-    and (
-      (respondent_role = 'nominee' and (
-        (guest_count = 0 and guest_name is null)
-        or (guest_count = 1 and attending and length(btrim(coalesce(guest_name, ''))) between 1 and 161)
-      ))
-      or (respondent_role = 'guest' and guest_count = 0 and guest_name is null)
-    )
-    and (now() at time zone 'Africa/Johannesburg') < timestamp '2026-11-14 17:00:00'
-  );
+revoke insert (nominee_name, nominee_surname, respondent_role, nominee_host_name, nomination_categories, email, phone, attending, guest_count, guest_name, dietary_requirements)
+  on public.cdc_excellence_awards_rsvps from anon, authenticated;
 
 drop policy if exists cdc_awards_admin_rsvp_read on public.cdc_excellence_awards_rsvps;
 create policy cdc_awards_admin_rsvp_read
