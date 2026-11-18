@@ -15,7 +15,7 @@ export default function CdcNomineeRsvpPage() {
             <p className="font-bold text-amber-200">RSVP submissions are closed</p>
             <p className="mt-2 text-sm leading-6 text-[#c1d0c0]">RSVPs are closed now that the awards evening has taken place. Visit the awards page to see the young player recipients.</p>
           </div>
-          <Link href="/cdc-excellence-awards/winners" className="mt-5 inline-flex text-sm font-semibold text-amber-200 hover:text-white">View the young award recipients →</Link>
+          <Link href="/cdc-excellence-awards#awards-2026-winners" className="mt-5 inline-flex text-sm font-semibold text-amber-200 hover:text-white">View the 2026 award recipients →</Link>
           <Link href="/cdc-excellence-awards" className="mt-6 inline-flex text-sm font-semibold text-amber-200 hover:text-white">← Back to the awards</Link>
         </section>
       </main>

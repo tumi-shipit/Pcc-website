@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "2nd CDC Excellence Awards 2026",
+  title: "CDC Excellence Awards | Annual Archive",
   description:
-    "Celebrate the people and achievements of Capricorn District Chess at the 2nd CDC Excellence Awards.",
+    "The continuing official record of Capricorn District Chess Excellence Awards, with annual event information and award recipients.",
   openGraph: {
-    title: "2nd CDC Excellence Awards 2026",
+    title: "CDC Excellence Awards | Annual Archive",
     description:
-      "Celebrating the people, passion and progress behind Capricorn District Chess. Voting has closed.",
+      "The official annual record of Capricorn District Chess Excellence Awards and recipients.",
     images: [
       {
         url: "/images/organisations/capricorn-district-chess.png",
@@ -20,9 +20,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "2nd CDC Excellence Awards 2026",
-    description:
-      "Celebrating the people, passion and progress behind Capricorn District Chess. Voting has closed.",
+    title: "CDC Excellence Awards | Annual Archive",
+    description: "Annual award records and recipients from Capricorn District Chess.",
     images: ["/images/organisations/capricorn-district-chess.png"],
   },
 };

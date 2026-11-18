@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
-import CdcAwardsCountdown from "@/components/CdcAwardsCountdown";
+import CdcAwardWinnersArchive from "@/components/CdcAwardWinnersArchive";
 import { cdcAwardGroups } from "@/lib/cdcAwards";
 
 const highlights = [
@@ -15,11 +15,32 @@ export default function CdcExcellenceAwardsPage() {
     <PublicPageShell>
       <main className="cdc-awards min-h-screen overflow-hidden bg-[#061b10] text-[#f7f4e9]">
         <section className="cdc-hero relative border-b border-[#d3ad47]/30"><div aria-hidden="true" className="cdc-hero-glow" /><div className="relative mx-auto max-w-7xl px-5 pb-20 pt-28 md:px-10 md:pb-28 md:pt-40"><div className="grid items-center gap-12 lg:grid-cols-[1.2fr_0.8fr]">
-          <div><div className="flex items-center gap-3 text-[#e4c45e]"><span className="h-px w-12 bg-current" /><p className="text-xs font-bold uppercase tracking-[0.32em]">Capricorn District Chess</p></div><p className="mt-8 inline-flex rounded-full border border-[#dfbd58]/40 bg-[#dfbd58]/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#f0d878]">2026 awards · complete</p><h1 className="mt-7 max-w-4xl font-serif text-6xl font-semibold leading-[0.9] tracking-[-0.045em] text-white md:text-8xl">The people who make chess <span className="text-[#e5c560]">exceptional.</span></h1><p className="mt-8 max-w-2xl text-lg leading-8 text-[#d4dfd4] md:text-xl">The 2nd Capricorn District Chess Excellence Awards brought our chess community together to celebrate achievement, service and dedication.</p><div className="mt-10 flex flex-wrap gap-3"><Link href="/cdc-excellence-awards/winners" className="cdc-gold-button">Meet the young recipients</Link><a href="#the-evening" className="cdc-outline-button">Event details</a></div></div>
+          <div><div className="flex items-center gap-3 text-[#e4c45e]"><span className="h-px w-12 bg-current" /><p className="text-xs font-bold uppercase tracking-[0.32em]">Capricorn District Chess</p></div><p className="mt-8 inline-flex rounded-full border border-[#dfbd58]/40 bg-[#dfbd58]/10 px-4 py-2 text-xs font-black uppercase tracking-[0.22em] text-[#f0d878]">Official awards archive</p><h1 className="mt-7 max-w-4xl font-serif text-6xl font-semibold leading-[0.9] tracking-[-0.045em] text-white md:text-8xl">The people who make chess <span className="text-[#e5c560]">exceptional.</span></h1><p className="mt-8 max-w-2xl text-lg leading-8 text-[#d4dfd4] md:text-xl">The official record of Capricorn District Chess Excellence Awards. Each year&apos;s announcements, event information and recipients will be collected here.</p><div className="mt-10 flex flex-wrap gap-3"><Link href="#awards-2026-winners" className="cdc-gold-button">View 2026 recipients</Link><a href="#awards-archive" className="cdc-outline-button">Browse award years</a></div></div>
           <div className="relative mx-auto w-full max-w-[340px]"><div className="absolute -inset-8 rounded-full bg-[#d3ad47]/10 blur-3xl" /><div className="relative rounded-[2rem] border border-[#dfbd58]/45 bg-[#f7f4e9] p-5 shadow-[0_30px_100px_rgba(0,0,0,0.35)]"><Image src="/images/organisations/capricorn-district-chess.png" alt="Capricorn District Chess crest" width={500} height={500} priority className="h-auto w-full rounded-[1.4rem]" /><div className="mt-4 border-t border-[#17210f]/15 pt-4 text-center"><p className="text-[10px] font-black uppercase tracking-[0.28em] text-[#17210f]">Excellence · Dedication · Chess</p></div></div></div>
         </div></div></section>
 
-        <section id="the-evening" className="mx-auto max-w-7xl px-5 py-10 md:px-10 md:py-14">
+        <section id="awards-archive" aria-labelledby="awards-archive-heading" className="mx-auto max-w-7xl px-5 py-12 md:px-10 md:py-16">
+          <div className="mb-6 max-w-3xl">
+            <p className="cdc-eyebrow">Year by year</p>
+            <h2 id="awards-archive-heading" className="mt-3 font-serif text-4xl font-semibold text-white md:text-5xl">Awards archive</h2>
+            <p className="mt-4 leading-7 text-[#c1d0c0]">This page is the continuing home for the awards. New editions will be added here alongside past records.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <a href="#awards-2026" className="cdc-category-panel transition hover:border-[#dfbd58]/50">
+              <p className="cdc-eyebrow">2026 · 2nd awards</p>
+              <h3 className="mt-3 font-serif text-2xl font-semibold text-white">Event record</h3>
+              <p className="mt-2 text-sm leading-6 text-[#bdcbbd]">Ceremony details, venue and highlights.</p>
+            </a>
+            <a href="#awards-2026-winners" className="cdc-category-panel transition hover:border-[#dfbd58]/50">
+              <p className="cdc-eyebrow">2026 · Young players</p>
+              <h3 className="mt-3 font-serif text-2xl font-semibold text-white">View recipients</h3>
+              <p className="mt-2 text-sm leading-6 text-[#bdcbbd]">Browse the young award recipients by age group.</p>
+            </a>
+          </div>
+        </section>
+
+        <section id="awards-2026" aria-labelledby="awards-2026-heading" className="mx-auto max-w-7xl px-5 py-8 md:px-10 md:py-10">
+          <h2 id="awards-2026-heading" className="sr-only">2026 awards details</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <EventFact label="The date" value="Saturday, 14 November 2026" />
             <EventFact label="Arrival" value="17:00" />
@@ -27,9 +48,7 @@ export default function CdcExcellenceAwardsPage() {
           </div>
         </section>
 
-        <div className="mx-auto max-w-7xl px-5 md:px-10">
-          <CdcAwardsCountdown />
-        </div>
+        <CdcAwardWinnersArchive />
 
         <section aria-labelledby="venue-heading" className="mx-auto max-w-7xl px-5 pb-16 md:px-10 md:pb-24">
           <div className="grid overflow-hidden rounded-[2rem] border border-[#d3ad47]/30 bg-[#0a2617] shadow-[0_30px_100px_rgba(0,0,0,0.28)] lg:grid-cols-[1.15fr_0.85fr]">
@@ -70,8 +89,8 @@ export default function CdcExcellenceAwardsPage() {
 
         <section className="border-y border-[#d3ad47]/25 bg-[#0a2617]"><div className="mx-auto max-w-7xl px-5 py-20 md:px-10 md:py-28"><div className="flex flex-col justify-between gap-8 md:flex-row md:items-end"><div><p className="cdc-eyebrow">The honours</p><h2 className="mt-4 font-serif text-4xl font-semibold md:text-6xl">A stage for excellence.</h2></div><p className="max-w-md leading-7 text-[#c1d0c0]">Every category tells a story of service, achievement and dedication to chess in Capricorn District.</p></div><div className="mt-12 grid gap-4 md:grid-cols-2">{cdcAwardGroups.map((group, index) => <article key={group.title} className="cdc-category-panel"><div className="flex items-start justify-between gap-5"><div><p className="text-xs font-black uppercase tracking-[0.2em] text-[#dfbd58]">0{index + 1}</p><h3 className="mt-3 font-serif text-2xl font-semibold">{group.title}</h3></div><span className="rounded-full border border-white/15 px-3 py-1 text-[10px] font-black uppercase tracking-[0.15em] text-[#d7ded3]">{group.categories.length} awards</span></div><p className="mt-6 leading-7 text-[#bdcbbd]">{group.description}</p></article>)}</div></div></section>
 
-        <section className="mx-auto max-w-5xl px-5 py-20 text-center md:px-10 md:py-28"><p className="cdc-eyebrow">A district celebration</p><h2 className="mt-5 font-serif text-5xl font-semibold leading-tight md:text-7xl">Thank you for celebrating with us.</h2><p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#c1d0c0]">The 2nd CDC Excellence Awards took place on 14 November at SABC Polokwane. Explore the young player recipients recognised across the seven age groups.</p><div className="mt-10 flex flex-wrap justify-center gap-3"><Link href="/cdc-excellence-awards/winners" className="cdc-gold-button">View young recipients</Link><Link href="/" className="cdc-outline-button">Back to Polokwane Chess Club</Link></div></section>
-        <footer className="border-t border-white/10 px-5 py-8 text-center text-xs text-[#9faf9f] md:px-10"><p>2nd Capricorn District Chess Excellence Awards · 2026</p></footer>
+        <section className="mx-auto max-w-5xl px-5 py-20 text-center md:px-10 md:py-28"><p className="cdc-eyebrow">A district celebration</p><h2 className="mt-5 font-serif text-5xl font-semibold leading-tight md:text-7xl">Thank you for celebrating with us.</h2><p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-[#c1d0c0]">The 2nd CDC Excellence Awards took place on 14 November at SABC Polokwane. This awards archive will continue to grow with future editions.</p><div className="mt-10 flex flex-wrap justify-center gap-3"><Link href="#awards-archive" className="cdc-gold-button">Browse the awards archive</Link><Link href="/" className="cdc-outline-button">Back to Polokwane Chess Club</Link></div></section>
+        <footer className="border-t border-white/10 px-5 py-8 text-center text-xs text-[#9faf9f] md:px-10"><p>Capricorn District Chess Excellence Awards · Annual archive</p></footer>
       </main>
     </PublicPageShell>
   );
