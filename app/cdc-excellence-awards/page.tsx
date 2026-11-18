@@ -46,6 +46,7 @@ export default function CdcExcellenceAwardsPage() {
                 <div className="col-span-2 rounded-xl border border-white/10 bg-black/15 p-4"><dt className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#d8bb59]">Venue</dt><dd className="mt-1 font-semibold leading-6 text-white">SABC Polokwane, 19 Hospital Street, corner of Landros Mare Street, Polokwane, 0700</dd></div>
               </dl>
               <p className="mt-6 text-sm leading-6 text-[#bdcbbd]">The 2026 record includes Player Awards across Under 8 to Under 20, Officials and Teams awards, and special recognition for service and contribution.</p>
+              <a href="https://drive.google.com/drive/folders/1MWzMyHZ22WWuwxJeDlNrL6xbKuihZveu?usp=sharing" target="_blank" rel="noopener noreferrer" className="mt-5 inline-flex min-h-11 items-center rounded-lg border border-[#dfbd58]/35 px-4 py-2.5 text-sm font-bold text-amber-100 transition hover:border-[#dfbd58]/70 hover:bg-[#dfbd58]/10">View more photos from the awards <span className="ml-2" aria-hidden="true">↗</span></a>
               <div className="mt-7 flex flex-wrap gap-3"><Link href="#awards-2026-winners" className="cdc-gold-button">Player Awards</Link><Link href="#awards-2026-officials" className="cdc-outline-button">Officials and Teams</Link></div>
             </div>
           </article>
