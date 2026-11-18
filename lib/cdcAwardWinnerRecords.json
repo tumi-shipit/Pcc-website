@@ -1,0 +1,416 @@
+[
+  {
+    "row": 2,
+    "ageGroup": "u10",
+    "name": "Mokgopo Thabang",
+    "award": "Outstanding  U10 Player of the year"
+  },
+  {
+    "row": 3,
+    "ageGroup": "u10",
+    "name": "Peta Baatile",
+    "award": "Outstanding U10 Female Player of the year"
+  },
+  {
+    "row": 4,
+    "ageGroup": "u10",
+    "name": "Dolo Mikayla",
+    "award": "3rd outstanding U10 Player of the year"
+  },
+  {
+    "row": 5,
+    "ageGroup": "u10",
+    "name": "Mashava Ntokoto",
+    "award": "4th outstanding U10 Player of the year"
+  },
+  {
+    "row": 6,
+    "ageGroup": "u10",
+    "name": "Matsapola Phetogo",
+    "award": "5th outstanding U10 Player of the year"
+  },
+  {
+    "row": 7,
+    "ageGroup": "u10",
+    "name": "Maake Boikanyo",
+    "award": "6th outstanding U10 Player of the year"
+  },
+  {
+    "row": 8,
+    "ageGroup": "u10",
+    "name": "Chauke Nhluvukiso",
+    "award": "7th outstanding U10 Player of the year"
+  },
+  {
+    "row": 9,
+    "ageGroup": "u10",
+    "name": "Ras Martin",
+    "award": "8th outstanding U10 Player of the year"
+  },
+  {
+    "row": 10,
+    "ageGroup": "u10",
+    "name": "Ras JJ",
+    "award": "9th outstanding U10 Player of the year"
+  },
+  {
+    "row": 11,
+    "ageGroup": "u10",
+    "name": "Kataka Bohlale",
+    "award": "10th outstanding U10 Player of the year"
+  },
+  {
+    "row": 12,
+    "ageGroup": "u12",
+    "name": "Serradinho Tiago",
+    "award": "Outstanding U12 Male Player of the year"
+  },
+  {
+    "row": 13,
+    "ageGroup": "u12",
+    "name": "Botha Pieter",
+    "award": "3rd Outstanding U12 Player of the year"
+  },
+  {
+    "row": 14,
+    "ageGroup": "u12",
+    "name": "Matsebatlela Madiokwane",
+    "award": "4th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 15,
+    "ageGroup": "u12",
+    "name": "Marx Wian Adriaan",
+    "award": "5th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 16,
+    "ageGroup": "u12",
+    "name": "Du Toit Joshua",
+    "award": "6th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 17,
+    "ageGroup": "u12",
+    "name": "Pheko Kamogelo",
+    "award": "7th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 18,
+    "ageGroup": "u12",
+    "name": "Makhubo Keratilwe",
+    "award": "Outstanding U12 Female Player of the year"
+  },
+  {
+    "row": 19,
+    "ageGroup": "u12",
+    "name": "Ratomba Lefa",
+    "award": "8th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 20,
+    "ageGroup": "u12",
+    "name": "Modika Tshepang",
+    "award": "9th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 21,
+    "ageGroup": "u12",
+    "name": "Dolo Mogau",
+    "award": "10th Outstanding U12 Player of the year"
+  },
+  {
+    "row": 22,
+    "ageGroup": "u14",
+    "name": "Legodi Shiloh",
+    "award": "Outstanding U14 Male Player of the year"
+  },
+  {
+    "row": 23,
+    "ageGroup": "u14",
+    "name": "Mabaso Siyabonga",
+    "award": "3rd outstanding U14 Player of the year"
+  },
+  {
+    "row": 24,
+    "ageGroup": "u14",
+    "name": "Mahlo Thoriso",
+    "award": "4th outstanding U14 Player of the year"
+  },
+  {
+    "row": 25,
+    "ageGroup": "u14",
+    "name": "Kruger Lehan",
+    "award": "5th outstanding U14 Player of the year"
+  },
+  {
+    "row": 26,
+    "ageGroup": "u14",
+    "name": "Mhlongo Rinovingo",
+    "award": "6th outstanding U14 Player of the year"
+  },
+  {
+    "row": 27,
+    "ageGroup": "u14",
+    "name": "Maleka Kega",
+    "award": "7th outstanding U14 Player of the year"
+  },
+  {
+    "row": 28,
+    "ageGroup": "u14",
+    "name": "Verreynne Kobus",
+    "award": "8th outstanding U14 Player of the year"
+  },
+  {
+    "row": 29,
+    "ageGroup": "u14",
+    "name": "Maheshu Sagwati",
+    "award": "Outstanding U14 Female Player of the year"
+  },
+  {
+    "row": 30,
+    "ageGroup": "u14",
+    "name": "Zitha Vun`we",
+    "award": "9th outstanding U14 Player of the year"
+  },
+  {
+    "row": 31,
+    "ageGroup": "u14",
+    "name": "Mashava Inkarhi",
+    "award": "10th outstanding U14 Player of the year"
+  },
+  {
+    "row": 32,
+    "ageGroup": "u16",
+    "name": "Molele Lesedi",
+    "award": "Outstanding U16 Male Player of the year"
+  },
+  {
+    "row": 33,
+    "ageGroup": "u16",
+    "name": "Mphahlele Phetolo",
+    "award": "3rd Outstanding U16 Player of the year"
+  },
+  {
+    "row": 34,
+    "ageGroup": "u16",
+    "name": "Matabane Mahlogonolo",
+    "award": "4th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 35,
+    "ageGroup": "u16",
+    "name": "Luthuli Kgothatso",
+    "award": "5th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 36,
+    "ageGroup": "u16",
+    "name": "Motsifane Lesedi",
+    "award": "6th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 37,
+    "ageGroup": "u16",
+    "name": "Mashamaite Mahlogonolo",
+    "award": "7th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 38,
+    "ageGroup": "u16",
+    "name": "Motseta Lehlogonolo",
+    "award": "8th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 39,
+    "ageGroup": "u16",
+    "name": "Lekoloana Ramphelane",
+    "award": "9th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 40,
+    "ageGroup": "u16",
+    "name": "Maake Kalauba Manfree",
+    "award": "10th Outstanding U16 Player of the year"
+  },
+  {
+    "row": 41,
+    "ageGroup": "u16",
+    "name": "Moraba Reabetswe",
+    "award": "Outstanding U16 Female Player of the year"
+  },
+  {
+    "row": 42,
+    "ageGroup": "u18",
+    "name": "Mogodi Morongwa",
+    "award": "Outstanding U18 Male Player of the year"
+  },
+  {
+    "row": 43,
+    "ageGroup": "u18",
+    "name": "Masango Sobangane",
+    "award": "3rd Outstanding U18 Player of the year"
+  },
+  {
+    "row": 44,
+    "ageGroup": "u18",
+    "name": "Reichert Juan-Aiden",
+    "award": "4th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 45,
+    "ageGroup": "u18",
+    "name": "Ledwaba Leago",
+    "award": "5th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 46,
+    "ageGroup": "u18",
+    "name": "Nchabeleng Bokang",
+    "award": "6th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 47,
+    "ageGroup": "u18",
+    "name": "Mabilu M Obadia",
+    "award": "7th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 48,
+    "ageGroup": "u18",
+    "name": "Legodi Thabang",
+    "award": "8th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 49,
+    "ageGroup": "u18",
+    "name": "Matsebatlela Mogoboya",
+    "award": "9th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 50,
+    "ageGroup": "u18",
+    "name": "Madiba Michelle",
+    "award": "Outstanding U18 Female Player of the year"
+  },
+  {
+    "row": 51,
+    "ageGroup": "u18",
+    "name": "Tjikana Boitumelo",
+    "award": "10th Outstanding U18 Player of the year"
+  },
+  {
+    "row": 52,
+    "ageGroup": "u20",
+    "name": "Thipe Lehlabile",
+    "award": "Outstanding U20 Male Player of the year"
+  },
+  {
+    "row": 53,
+    "ageGroup": "u20",
+    "name": "Laubscher Enrico",
+    "award": "3rd Outstanding U20 Player of the year"
+  },
+  {
+    "row": 54,
+    "ageGroup": "u20",
+    "name": "Sebata Mapuru",
+    "award": "4th Outstanding U20 Player of the year"
+  },
+  {
+    "row": 55,
+    "ageGroup": "u20",
+    "name": "Rampfumedzi Mulanga",
+    "award": "5th Outstanding U20 Player of the year"
+  },
+  {
+    "row": 56,
+    "ageGroup": "u20",
+    "name": "Pretorius Danielle",
+    "award": "Outstanding U20 Female Player of the year"
+  },
+  {
+    "row": 57,
+    "ageGroup": "u20",
+    "name": "Mushweu Gundo",
+    "award": "6th Outstanding U20 Player of the year"
+  },
+  {
+    "row": 58,
+    "ageGroup": "u20",
+    "name": "Matji Tumelo",
+    "award": "7th Outstanding U20 Player of the year"
+  },
+  {
+    "row": 59,
+    "ageGroup": "u08",
+    "name": "Ari Mavuso",
+    "award": "3rd Outstanding U08 Player of the year"
+  },
+  {
+    "row": 60,
+    "ageGroup": "u08",
+    "name": "Keanu Jardim",
+    "award": "Outstanding U08 Male Player of the year"
+  },
+  {
+    "row": 61,
+    "ageGroup": "u08",
+    "name": "Lesedi Makgathe",
+    "award": "4th Outstanding U08 Player of the year"
+  },
+  {
+    "row": 62,
+    "ageGroup": "u08",
+    "name": "Mahumani Kulani",
+    "award": "5th Outstanding U08 Player of the year"
+  },
+  {
+    "row": 63,
+    "ageGroup": "u08",
+    "name": "Mashava Rixaladza",
+    "award": "6th Outstanding U08 Player of the year"
+  },
+  {
+    "row": 64,
+    "ageGroup": "u08",
+    "name": "Moitsi Mbalenhle",
+    "award": "Outstanding U08 Female Player of the year"
+  },
+  {
+    "row": 65,
+    "ageGroup": "u08",
+    "name": "Moitsi Nepo",
+    "award": "7th Outstanding U08 Player of the year"
+  },
+  {
+    "row": 66,
+    "ageGroup": "u10",
+    "name": "Mashava Ntokoto",
+    "award": "Represented South Africa in Commonwealth Chess Championsips 2026"
+  },
+  {
+    "row": 67,
+    "ageGroup": "u18",
+    "name": "Masango Sobangane",
+    "award": "Represented South Africa in Commonwealth Chess Championsips 2026"
+  },
+  {
+    "row": 68,
+    "ageGroup": "u08",
+    "name": "Ari Mavuso",
+    "award": "Upcoming Player of the year"
+  },
+  {
+    "row": 94,
+    "ageGroup": "u10",
+    "name": "Khutso Sebudubudu",
+    "award": "8th Outstanding U10 Player of the year"
+  },
+  {
+    "row": 95,
+    "ageGroup": "u16",
+    "name": "Molele Lesedi",
+    "award": "Overall Outstanding player of the year"
+  }
+]

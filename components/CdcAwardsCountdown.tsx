@@ -37,7 +37,7 @@ export default function CdcAwardsCountdown() {
     <section aria-label="Countdown to the CDC Excellence Awards programme" className="cdc-countdown-panel mx-auto max-w-7xl">
       <p className="text-center text-xs font-bold uppercase tracking-[0.22em] text-[#e4c45e]">Countdown to the awards programme</p>
       {started ? (
-        <p className="mt-4 text-center font-serif text-2xl font-semibold text-white">The celebration is underway</p>
+        <p className="mt-4 text-center font-serif text-2xl font-semibold text-white">The awards celebration has concluded</p>
       ) : remaining ? (
         <div role="timer" aria-live="off" className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <CountdownUnit label="Days" value={remaining.days} />

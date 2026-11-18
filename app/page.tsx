@@ -19,10 +19,10 @@ export default function Home() {
         <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-4 md:flex-row md:items-center">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">CDC Excellence Awards</p>
-            <h2 className="mt-1 text-xl font-black md:text-2xl">Voting has closed</h2>
-            <p className="mt-1 text-sm text-emerald-100/80">Thank you to everyone who managed to vote. The results will be announced soon.</p>
+            <h2 className="mt-1 text-xl font-black md:text-2xl">Meet the 2026 award recipients</h2>
+            <p className="mt-1 text-sm text-emerald-100/80">Celebrate the young players recognised at the 2nd CDC Excellence Awards.</p>
           </div>
-          <Link href="/cdc-excellence-awards" className="shrink-0 rounded-lg border border-amber-300/50 px-4 py-2.5 text-sm font-bold text-amber-100 transition hover:bg-amber-300 hover:text-emerald-950">View awards</Link>
+          <Link href="/cdc-excellence-awards/winners" className="shrink-0 rounded-lg border border-amber-300/50 px-4 py-2.5 text-sm font-bold text-amber-100 transition hover:bg-amber-300 hover:text-emerald-950">View young recipients</Link>
         </div>
       </section>
 
