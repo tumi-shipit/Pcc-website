@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 import PublicPageShell from "@/components/PublicPageShell";
 import CdcAwardWinnersArchive from "@/components/CdcAwardWinnersArchive";
+import CdcAwardOfficialsArchive from "@/components/CdcAwardOfficialsArchive";
 import CdcAwardsFeedbackForm from "@/components/CdcAwardsFeedbackForm";
 import { cdcAwardGroups } from "@/lib/cdcAwards";
 
@@ -26,7 +27,7 @@ export default function CdcExcellenceAwardsPage() {
             <h2 id="awards-archive-heading" className="mt-3 font-serif text-4xl font-semibold text-white md:text-5xl">Awards archive</h2>
             <p className="mt-4 leading-7 text-[#c1d0c0]">This page is the continuing home for the awards. New editions will be added here alongside past records.</p>
           </div>
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <a href="#awards-2026" className="cdc-category-panel transition hover:border-[#dfbd58]/50">
               <p className="cdc-eyebrow">2026 · 2nd awards</p>
               <h3 className="mt-3 font-serif text-2xl font-semibold text-white">Event record</h3>
@@ -42,6 +43,11 @@ export default function CdcExcellenceAwardsPage() {
               <h3 className="mt-3 font-serif text-2xl font-semibold text-white">Share feedback</h3>
               <p className="mt-2 text-sm leading-6 text-[#bdcbbd]">Rate the event and tell us what to improve.</p>
             </a>
+            <a href="#awards-2026-officials" className="cdc-category-panel transition hover:border-[#dfbd58]/50">
+              <p className="cdc-eyebrow">2026 · Officials and teams</p>
+              <h3 className="mt-3 font-serif text-2xl font-semibold text-white">Service and recognition</h3>
+              <p className="mt-2 text-sm leading-6 text-[#bdcbbd]">View the officials, teams and recognition recipients.</p>
+            </a>
           </div>
         </section>
 
@@ -55,6 +61,7 @@ export default function CdcExcellenceAwardsPage() {
         </section>
 
         <CdcAwardWinnersArchive />
+        <CdcAwardOfficialsArchive />
 
         <section aria-labelledby="venue-heading" className="mx-auto max-w-7xl px-5 pb-16 md:px-10 md:pb-24">
           <div className="grid overflow-hidden rounded-[2rem] border border-[#d3ad47]/30 bg-[#0a2617] shadow-[0_30px_100px_rgba(0,0,0,0.28)] lg:grid-cols-[1.15fr_0.85fr]">
