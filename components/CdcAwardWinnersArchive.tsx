@@ -63,9 +63,6 @@ export default function CdcAwardWinnersArchive() {
         <div className="max-w-3xl">
           <p className="cdc-eyebrow">Player Awards · 2026</p>
           <h2 id="cdc-2026-winners-heading" className="mt-4 font-serif text-4xl font-semibold text-white md:text-6xl">2026 CDC Excellence Winners</h2>
-          <p className="mt-5 text-base leading-7 text-[#c1d0c0]">
-            Player Awards are shown by age group. Places follow the awards presented, with tied positions kept as awarded.
-          </p>
         </div>
 
         <div className="mt-12 space-y-14 md:mt-16 md:space-y-20">

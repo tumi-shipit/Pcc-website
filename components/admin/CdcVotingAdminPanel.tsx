@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 import { supabase } from "@/lib/supabase";
+import { cdcOfficialAwardGroups } from "@/lib/cdcAwardOfficialWinners";
 
 type WinnerRow = { category: string; name: string; surname: string };
 type TallyRow = { category: string; name: string; surname: string; votes: number };
@@ -18,6 +19,10 @@ type Summary = {
 };
 type GoogleTallyRow = TallyRow;
 type GoogleResponse = Record<string, string>;
+
+const officialCoachWinner = cdcOfficialAwardGroups
+  .flatMap((group) => group.recipients)
+  .find((winner) => winner.award === "Coach of the Year")?.name;
 
 function asSastInput(value: string | null) {
   if (!value) return "";
@@ -152,6 +157,11 @@ export default function CdcVotingAdminPanel() {
   const displayTally = Array.from(combinedTally.values()).sort((a, b) => a.category.localeCompare(b.category) || b.votes - a.votes);
   const displayVoters = (summary?.total_voters ?? 0) + googleVoters;
   const displaySelections = (summary?.total_votes ?? 0) + googleTally.reduce((total, row) => total + row.votes, 0);
+  const displayedWinners = summary?.winners?.map((row) => {
+    if (row.category !== "Coach of the Year" || !officialCoachWinner) return row;
+    const [name, ...surname] = officialCoachWinner.split(" ");
+    return { ...row, name, surname: surname.join(" ") };
+  });
 
   return (
     <section className="mt-7 rounded-2xl border border-amber-300/20 bg-zinc-900/70 p-5">
@@ -212,14 +222,14 @@ export default function CdcVotingAdminPanel() {
         </div>
       )}
 
-      {summary?.state === "closed" && summary.winners && (
+      {summary?.state === "closed" && displayedWinners && (
         <div className="mt-6 border-t border-white/10 pt-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="font-bold">Award winners</h3>
           </div>
           <div className="mt-4 space-y-2">
-            {summary.winners.map((row) => <div key={row.category + "-" + row.name + "-" + row.surname} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span></div>)}
-            {summary.winners.length === 0 && <p className="text-sm text-zinc-400">No winner names are available to display.</p>}
+            {displayedWinners.map((row) => <div key={row.category + "-" + row.name + "-" + row.surname} className="grid gap-1 rounded-lg border border-white/[0.07] bg-black/15 px-3 py-2 text-sm sm:grid-cols-[1fr_1fr]"><span>{row.category}</span><span className="font-semibold">{row.name} {row.surname}</span></div>)}
+            {displayedWinners.length === 0 && <p className="text-sm text-zinc-400">No winner names are available to display.</p>}
           </div>
         </div>
       )}

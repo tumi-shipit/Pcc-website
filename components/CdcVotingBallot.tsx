@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 import type { AuthSession } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { cdcOfficialAwardGroups } from "@/lib/cdcAwardOfficialWinners";
 
 type Nominee = { name: string; surname: string; school_club: string };
 type BallotCategory = { category: string; nominees: Nominee[] };
@@ -18,6 +19,10 @@ type Ballot = {
   categories: BallotCategory[];
   my_votes: SavedVote[];
 };
+
+const officialCoachWinner = cdcOfficialAwardGroups
+  .flatMap((group) => group.recipients)
+  .find((winner) => winner.award === "Coach of the Year")?.name;
 
 function formatSast(value: string) {
   return new Intl.DateTimeFormat("en-ZA", {
@@ -124,6 +129,11 @@ export default function CdcVotingBallot() {
   const alreadyVoted = (ballot?.my_votes.length ?? 0) > 0;
   const selectedCategories = ballot?.categories.filter(({ category }) => Boolean(choices[category])).length ?? 0;
   const ballotProgress = ballot?.categories.length ? (selectedCategories / ballot.categories.length) * 100 : 0;
+  const displayedWinners = ballot?.winners?.map((winner) => {
+    if (winner.category !== "Coach of the Year" || !officialCoachWinner) return winner;
+    const [name, ...surname] = officialCoachWinner.split(" ");
+    return { ...winner, name, surname: surname.join(" ") };
+  });
 
   return (
     <section id="voting" className="mt-12 scroll-mt-28 border-t border-[#d3ad47]/25 pt-10">
@@ -149,7 +159,7 @@ export default function CdcVotingBallot() {
               <h3 className="font-serif text-2xl font-semibold text-white">2026 Award winners</h3>
               {ballot.winners.length > 0 ? (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {ballot.winners.map((winner) => (
+                  {displayedWinners?.map((winner) => (
                     <div key={`${winner.category}-${winner.name}-${winner.surname}`} className="rounded-xl border border-[#d3ad47]/20 bg-black/20 p-4">
                       <p className="text-xs font-bold uppercase tracking-wider text-[#e4c45e]">{winner.category}</p>
                       <p className="mt-1 font-semibold text-white">{winner.name} {winner.surname}</p>
