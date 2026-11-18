@@ -27,9 +27,13 @@ const fallbackArticle: Article = {
 export default function CdcAwardsNewsArticle() {
   const [article, setArticle] = useState(fallbackArticle);
   const [unpublished, setUnpublished] = useState(false);
-  const currentTitle = "2nd CDC Excellence Awards 2026";
-  const currentExcerpt =
-    "Nominations and voting have closed. Thank you to everyone who took part; the results will be announced soon.";
+  const currentTitle = "CDC Excellence Awards 2026";
+  const currentExcerpt = "The 2026 winners are now published in the annual awards archive.";
+  const currentContent = article.content
+    .replaceAll("2nd Capricorn District Chess Excellence Awards", "CDC Excellence Awards")
+    .replaceAll("2nd CDC Excellence Awards", "CDC Excellence Awards")
+    .replaceAll("Nominations and voting have closed. Thank you to everyone who took part; the results will be announced soon.", "The 2026 winners are now published in the annual awards archive.")
+    .replaceAll("Nominations and voting have closed for the 2nd CDC Excellence Awards. Results will be announced soon.", "The 2026 winners are now published in the annual awards archive.");
 
   useEffect(() => {
     async function loadArticle() {
@@ -80,7 +84,7 @@ export default function CdcAwardsNewsArticle() {
                 <div>
                   <h2 className="text-2xl font-black">About the awards</h2>
                   <div className="mt-3 space-y-4 leading-7 text-zinc-300">
-                    {article.content.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
+                    {currentContent.split(/\n\s*\n/).filter(Boolean).map((paragraph, index) => <p key={index}>{paragraph}</p>)}
                   </div>
                   <h3 className="mt-7 text-lg font-black">Award categories</h3>
                   <ul className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -92,7 +96,7 @@ export default function CdcAwardsNewsArticle() {
                   <p className="mt-3 text-xl font-black">14 November 2026</p>
                   <p className="mt-1 text-zinc-300">Arrival 17:00 · Programme 18:00</p>
                   <p className="mt-4 border-t border-white/10 pt-4 text-sm leading-6 text-zinc-300">SABC Polokwane<br />19 Hospital Street, corner of Landros Mare Street<br />Polokwane, 0700</p>
-                  <Link href="/cdc-excellence-awards#categories" className="mt-5 inline-flex text-sm font-bold text-amber-200 hover:text-white">See all award categories →</Link>
+                  <Link href="/cdc-excellence-awards#awards-2026-officials" className="mt-5 inline-flex text-sm font-bold text-amber-200 hover:text-white">View Officials and Teams →</Link>
                 </aside>
               </div>
             </div>

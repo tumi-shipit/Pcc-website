@@ -37,7 +37,7 @@ const quickLinks = [
   { href: "/hall-of-fame", title: "Hall of Fame", text: "PCC legacy" },
   {
     href: "/cdc-excellence-awards",
-    title: "2nd CDC Excellence Awards",
+    title: "CDC Excellence Awards",
     text: "Celebrating the people behind district chess",
   },
 ];
@@ -109,7 +109,7 @@ export default function Hero() {
               href="/cdc-excellence-awards"
               className="rounded-lg border border-amber-200/50 bg-amber-300 px-5 py-3 text-center text-sm font-bold text-emerald-950 shadow-lg shadow-amber-950/20 transition hover:bg-amber-200"
             >
-              2nd CDC Excellence Awards
+              CDC Excellence Awards
             </Link>
             <Link
               href="/#tournaments"

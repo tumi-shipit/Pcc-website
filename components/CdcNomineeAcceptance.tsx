@@ -77,7 +77,7 @@ export default function CdcNomineeAcceptance({ token }: { token: string }) {
   return (
     <main className="cdc-awards min-h-screen bg-[#061b10] px-5 pb-16 pt-28 text-[#f7f4e9] md:pt-36">
       <section className="mx-auto max-w-2xl rounded-3xl border border-[#d3ad47]/30 bg-[#0a2617] p-6 shadow-2xl shadow-black/30 md:p-10">
-        <p className="cdc-eyebrow">2nd CDC Excellence Awards · 2026</p>
+        <p className="cdc-eyebrow">CDC Excellence Awards · 2026</p>
         <h1 className="mt-4 font-serif text-4xl font-semibold text-white">Nomination response</h1>
         {loading ? <p className="mt-6 text-[#c1d0c0]">Loading your private response…</p> : !invitation ? (
           <p role="alert" className="mt-6 rounded-xl border border-red-200/20 bg-red-950/30 p-4 text-sm">{message}</p>

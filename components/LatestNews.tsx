@@ -79,7 +79,13 @@ export default function LatestNews() {
         const awardsPost = cdcPost
           ? cdcPost.published === false
             ? null
-            : { ...cdcAwardsNewsItem, ...cdcPost, href: cdcAwardsNewsItem.href }
+            : {
+                ...cdcPost,
+                ...cdcAwardsNewsItem,
+                image_url: cdcPost.image_url ?? cdcAwardsNewsItem.image_url,
+                published_at: cdcPost.published_at ?? cdcAwardsNewsItem.published_at,
+                href: cdcAwardsNewsItem.href,
+              }
           : cdcAwardsNewsItem;
         setPosts([
           ...(awardsPost ? [awardsPost] : []),

@@ -129,7 +129,7 @@ export default function CdcVotingBallot() {
     <section id="voting" className="mt-12 scroll-mt-28 border-t border-[#d3ad47]/25 pt-10">
       <div className="max-w-3xl">
         <p className="cdc-eyebrow">The public vote</p>
-        <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">Vote for the 2026 award recipients</h2>
+        <h2 className="mt-3 font-serif text-3xl font-semibold md:text-4xl">Vote in the 2026 CDC Excellence Awards</h2>
         <p className="mt-4 leading-7 text-[#c1d0c0]">
           Any voter with a verified email may submit one selection in each available category. A submitted vote cannot be changed.
         </p>

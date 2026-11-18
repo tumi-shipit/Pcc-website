@@ -66,7 +66,7 @@ export default function CdcVoterEmailVerification() {
   return (
     <main className="cdc-awards min-h-screen bg-[#061b10] px-5 pb-16 pt-28 text-[#f7f4e9] md:pt-36">
       <section className="mx-auto max-w-2xl rounded-3xl border border-[#d3ad47]/30 bg-[#0a2617] p-6 shadow-2xl shadow-black/30 md:p-10">
-        <p className="cdc-eyebrow">2nd CDC Excellence Awards · 2026</p>
+        <p className="cdc-eyebrow">CDC Excellence Awards · 2026</p>
         <h1 className="mt-4 font-serif text-4xl font-semibold text-white">Verify your email to vote</h1>
         <p className="mt-4 leading-7 text-[#c1d0c0]">
           Enter the email address you will use for voting. We will send a secure link to that inbox. Open the link on this device to return here and confirm your email.

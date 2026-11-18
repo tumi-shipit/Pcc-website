@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import CdcNomineeAcceptance from "@/components/CdcNomineeAcceptance";
 
 export const metadata: Metadata = {
-  title: "Nominee Response | 2nd CDC Excellence Awards",
+  title: "Nominee Response | CDC Excellence Awards",
   robots: { index: false, follow: false },
 };
 
