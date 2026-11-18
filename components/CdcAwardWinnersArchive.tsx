@@ -1,13 +1,5 @@
 import Image from "next/image";
-import { cdcAwardWinnerGroups, winnerPlace, winnerSpecialAwardLabel } from "@/lib/cdcAwardWinners";
-
-function ordinal(place: number) {
-  if (place % 100 >= 11 && place % 100 <= 13) return `${place}th`;
-  if (place % 10 === 1) return `${place}st`;
-  if (place % 10 === 2) return `${place}nd`;
-  if (place % 10 === 3) return `${place}rd`;
-  return `${place}th`;
-}
+import { cdcAwardWinnerGroups, winnerPlace, winnerPrimaryAwardLabel, winnerSpecialAwardLabel } from "@/lib/cdcAwardWinners";
 
 export default function CdcAwardWinnersArchive() {
   return (
@@ -64,7 +56,7 @@ export default function CdcAwardWinnersArchive() {
                         <div className="flex flex-wrap gap-2">
                           {winnerPlace(winner) !== null ? (
                             <span className="rounded-full border border-[#dfbd58]/25 bg-[#dfbd58]/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#e4c45e]">
-                              {ordinal(winnerPlace(winner)!)} Place · Outstanding Player of the Year
+                              {winnerPrimaryAwardLabel(winner)}
                             </span>
                           ) : null}
                           {winner.awards.map(winnerSpecialAwardLabel).filter((label) => label !== null).map((label) => (

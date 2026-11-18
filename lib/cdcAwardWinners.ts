@@ -68,6 +68,23 @@ export function winnerPlace(winner: CdcAwardWinner) {
   return placeForWinner(winner);
 }
 
+export function winnerPrimaryAwardLabel(winner: CdcAwardWinner) {
+  const place = placeForWinner(winner);
+  if (place === 1) return "Outstanding Player of the Year";
+  if (place === 2) return "Outstanding Female Player of the Year";
+  if (place === null) return null;
+  const suffix = place % 100 >= 11 && place % 100 <= 13
+    ? "th"
+    : place % 10 === 1
+      ? "st"
+      : place % 10 === 2
+        ? "nd"
+        : place % 10 === 3
+          ? "rd"
+          : "th";
+  return `${place}${suffix} Outstanding Player of the Year`;
+}
+
 export function winnerSpecialAwardLabel(award: string) {
   if (/commonwealth/i.test(award)) return "Represented South Africa at the 2026 Commonwealth Chess Championships";
   if (/upcoming player/i.test(award)) return "Upcoming player of the year";
