@@ -2,6 +2,7 @@ import { createServerSupabase } from "@/lib/serverSupabase";
 import { allowRequest, rateLimitResponse } from "@/lib/serverRateLimit";
 import { authorizeRegistrationRecovery } from "@/lib/registrationRecovery";
 import { registrationStatusAt } from "@/lib/registrationSchedule";
+import { calculateOnlineRegistrationTotal, ONLINE_REGISTRATION_FEE_RATE } from "@/lib/registrationPaymentFee";
 
 export const runtime = "nodejs";
 
@@ -22,17 +23,23 @@ export async function POST(request: Request) {
   if (!tournament || !section || !player || ["Rejected", "Withdrawn"].includes(registration.registration_status)) return Response.json({ error: "This entry cannot accept online payment. Contact the organiser." }, { status: 409 });
   if (!tournament.online_payment_enabled || registrationStatusAt(tournament) !== "Open") return Response.json({ error: "Online payment is not enabled for this tournament." }, { status: 403 });
   if (registration.payment_status === "Paid") return Response.json({ error: "This registration is already paid." }, { status: 409 });
-  const amount = section.entry_fee_override ?? tournament.entry_fee;
-  const amountCents = Math.round(Number(amount) * 100);
-  if (!Number.isSafeInteger(amountCents) || amountCents < 200) return Response.json({ error: "This entry does not have a valid online payment fee. Please contact the organiser." }, { status: 400 });
+  const entryFee = section.entry_fee_override ?? tournament.entry_fee;
+  const { entryFeeCents, onlineFeeCents, totalCents: amountCents } = calculateOnlineRegistrationTotal(entryFee);
+  if (!Number.isSafeInteger(amountCents) || entryFeeCents < 200) return Response.json({ error: "This entry does not have a valid online payment fee. Please contact the organiser." }, { status: 400 });
   const { data: existingOrder, error: lookupError } = await supabase.from("registration_payment_orders").select("id,status,amount").eq("registration_id",registration.id).maybeSingle();
   let order = existingOrder;
   if (lookupError) return Response.json({ error: "Could not check existing payments. Please try again." }, { status: 503 });
-  if (order && Math.round(Number(order.amount) * 100) !== amountCents) return Response.json({ error: "The entry fee has changed since payment started. Contact the organiser before paying." }, { status: 409 });
   if (order?.status === "paid") return Response.json({ error: "This registration is already paid." }, { status: 409 });
+  if (order && Math.round(Number(order.amount) * 100) !== amountCents) {
+    const { data: updated, error: updateError } = await supabase.from("registration_payment_orders")
+      .update({ amount: amountCents / 100, status: "created", yoco_checkout_id: null, yoco_mode: null, updated_at: new Date().toISOString() })
+      .eq("id", order.id).neq("status", "paid").select("id,status,amount").single();
+    if (updateError || !updated) return Response.json({ error: "Could not update the saved payment amount. Please contact the organiser." }, { status: 503 });
+    order = updated;
+  }
   if (!order) {
     const orderId = crypto.randomUUID();
-    const { data: created, error: orderError } = await supabase.from("registration_payment_orders").insert({ id:orderId,registration_id:registration.id,tournament_id:registration.tournament_id,amount:Number(amount),status:"created" }).select("id,status,amount").single();
+    const { data: created, error: orderError } = await supabase.from("registration_payment_orders").insert({ id:orderId,registration_id:registration.id,tournament_id:registration.tournament_id,amount:amountCents / 100,status:"created" }).select("id,status,amount").single();
     if (orderError) return Response.json({ error: "Could not prepare payment." }, { status: 500 });
     order = created;
   }
@@ -40,7 +47,7 @@ export async function POST(request: Request) {
   const site=(process.env.NEXT_PUBLIC_SITE_URL||"https://polokwanechessclub.co.za").replace(/\/$/,"");
   const fragment = `#entry=${registrationId}&recovery=${body!.recoveryToken}`;
   const returnPath = "/gambitbase/register";
-  const response=await fetch("https://payments.yoco.com/api/checkouts",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json","Idempotency-Key":order.id},body:JSON.stringify({amount:amountCents,currency:"ZAR",successUrl:`${site}${returnPath}?payment=success${fragment}`,cancelUrl:`${site}${returnPath}?payment=cancelled${fragment}`,failureUrl:`${site}${returnPath}?payment=failed${fragment}`,clientReferenceId:`REG-${registration.id.slice(0,8).toUpperCase()}`,externalId:order.id,metadata:{orderId:order.id,orderKind:"registration"},lineItems:[{displayName:`${tournament.tournament_name} · ${section.section_name}`,description:`Tournament entry for ${player.full_name}`,quantity:1,pricingDetails:{price:amountCents}}]})});
+  const response=await fetch("https://payments.yoco.com/api/checkouts",{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json","Idempotency-Key":`${order.id}-${amountCents}`},body:JSON.stringify({amount:amountCents,currency:"ZAR",successUrl:`${site}${returnPath}?payment=success${fragment}`,cancelUrl:`${site}${returnPath}?payment=cancelled${fragment}`,failureUrl:`${site}${returnPath}?payment=failed${fragment}`,clientReferenceId:`REG-${registration.id.slice(0,8).toUpperCase()}`,externalId:order.id,metadata:{orderId:order.id,orderKind:"registration",entryFeeCents,onlineFeeCents,onlineFeeRate:ONLINE_REGISTRATION_FEE_RATE},lineItems:[{displayName:`${tournament.tournament_name} · ${section.section_name}`,description:`Tournament entry for ${player.full_name}`,quantity:1,pricingDetails:{price:entryFeeCents}},{displayName:"Online payment fee (3.72%)",description:"Secure online payment processing fee",quantity:1,pricingDetails:{price:onlineFeeCents}}]})});
   const checkout=await response.json().catch(()=>null) as {id?:string;redirectUrl?:string;processingMode?:string}|null;
   if(!response.ok||!checkout?.id||!checkout.redirectUrl)return Response.json({error:"Secure payment could not be started."},{status:502});
   const { error: saveError } = await supabase.from("registration_payment_orders").update({status:"payment_pending",yoco_checkout_id:checkout.id,yoco_mode:checkout.processingMode,updated_at:new Date().toISOString()}).eq("id",order.id).neq("status", "paid");

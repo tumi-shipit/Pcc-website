@@ -169,7 +169,7 @@ textarea:focus-visible {
 }
 
 .gambitbase-registration [class*="text-red-"] {
-  color: #9a6b18 !important;
+  color: #73520f !important;
 }
 
 .gambitbase-registration [class*="border-red-"] {
@@ -187,7 +187,7 @@ textarea:focus-visible {
 }
 
 .gambitbase-registration [class*="text-green-"] {
-  color: #80601e !important;
+  color: #59410f !important;
 }
 
 .gambitbase-registration [class*="border-green-"] {
@@ -238,7 +238,7 @@ textarea:focus-visible {
 
 .gambitbase-registration input::placeholder,
 .gambitbase-registration textarea::placeholder {
-  color: #8993a1 !important;
+  color: #657286 !important;
 }
 
 .cdc-awards {

@@ -15,6 +15,7 @@ import {
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 import { matchesNewPlayerIdentity, uniqueLookupPlayers } from "@/lib/registrationSearch";
 import { registrationStatusAt } from "@/lib/registrationSchedule";
+import { calculateOnlineRegistrationTotal, formatZarCents } from "@/lib/registrationPaymentFee";
 import {
   normalizeTournamentRatingType,
   tournamentRatingLabel,
@@ -484,6 +485,7 @@ export default function RegisterPage() {
 
   const entryFee =
     selectedSection?.entry_fee_override ?? selectedTournament?.entry_fee ?? 0;
+  const onlinePaymentAmounts = calculateOnlineRegistrationTotal(entryFee);
 
   useEffect(() => {
     if (!selectedTournamentId) return;
@@ -1345,7 +1347,7 @@ export default function RegisterPage() {
               <h1 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-[1.04] tracking-tight text-[#142239] md:text-6xl">Make your next move.</h1>
               <p className="mt-4 max-w-2xl text-sm leading-7 text-[#58677a] md:text-base">Submit your tournament entry in a few clear steps.</p>
               <div className="mt-7 grid max-w-2xl grid-cols-3 border-y border-[#d9d3c6] py-4">
-                {[["01", "Player"], ["02", "Event & section"], ["03", "Payment"]].map(([number, label]) => <div key={number} className="flex items-center gap-2 pr-2"><span className="font-serif text-lg font-bold text-[#a87517]">{number}</span><span className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#657286]">{label}</span></div>)}
+                {[["01", "Player"], ["02", "Event & section"], ["03", "Payment"]].map(([number, label]) => <div key={number} className="flex items-center gap-2 pr-2"><span className="font-serif text-lg font-bold text-[#a87517]">{number}</span><span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#536176]">{label}</span></div>)}
               </div>
             </div>
 
@@ -1355,7 +1357,7 @@ export default function RegisterPage() {
                 <>
                   <h2 className="mt-3 font-serif text-2xl font-semibold leading-tight text-[#142239]">{selectedTournament.tournament_name}</h2>
                   <p className="mt-3 text-xs leading-5 text-[#657286]">{formatDate(selectedTournament.start_date)}{selectedTournament.venue ? ` · ${selectedTournament.venue}` : ""}{selectedTournament.province ? ` · ${selectedTournament.province}` : ""}</p>
-                  <div className="mt-5 flex items-center justify-between border-t border-[#dfd8c8] pt-4"><span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8791a0]">Entry from</span><strong className="text-sm text-[#142239]">{selectedFeeText}</strong></div>
+                  <div className="mt-5 flex items-center justify-between border-t border-[#dfd8c8] pt-4"><span className="text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#536176]">Entry from</span><strong className="text-sm text-[#142239]">{selectedFeeText}</strong></div>
                 </>
               ) : (
                 <>
@@ -2213,6 +2215,7 @@ export default function RegisterPage() {
                   <button type="button" aria-pressed={paymentChoice === "online"} onClick={() => { setPaymentChoice("online"); setProofFile(null); }} className={`rounded-lg border border-green-500 bg-green-800 p-4 text-left text-white transition hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-300 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${paymentChoice === "online" ? "ring-2 ring-green-300 ring-offset-2 ring-offset-zinc-900" : ""}`}>
                     <span className="font-semibold">Pay now</span>
                     <span className="mt-1 block text-sm text-green-100">Submit the entry, then continue to secure online payment.</span>
+                    {paymentChoice === "online" && <span className="mt-2 block text-xs leading-5 text-green-50">Entry {formatZarCents(onlinePaymentAmounts.entryFeeCents)} + 3.72% online payment fee {formatZarCents(onlinePaymentAmounts.onlineFeeCents)} = {formatZarCents(onlinePaymentAmounts.totalCents)} total.</span>}
                   </button>
                 )}
                 {!selectedTournament?.registration_payment_required && <button
@@ -2295,6 +2298,10 @@ export default function RegisterPage() {
                       {selectedFeeText}
                     </span>
                   </p>
+                  {paymentChoice === "online" && selectedTournament?.online_payment_enabled && <>
+                    <p><span className="font-semibold text-white">Online payment fee (3.72%):</span>{" "}{formatZarCents(onlinePaymentAmounts.onlineFeeCents)}</p>
+                    <p><span className="font-semibold text-white">Total due online:</span>{" "}<span className="font-bold text-green-300">{formatZarCents(onlinePaymentAmounts.totalCents)}</span></p>
+                  </>}
                   <p>
                     <span className="font-semibold text-white">Payment:</span>{" "}
                     {paymentChoice === "online"
@@ -2382,14 +2389,14 @@ export default function RegisterPage() {
               ].map(([number, title, description]) => (
                 <li key={number} className="grid grid-cols-[32px_1fr] gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8dfc9] font-serif text-sm font-bold text-[#8a6419]">{number}</span>
-                  <div><h3 className="text-xs font-extrabold text-[#293a50]">{title}</h3><p className="mt-1 text-[11px] leading-5 text-[#718092]">{description}</p></div>
+                  <div><h3 className="text-xs font-extrabold text-[#293a50]">{title}</h3><p className="mt-1 text-[11px] leading-5 text-[#536176]">{description}</p></div>
                 </li>
               ))}
             </ol>
             <div className="mt-6 border-t border-[#ded8cb] pt-4">
-              <p className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#8993a1]">Selected section</p>
+              <p className="text-[10px] font-extrabold uppercase tracking-[0.17em] text-[#657286]">Selected section</p>
               <p className="mt-1 text-sm font-bold text-[#293a50]">{selectedSection?.section_name ?? "Choose a section in the form"}</p>
-              {selectedSection && <p className="mt-1 text-xs text-[#718092]">{selectedFeeText}</p>}
+              {selectedSection && <p className="mt-1 text-xs text-[#536176]">{selectedFeeText}</p>}
             </div>
             <a href="#bulk-registration" className="mt-5 inline-flex text-xs font-bold text-[#765a20] underline decoration-[#c6a251] underline-offset-4">Entering a team or school? →</a>
           </aside>

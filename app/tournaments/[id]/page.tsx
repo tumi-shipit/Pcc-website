@@ -1170,7 +1170,7 @@ export default function TournamentHubPage() {
           <div className="mx-auto max-w-[1440px]">
             <div className="mb-5 flex items-center justify-between gap-4 border-b border-[#d9d3c6] pb-4">
               <Link href={tournamentBase} className="text-xs font-bold text-[#677488] transition hover:text-[#a87517]">← All events</Link>
-              <span className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9c762b]">GambitBase event file</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#805c16]">GambitBase event file</span>
             </div>
 
             <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-12">
@@ -1188,10 +1188,10 @@ export default function TournamentHubPage() {
                   <div className="p-4">
                     <span className={`inline-flex rounded-full border px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.13em] ${gambitBaseEventStatusStyle(tournament.registration_status)}`}>{statusLabel(tournament.registration_status)}</span>
                     <dl className="mt-4 divide-y divide-white/10 text-xs">
-                      <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Date</dt><dd className="mt-1 font-bold">{formatDate(tournament.start_date)}{tournament.end_date && tournament.end_date !== tournament.start_date ? ` – ${formatDate(tournament.end_date)}` : ""}</dd></div>
-                      <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Venue</dt><dd className="mt-1 font-bold">{tournament.venue || "To be announced"}{tournament.province ? ` · ${tournament.province}` : ""}</dd></div>
-                      <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Entry fee</dt><dd className="mt-1 font-bold">{feeSummary}</dd></div>
-                      {tournament.competition_document_url && <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Event document</dt><dd className="mt-1"><a href={tournament.competition_document_url} target="_blank" rel="noopener noreferrer" className="font-bold text-[#9a6b18] underline underline-offset-2">{competitionDocumentLabel} ↗</a></dd></div>}
+                      <div className="py-3"><dt className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#536176]">Date</dt><dd className="mt-1 font-bold">{formatDate(tournament.start_date)}{tournament.end_date && tournament.end_date !== tournament.start_date ? ` – ${formatDate(tournament.end_date)}` : ""}</dd></div>
+                      <div className="py-3"><dt className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#536176]">Venue</dt><dd className="mt-1 font-bold">{tournament.venue || "To be announced"}{tournament.province ? ` · ${tournament.province}` : ""}</dd></div>
+                      <div className="py-3"><dt className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#536176]">Entry fee</dt><dd className="mt-1 font-bold">{feeSummary}</dd></div>
+                      {tournament.competition_document_url && <div className="py-3"><dt className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#536176]">Event document</dt><dd className="mt-1"><a href={tournament.competition_document_url} target="_blank" rel="noopener noreferrer" className="font-bold text-[#805c16] underline underline-offset-2">{competitionDocumentLabel} ↗</a></dd></div>}
                     </dl>
 
                     <div className="mt-2 grid gap-2">
@@ -1206,7 +1206,7 @@ export default function TournamentHubPage() {
                 </div>
 
                 <nav aria-label="Event sections" className="mt-5 border-l-2 border-[#d8c89f] pl-4">
-                  <p className="mb-2 text-[8px] font-extrabold uppercase tracking-[0.2em] text-[#929ba6]">On this page</p>
+                  <p className="mb-2 text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#657286]">On this page</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-2 lg:flex-col lg:gap-2">
                     {eventNavigation.map((item) => <a key={item.href} href={item.href} className="text-[11px] font-bold text-[#58677a] transition hover:text-[#9a6b18]">{item.label}</a>)}
                   </div>
@@ -1223,7 +1223,7 @@ export default function TournamentHubPage() {
                   </div>
                   <h1 className="mt-4 max-w-5xl font-serif text-4xl font-semibold leading-[1.05] tracking-tight text-[#142239] md:text-6xl">{tournament.tournament_name}</h1>
                   {tournament.description && <p className="mt-5 max-w-3xl text-sm leading-7 text-[#58677a] md:text-base">{tournament.description}</p>}
-                  <div className="mt-6 flex flex-wrap gap-2 text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#56657a]">
+                  <div className="mt-6 flex flex-wrap gap-2 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[#56657a]">
                     <span className="border border-[#d8d1c2] px-3 py-2"><strong className="mr-1.5 text-[#142239]">{registeredCount}</strong> entries</span>
                     <span className="border border-[#d8d1c2] px-3 py-2"><strong className="mr-1.5 text-[#142239]">{sections.length}</strong> sections</span>
                     <span className={`border px-3 py-2 ${gambitBaseEventStatusStyle(tournament.registration_status)}`}>{statusLabel(tournament.registration_status)}</span>
@@ -1241,7 +1241,7 @@ export default function TournamentHubPage() {
                   {isCompleted && <ArchiveContent tournament={tournament} sections={sections} sectionCombinations={sectionCombinations} results={results} teamResults={teamResults} standingUpdates={standingUpdates} />}
 
                   {isCompleted && <section id="gallery" className="scroll-mt-28 mt-8 border-t border-[#d9d3c6] py-7">
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9a6b18]">Event archive</p><h2 className="mt-2 font-serif text-3xl font-semibold">Tournament photos</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#657286]">Photos are kept in the organiser&apos;s album so the full collection stays together.</p></div>{tournament.external_gallery_url && <a href={tournament.external_gallery_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#17283d] px-5 py-3 text-center text-xs font-bold text-white transition hover:bg-[#9b7428]">{tournament.external_gallery_label?.trim() || "Open photo album"} ↗</a>}</div>
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9a6b18]">Event archive</p><h2 className="mt-2 font-serif text-3xl font-semibold">Tournament photos</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#657286]">Photos are kept in the organiser&apos;s album so the full collection stays together.</p></div>{tournament.external_gallery_url && <a href={tournament.external_gallery_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#17283d] px-5 py-3 text-center text-xs font-bold text-[#ffffff] transition hover:bg-[#9b7428]">{tournament.external_gallery_label?.trim() || "Open photo album"} ↗</a>}</div>
                     {!tournament.external_gallery_url && <p className="mt-5 text-sm text-[#657286]">The organiser has not shared a photo album link yet.</p>}
                   </section>}
                 </div>
@@ -1628,12 +1628,12 @@ function RegisteredPlayersPanel({
             <h2 className="mt-2 font-serif text-3xl font-semibold text-[#142239]">Team roster</h2>
             <p className="mt-2 text-sm leading-6 text-[#657286]">{publicEntryDescription} Entries remain grouped by playing section in the table.</p>
           </div>
-          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={groupConfig.field === "entry" ? "Search player or ID" : `Search ${groupConfig.label.toLowerCase()}, player or ID`} className="w-full border border-[#d9d3c6] bg-white px-4 py-3 text-sm text-[#142239] outline-none transition placeholder:text-[#8993a1] focus:border-[#a87517]" />
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={groupConfig.field === "entry" ? "Search player or ID" : `Search ${groupConfig.label.toLowerCase()}, player or ID`} className="w-full border border-[#d9d3c6] bg-white px-4 py-3 text-sm text-[#142239] outline-none transition placeholder:text-[#657286] focus:border-[#a87517]" />
         </div>
 
         {hasMissingDistricts && <p className="mt-4 border-l-2 border-[#d5ab5d] bg-[#f5efdf] px-4 py-3 text-xs leading-5 text-[#58677a]">Some player profiles do not have a district recorded yet, so those entries appear under “District not recorded”.</p>}
 
-                    <div className="mt-5 flex items-center justify-between border-y border-[#d9d3c6] py-3 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#798392]">
+                    <div className="mt-5 flex items-center justify-between border-y border-[#d9d3c6] py-3 text-[10px] font-extrabold uppercase tracking-[0.14em] text-[#536176]">
           <span>{groupConfig.field === "entry" ? `${players.length} individual entries` : `${players.length} players across ${groupedPlayers.length} ${groupConfig.plural}`}</span>
           {search.trim() && <span>{filteredPlayers.length} matching</span>}
         </div>

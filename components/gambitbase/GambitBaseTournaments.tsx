@@ -125,7 +125,7 @@ function EventCard({
       <div className="flex flex-col items-center justify-center border-b border-[#e5dfd3] bg-[#eee9de] px-4 py-5 text-center md:border-b-0 md:border-r">
         <span className="text-3xl font-black leading-none text-[#142239]">{date.day}</span>
         <span className="mt-1 text-xs font-black tracking-[0.24em] text-[#a87517]">{date.month}</span>
-        <span className="mt-3 max-w-full text-[10px] font-bold uppercase tracking-wide text-[#798392]">
+        <span className="mt-3 max-w-full text-[10px] font-bold uppercase tracking-wide text-[#58677a]">
           {tournament.start_date ? new Date(`${tournament.start_date}T12:00:00`).getFullYear() : "TBA"}
         </span>
       </div>
@@ -135,7 +135,7 @@ function EventCard({
           <span className={`rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.12em] ${statusStyle(tournament.registration_status)}`}>
             {statusLabel(tournament.registration_status)}
           </span>
-          {tournament.province && <span className="text-xs font-semibold text-slate-400">{tournament.province}</span>}
+          {tournament.province && <span className="text-xs font-semibold text-slate-600">{tournament.province}</span>}
         </div>
         <Link href={`/gambitbase/tournaments/${tournament.id}`} className="mt-3 block">
           <h3 className="font-serif text-xl font-semibold leading-tight text-[#142239] transition group-hover:text-[#a87517] md:text-2xl">
@@ -148,12 +148,12 @@ function EventCard({
         <p className="mt-3 text-sm text-[#536176]">
           {tournament.venue}{tournament.province ? ` · ${tournament.province}` : ""}
         </p>
-        <p className="mt-1 text-xs text-[#798392]">{tournamentDates(tournament)}</p>
+        <p className="mt-1 text-xs text-[#58677a]">{tournamentDates(tournament)}</p>
       </div>
 
       <div className="flex flex-row items-center justify-between gap-4 border-t border-[#e5dfd3] bg-[#faf8f2] p-5 md:flex-col md:items-stretch md:justify-center md:border-l md:border-t-0">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#798392]">Entry</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#58677a]">Entry</p>
           <p className="mt-1 text-sm font-black text-[#142239]">{archived ? "Results" : feeText(tournament, sectionFees)}</p>
         </div>
         <div className="flex gap-2 md:flex-col">
@@ -207,20 +207,20 @@ function DashboardEventRow({
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-[0.12em] ${stateColor}`}>{archived ? "Results available" : statusLabel(tournament.registration_status)}</span>
-          {tournament.province && <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#8994a2]">{tournament.province}</span>}
+          {tournament.province && <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-[#657286]">{tournament.province}</span>}
         </div>
         <Link href={`/gambitbase/tournaments/${tournament.id}`} className="mt-2 block truncate text-base font-bold tracking-tight text-[#192a40] transition group-hover:text-[#9c701b] md:text-lg">
           {tournament.tournament_name}
         </Link>
-        <p className="mt-1 truncate text-xs text-[#718092]">{tournament.organiser_name ? `${tournament.organiser_name} · ` : ""}{tournament.venue || "Venue to be confirmed"}</p>
+        <p className="mt-1 truncate text-xs text-[#58677a]">{tournament.organiser_name ? `${tournament.organiser_name} · ` : ""}{tournament.venue || "Venue to be confirmed"}</p>
       </div>
       <div className="hidden sm:block">
-        <p className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#9aa3af]">{tournament.end_date && tournament.end_date !== tournament.start_date ? "Event dates" : "Event date"}</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.17em] text-[#657286]">{tournament.end_date && tournament.end_date !== tournament.start_date ? "Event dates" : "Event date"}</p>
         <p className="mt-1 text-xs font-semibold text-[#526176]">{tournamentDates(tournament)}</p>
       </div>
       <div className="flex items-center justify-between gap-3 sm:justify-end">
         <div className="sm:text-right">
-          <p className="text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#9aa3af]">{archived ? "Event record" : "Entry"}</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.17em] text-[#657286]">{archived ? "Event record" : "Entry"}</p>
           <p className="mt-1 text-xs font-bold text-[#293a50]">{archived ? "Final results" : feeText(tournament, sectionFees)}</p>
         </div>
         {canRegister ? (
@@ -294,28 +294,28 @@ export default async function GambitBaseTournaments({
     <section className="min-h-screen bg-[#f4f1e9] text-[#17283d]">
       <div className="mx-auto grid max-w-[1500px] lg:grid-cols-[270px_minmax(0,1fr)]">
         <aside className="bg-[#17283d] px-4 py-5 text-white sm:px-5 sm:py-6 lg:min-h-[calc(100vh-72px)] lg:px-6 lg:py-7">
-          <p className="text-[8px] font-extrabold uppercase tracking-[0.22em] text-[#dcb354]">Tournament desk</p>
+          <p className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#dcb354]">Tournament desk</p>
           <h1 className="mt-2 font-serif text-2xl font-semibold leading-tight">Find your next board.</h1>
           <p className="mt-2 hidden max-w-sm text-[11px] leading-5 text-[#b7c1cd] sm:block">Explore the calendar and go straight to the event that fits your game.</p>
 
           <div className="my-4 grid grid-cols-2 gap-2 sm:my-5 lg:my-6">
-            <div className="border-l-2 border-[#e1b960] bg-white/[0.06] px-3 py-2"><p className="text-lg font-black">{upcoming.length}</p><p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-[#b7c1cd]">Coming up</p></div>
-            <div className="border-l-2 border-[#76bd91] bg-white/[0.06] px-3 py-2"><p className="text-lg font-black">{upcoming.filter((event) => event.registration_status === "Open").length}</p><p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.16em] text-[#b7c1cd]">Entries open</p></div>
+            <div className="border-l-2 border-[#e1b960] bg-white/[0.06] px-3 py-2"><p className="text-lg font-black">{upcoming.length}</p><p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#b7c1cd]">Coming up</p></div>
+            <div className="border-l-2 border-[#76bd91] bg-white/[0.06] px-3 py-2"><p className="text-lg font-black">{upcoming.filter((event) => event.registration_status === "Open").length}</p><p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#b7c1cd]">Entries open</p></div>
           </div>
 
           <form action="/gambitbase/tournaments" className="grid grid-cols-2 gap-3 border-t border-white/15 pt-4 lg:block lg:space-y-3">
-            <label className="col-span-2 block lg:col-span-1"><span className="mb-1.5 block text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#c5ced8]">Search</span><input type="search" name="search" defaultValue={filters.search ?? ""} placeholder="Tournament or place" className="w-full rounded-lg border border-white/15 bg-white/[0.08] px-3 py-2.5 text-xs text-white outline-none placeholder:text-[#9daaba] focus:border-[#dcb354]" /></label>
-            <label className="block"><span className="mb-1.5 block text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#c5ced8]">Entry status</span><select name="status" defaultValue={filters.status ?? ""} className="w-full rounded-lg border border-white/15 bg-[#22364d] px-3 py-2.5 text-xs text-white outline-none focus:border-[#dcb354]">{statusOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
-            <label className="block"><span className="mb-1.5 block text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#c5ced8]">Province</span><select name="province" defaultValue={filters.province ?? ""} className="w-full rounded-lg border border-white/15 bg-[#22364d] px-3 py-2.5 text-xs text-white outline-none focus:border-[#dcb354]"><option value="">All provinces</option>{provinces.map((province) => <option key={province} value={province}>{province}</option>)}</select></label>
+            <label className="col-span-2 block lg:col-span-1"><span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-[0.17em] text-[#c5ced8]">Search</span><input type="search" name="search" defaultValue={filters.search ?? ""} placeholder="Tournament or place" className="w-full rounded-lg border border-white/15 bg-white/[0.08] px-3 py-2.5 text-xs text-white outline-none placeholder:text-[#c5ced8] focus:border-[#dcb354]" /></label>
+            <label className="block"><span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-[0.17em] text-[#c5ced8]">Entry status</span><select name="status" defaultValue={filters.status ?? ""} className="w-full rounded-lg border border-white/15 bg-[#22364d] px-3 py-2.5 text-xs text-white outline-none focus:border-[#dcb354]">{statusOptions.map(([value, label]) => <option key={value || "all"} value={value}>{label}</option>)}</select></label>
+            <label className="block"><span className="mb-1.5 block text-[10px] font-extrabold uppercase tracking-[0.17em] text-[#c5ced8]">Province</span><select name="province" defaultValue={filters.province ?? ""} className="w-full rounded-lg border border-white/15 bg-[#22364d] px-3 py-2.5 text-xs text-white outline-none focus:border-[#dcb354]"><option value="">All provinces</option>{provinces.map((province) => <option key={province} value={province}>{province}</option>)}</select></label>
             <div className="col-span-2 grid grid-cols-2 gap-2 lg:col-span-1"><button className="rounded-lg bg-[#e2b85f] px-3 py-2.5 text-[11px] font-extrabold text-[#17283d] transition hover:bg-white">Apply filters</button><Link href="/gambitbase/tournaments" className="rounded-lg border border-white/20 px-3 py-2.5 text-center text-[11px] font-bold text-[#d5dce4] transition hover:border-white hover:text-white">Reset</Link></div>
           </form>
 
-          <div className="mt-5 border-t border-white/15 pt-4 text-[8px] font-semibold uppercase leading-4 tracking-[0.14em] text-[#9daaba]">{completed.length} past events · listings sync as organisers publish</div>
+          <div className="mt-5 border-t border-white/15 pt-4 text-[10px] font-semibold uppercase leading-5 tracking-[0.1em] text-[#c5ced8]">{completed.length} past events · listings sync as organisers publish</div>
         </aside>
 
         <div className="min-w-0 px-4 py-7 sm:px-7 md:py-10 lg:px-12 lg:py-12">
           <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
-            <div><p className="text-[9px] font-extrabold uppercase tracking-[0.22em] text-[#a77c29]">The chess calendar</p><h2 className="mt-2 font-serif text-3xl font-semibold tracking-tight md:text-4xl">Your next tournament.</h2></div>
+            <div><p className="text-[9px] font-extrabold uppercase tracking-[0.22em] text-[#805c16]">The chess calendar</p><h2 className="mt-2 font-serif text-3xl font-semibold tracking-tight md:text-4xl">Your next tournament.</h2></div>
             <Link href="/gambitbase/register" className="text-xs font-extrabold text-[#7f5e20] underline decoration-[#d2b36d] underline-offset-4 hover:text-[#17283d]">Go to registration →</Link>
           </div>
 
@@ -331,16 +331,16 @@ export default async function GambitBaseTournaments({
                       <div><h3 className="font-serif text-2xl font-semibold leading-tight tracking-tight sm:text-3xl md:text-4xl">{featuredEvent.tournament_name}</h3><p className="mt-3 text-xs font-semibold text-[#44391e]">{tournamentDates(featuredEvent)} · {featuredEvent.province || "South Africa"}</p><p className="mt-1 text-xs text-[#594a28]">{featuredEvent.venue || "Venue to be confirmed"}{featuredEvent.organiser_name ? ` · Hosted by ${featuredEvent.organiser_name}` : ""}</p></div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between gap-4 border-t border-[#17283d]/20 pt-4 md:block md:border-0 md:pt-0 md:text-right"><div><p className="text-[8px] font-extrabold uppercase tracking-[0.18em] text-[#55451f]">Entry</p><p className="mt-1 text-sm font-black">{feeText(featuredEvent, sectionFees)}</p></div><Link href={featuredEvent.registration_status === "Open" ? `/gambitbase/register?tournament=${featuredEvent.id}` : `/gambitbase/tournaments/${featuredEvent.id}`} className="inline-flex rounded-lg bg-[#17283d] px-4 py-3 text-xs font-extrabold text-white transition hover:bg-white hover:text-[#17283d]">{featuredEvent.registration_status === "Open" ? "Enter this event" : "View event"} <span aria-hidden="true" className="ml-2">→</span></Link></div>
+                  <div className="flex items-center justify-between gap-4 border-t border-[#17283d]/20 pt-4 md:block md:border-0 md:pt-0 md:text-right"><div><p className="text-[10px] font-extrabold uppercase tracking-[0.18em] text-[#44391e]">Entry</p><p className="mt-1 text-sm font-black">{feeText(featuredEvent, sectionFees)}</p></div><Link href={featuredEvent.registration_status === "Open" ? `/gambitbase/register?tournament=${featuredEvent.id}` : `/gambitbase/tournaments/${featuredEvent.id}`} className="inline-flex rounded-lg bg-[#17283d] px-4 py-3 text-xs font-extrabold text-white transition hover:bg-white hover:text-[#17283d]">{featuredEvent.registration_status === "Open" ? "Enter this event" : "View event"} <span aria-hidden="true" className="ml-2">→</span></Link></div>
                 </div>
               </section>}
 
               {!onlyCompleted && <section>
-                <div className="mb-3 flex items-end justify-between border-b border-[#d9d5cc] pb-3"><div><h3 className="text-xs font-extrabold uppercase tracking-[0.16em]">Coming up</h3><p className="mt-1 text-[10px] text-[#828d9a]">{otherUpcoming.length} more {otherUpcoming.length === 1 ? "event" : "events"}</p></div><span className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#8c97a3]">By date</span></div>
+                <div className="mb-3 flex items-end justify-between border-b border-[#d9d5cc] pb-3"><div><h3 className="text-xs font-extrabold uppercase tracking-[0.16em]">Coming up</h3><p className="mt-1 text-[10px] text-[#58677a]">{otherUpcoming.length} more {otherUpcoming.length === 1 ? "event" : "events"}</p></div><span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#657286]">By date</span></div>
                 {otherUpcoming.length ? <div className="divide-y divide-[#dedbd3]">{otherUpcoming.map((event) => <DashboardEventRow key={event.id} tournament={event} sectionFees={sectionFees} />)}</div> : <p className="py-6 text-sm text-[#6c7787]">No other upcoming events match these filters.</p>}
               </section>}
 
-              {!hideCompleted && completed.length > 0 && <section className="mt-10"><div className="mb-3 border-b border-[#d9d5cc] pb-3"><h3 className="text-xs font-extrabold uppercase tracking-[0.16em]">Recent results</h3><p className="mt-1 text-[10px] text-[#828d9a]">Completed events and standings</p></div><div className="divide-y divide-[#dedbd3]">{completed.map((event) => <DashboardEventRow key={event.id} tournament={event} sectionFees={sectionFees} archived />)}</div></section>}
+              {!hideCompleted && completed.length > 0 && <section className="mt-10"><div className="mb-3 border-b border-[#d9d5cc] pb-3"><h3 className="text-xs font-extrabold uppercase tracking-[0.16em]">Recent results</h3><p className="mt-1 text-[10px] text-[#58677a]">Completed events and standings</p></div><div className="divide-y divide-[#dedbd3]">{completed.map((event) => <DashboardEventRow key={event.id} tournament={event} sectionFees={sectionFees} archived />)}</div></section>}
               {visible.length === 0 && <p className="border border-[#ded8cb] bg-white p-6 text-sm text-[#6c7787]">No events match those filters.</p>}
             </>
           )}

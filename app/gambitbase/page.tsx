@@ -41,7 +41,7 @@ export default function GambitBasePage() {
               <Link href="/gambitbase/tournaments" className="rounded-full bg-[#142239] px-6 py-3.5 text-sm font-bold text-white transition hover:bg-[#263c5c]">Explore the calendar <span aria-hidden="true">→</span></Link>
               <Link href="/gambitbase/register" className="rounded-full border border-[#b8ad98] px-6 py-3.5 text-sm font-bold text-[#142239] transition hover:border-[#a87517] hover:bg-white">Enter a tournament</Link>
             </div>
-            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3 border-t border-[#d9d3c6] pt-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#6f7885]">
+            <div className="mt-10 flex flex-wrap gap-x-8 gap-y-3 border-t border-[#d9d3c6] pt-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#536176]">
               <span>Find an event</span><span>Check entry details</span><span>Play your next round</span>
             </div>
           </div>
