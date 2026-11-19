@@ -20,6 +20,7 @@ type Player = {
   date_of_birth: string | null;
   gender: string | null;
   club: string | null;
+  district: string | null;
   province: string | null;
   rating: number | null;
   email: string | null;
@@ -143,6 +144,7 @@ export default function AdminPlayerProfilePage({
   >([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<Partial<Player>>({});
+  const [districtFieldAvailable, setDistrictFieldAvailable] = useState(true);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -152,13 +154,30 @@ export default function AdminPlayerProfilePage({
     setLoading(true);
     setMessage("");
 
-    const { data: playerData, error: playerError } = await supabase
+    const { data: playerDataWithDistrict, error: districtFieldError } = await supabase
       .from("players")
       .select(
-        "id, pcc_id, full_name, first_names, surname, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
+        "id, pcc_id, full_name, first_names, surname, chess_sa_id, fide_id, date_of_birth, gender, club, district, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
       )
       .eq("id", playerId)
       .single();
+
+    let playerData = playerDataWithDistrict as Player | null;
+    let playerError = districtFieldError;
+    if (districtFieldError) {
+      setDistrictFieldAvailable(false);
+      const fallback = await supabase
+        .from("players")
+        .select(
+          "id, pcc_id, full_name, first_names, surname, chess_sa_id, fide_id, date_of_birth, gender, club, province, rating, email, phone, verification_status, profile_photo_url, biography, title, created_at, updated_at"
+        )
+        .eq("id", playerId)
+        .single();
+      playerData = fallback.data as Player | null;
+      playerError = fallback.error;
+    } else {
+      setDistrictFieldAvailable(true);
+    }
 
     if (playerError || !playerData) {
       setMessage("Player could not be loaded.");
@@ -260,6 +279,7 @@ export default function AdminPlayerProfilePage({
         date_of_birth: form.date_of_birth || null,
         gender: form.gender?.trim() || null,
         club: form.club?.trim() || null,
+        ...(districtFieldAvailable ? { district: form.district?.trim() || null } : {}),
         province: form.province?.trim() || null,
         rating:
           form.rating === null ||
@@ -564,7 +584,7 @@ export default function AdminPlayerProfilePage({
               <h2 className="text-2xl font-black">Edit Player Profile</h2>
 
               <div className="mt-6 grid gap-5 md:grid-cols-2">
-                <div className="md:col-span-2 text-sm text-gray-300">First names and surname below are used for Swiss exports. Confirm them against the player's official details; do not infer them from display-name order. The display name and aliases are preserved.</div>
+                <div className="md:col-span-2 text-sm text-gray-300">First names and surname below are used for Swiss exports. Confirm them against the player&apos;s official details; do not infer them from display-name order. The display name and aliases are preserved.</div>
                 <Field label="First names (for exports)">
                   <input value={form.first_names ?? ""} onChange={event => updateField("first_names", event.target.value)} className={inputClass} />
                 </Field>
@@ -630,6 +650,15 @@ export default function AdminPlayerProfilePage({
                     className={inputClass}
                   />
                 </Field>
+
+                {districtFieldAvailable && <Field label="District">
+                  <input
+                    value={form.district ?? ""}
+                    onChange={(event) => updateField("district", event.target.value)}
+                    placeholder="Used for provincial event entries"
+                    className={inputClass}
+                  />
+                </Field>}
 
                 <Field label="Province">
                   <input

@@ -11,10 +11,11 @@ export async function POST(request: Request) {
   const token = form?.get("recoveryToken");
   if (!await authorizeRegistrationRecovery(id, token)) return Response.json({ error: "This recovery link is invalid. Please contact the organiser." }, { status: 403 });
   const db = createServerSupabase();
-  const { data: entry, error } = await db.from("registrations").select("id,payment_status,registration_status,tournaments(registration_payment_required)").eq("id", id).single();
+  const { data: entry, error } = await db.from("registrations").select("id,payment_status,registration_status,tournaments(registration_payment_required,online_payment_enabled)").eq("id", id).single();
   if (error || !entry) return Response.json({ error: "Could not check your entry. Please try again." }, { status: 503 });
-  const event = entry.tournaments as unknown as { registration_payment_required: boolean };
+  const event = entry.tournaments as unknown as { registration_payment_required: boolean; online_payment_enabled: boolean };
   const onlineOnly = event?.registration_payment_required === true;
+  const onlinePaymentEnabled = event?.online_payment_enabled === true;
   if (form?.get("action") === "proof") {
     if (onlineOnly) return Response.json({ error: "This event accepts online payment only. Use Pay now." }, { status: 403 });
     if (entry.payment_status === "Paid" || ["Rejected", "Withdrawn"].includes(entry.registration_status)) return Response.json({ error: "This entry no longer accepts payment proof." }, { status: 409 });
@@ -34,5 +35,5 @@ export async function POST(request: Request) {
     }
     return Response.json({ paymentStatus: "Proof Submitted", registrationStatus: entry.registration_status }, { headers: { "Cache-Control": "no-store" } });
   }
-  return Response.json({ paymentStatus: entry.payment_status, registrationStatus: entry.registration_status, onlineOnly }, { headers: { "Cache-Control": "no-store" } });
+  return Response.json({ paymentStatus: entry.payment_status, registrationStatus: entry.registration_status, onlineOnly, onlinePaymentEnabled }, { headers: { "Cache-Control": "no-store" } });
 }

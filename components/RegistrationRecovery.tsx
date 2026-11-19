@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export type RecoveryReceipt = { registrationId: string; recoveryToken: string };
 export const recoveryStorageKey = "pcc-registration-recovery";
@@ -10,12 +10,14 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
   const [status, setStatus] = useState("");
   const [entryStatus, setEntryStatus] = useState("");
   const [message, setMessage] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [onlineOnly, setOnlineOnly] = useState(true);
+  const [onlineOnly, setOnlineOnly] = useState(false);
+  const [onlinePaymentEnabled, setOnlinePaymentEnabled] = useState(false);
+  const proofFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setStatus("");
-    setOnlineOnly(true);
+    setOnlineOnly(false);
+    setOnlinePaymentEnabled(false);
     setEntryStatus("");
     let active = true;
     const form = new FormData();
@@ -25,12 +27,12 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
       .then(async response => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "Could not check payment status.");
-        if (active) { setStatus(result.paymentStatus); setEntryStatus(result.registrationStatus); setOnlineOnly(result.onlineOnly === true); }
+        if (active) { setStatus(result.paymentStatus); setEntryStatus(result.registrationStatus); setOnlineOnly(result.onlineOnly === true); setOnlinePaymentEnabled(result.onlinePaymentEnabled === true); }
       }).catch(error => { if (active) setMessage(error.message); });
     return () => { active = false; };
   }, [receipt.registrationId, receipt.recoveryToken]);
 
-  async function act(action: "status" | "proof" | "pay") {
+  async function act(action: "status" | "proof" | "pay", proofFile?: File) {
     setBusy(true);
     setMessage("");
     try {
@@ -39,8 +41,8 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
       form.set("recoveryToken", receipt.recoveryToken);
       form.set("action", action);
       if (action === "proof") {
-        if (!file) throw new Error("Choose your proof of payment first.");
-        form.set("file", file);
+        if (!proofFile) throw new Error("Choose your proof of payment first.");
+        form.set("file", proofFile);
       }
       const response = await fetch(action === "pay" ? "/api/registration/checkout" : "/api/registration/recovery", action === "pay" ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...receipt, brand: "gambitbase" }) } : { method: "POST", body: form });
       const result = await response.json();
@@ -49,6 +51,7 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
       setStatus(result.paymentStatus);
       setEntryStatus(result.registrationStatus);
       if (typeof result.onlineOnly === "boolean") setOnlineOnly(result.onlineOnly);
+      if (typeof result.onlinePaymentEnabled === "boolean") setOnlinePaymentEnabled(result.onlinePaymentEnabled);
       setMessage(action === "proof" ? "Proof submitted for the organiser to review. This is not yet a confirmed payment." : "Status checked.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Please try again. Your entry is still saved.");
@@ -68,12 +71,12 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
         </div>
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {!closed && onlineOnly && <button disabled={busy || !status} onClick={() => act("pay")} className="rounded-full bg-[#d5ab5d] px-4 py-2.5 text-xs font-extrabold text-[#142239] transition hover:bg-[#c59635] disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Opening payment…" : status ? "Pay now" : "Checking…"}</button>}
-        {!closed && <button type="button" onClick={() => setMessage("Your registration is saved. You can return to pay later using your private recovery link.")} className="rounded-full border border-[#d9d3c6] px-4 py-2.5 text-xs font-bold text-[#536176] transition hover:border-[#a87517] hover:text-[#142239]">Pay later</button>}
-        {!closed && !onlineOnly && <div className="flex items-center gap-2">
-          <input id="recovery-proof" type="file" accept="application/pdf,image/jpeg,image/png" disabled={busy} onChange={event => setFile(event.target.files?.[0] ?? null)} className="max-w-[180px] text-xs text-[#536176] file:mr-2 file:rounded-full file:border-0 file:bg-[#f5efdf] file:px-3 file:py-2 file:text-xs file:font-semibold file:text-[#142239]" aria-label="Choose POP file" />
-          <button disabled={busy || !file} onClick={() => act("proof")} className="rounded-full border border-[#d9d3c6] px-3.5 py-2.5 text-xs font-bold text-[#536176] disabled:opacity-50">Submit POP</button>
-        </div>}
+        {!closed && onlinePaymentEnabled && <button disabled={busy || !status} onClick={() => act("pay")} className="rounded-full bg-[#d5ab5d] px-4 py-2.5 text-xs font-extrabold text-[#142239] transition hover:bg-[#c59635] disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Opening payment…" : status ? "Pay now" : "Checking…"}</button>}
+        {!closed && !onlineOnly && <button type="button" onClick={() => setMessage("Your registration is saved. You can return to pay later using your private recovery link.")} className="rounded-full border border-[#d9d3c6] px-4 py-2.5 text-xs font-bold text-[#536176] transition hover:border-[#a87517] hover:text-[#142239]">Pay later</button>}
+        {!closed && !onlineOnly && <>
+          <input ref={proofFileInput} type="file" accept="application/pdf,image/jpeg,image/png" disabled={busy} onChange={event => { const selectedFile = event.target.files?.[0]; event.target.value = ""; if (selectedFile) void act("proof", selectedFile); }} className="sr-only" aria-label="Choose proof of payment" />
+          <button type="button" disabled={busy} onClick={() => proofFileInput.current?.click()} className="rounded-full border border-[#d9d3c6] px-4 py-2.5 text-xs font-bold text-[#536176] transition hover:border-[#a87517] hover:text-[#142239] disabled:opacity-50">{busy ? "Sending POP…" : "Send POP"}</button>
+        </>}
       </div>
     </div>
     {message && <p role="status" className="mt-3 text-xs text-[#73520f]">{message}</p>}

@@ -888,13 +888,25 @@ export default function TournamentHubPage() {
       const registrationRows = (registrationListData ?? []) as unknown as PublicRegistrationRow[];
       const registeredPlayerIds = Array.from(new Set(registrationRows.map((row) => row.player_id).filter(Boolean))) as string[];
       let registeredPlayerClubs = new Map<string, string | null>();
+      let registeredPlayerDistricts = new Map<string, string | null>();
       if (registeredPlayerIds.length > 0) {
-        const { data: registeredPlayerData } = await supabase
+        const { data: playerProfilesWithDistricts, error: districtLookupError } = await supabase
           .from("players")
-          .select("id, club")
+          .select("id, club, district")
           .in("id", registeredPlayerIds);
+        let registeredPlayerData: Array<{ id: string; club: string | null; district?: string | null }>;
+        if (districtLookupError) {
+          const fallback = await supabase
+            .from("players")
+            .select("id, club")
+            .in("id", registeredPlayerIds);
+          registeredPlayerData = (fallback.data ?? []) as Array<{ id: string; club: string | null }>;
+        } else registeredPlayerData = playerProfilesWithDistricts ?? [];
         registeredPlayerClubs = new Map(
           (registeredPlayerData ?? []).map((player) => [player.id, player.club])
+        );
+        registeredPlayerDistricts = new Map(
+          registeredPlayerData.map((player) => [player.id, player.district ?? null])
         );
       }
 
@@ -1043,6 +1055,7 @@ export default function TournamentHubPage() {
         registrationRows.map((row) => ({
           ...row,
           club: row.player_id ? registeredPlayerClubs.get(row.player_id) ?? null : null,
+          district: row.player_id ? registeredPlayerDistricts.get(row.player_id) ?? null : null,
         }))
       );
       setOrganisations(
