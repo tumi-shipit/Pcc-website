@@ -1579,7 +1579,11 @@ function RegisteredPlayersPanel({
 }) {
   const [search, setSearch] = useState("");
   const cleanSearch = search.trim().toLowerCase();
-  const groupConfig = registrationGroupForTournament(tournamentType);
+  // Keep the PCC entry check's established province grouping independent from
+  // GambitBase's event-level grouping and table presentation.
+  const groupConfig = variant === "gambitbase"
+    ? registrationGroupForTournament(tournamentType)
+    : { field: "province" as const, label: "Province", plural: "provinces" };
 
   const filteredPlayers = useMemo(() => {
     if (!cleanSearch) return players;
@@ -1623,14 +1627,16 @@ function RegisteredPlayersPanel({
     [filteredPlayers, groupConfig.field]
   );
 
-  const publicEntryDescription = tournamentType === "National"
+  const publicEntryDescription = variant === "pcc"
+    ? "Entries are grouped by province."
+    : tournamentType === "National"
     ? "National entries are grouped by province."
     : tournamentType === "Provincial"
       ? "Provincial entries are grouped by district."
       : tournamentType === "District"
         ? "District entries are grouped by club and school."
         : "Club and school event entries are listed without province or district grouping.";
-  const hasMissingDistricts = tournamentType === "Provincial" && players.some((player) => !player.district?.trim());
+  const hasMissingDistricts = variant === "gambitbase" && tournamentType === "Provincial" && players.some((player) => !player.district?.trim());
 
   if (variant === "gambitbase") {
     return (
