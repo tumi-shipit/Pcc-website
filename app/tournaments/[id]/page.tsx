@@ -1662,28 +1662,37 @@ function RegisteredPlayersPanel({
         ) : filteredPlayers.length === 0 ? (
           <p className="py-6 text-sm text-[#657286]">No player or team matches that search.</p>
         ) : (
-          <div className="mt-4 max-h-[620px] overflow-auto border border-[#ded8cb] bg-white">
-            <table className="min-w-[700px] w-full border-collapse text-left text-xs">
-              <thead className="sticky top-0 z-10 bg-[#17283d] text-[9px] uppercase tracking-[0.14em] text-[#f5f1e8]">
-                <tr><th className="px-4 py-3">{groupConfig.label}</th><th className="px-4 py-3">Player</th><th className="px-4 py-3">Chess SA ID</th><th className="px-4 py-3">Section</th><th className="px-4 py-3">Gender</th></tr>
-              </thead>
-              <tbody>
-                {orderedPlayers.map((player, index) => {
-                  const groupName = publicRegistrationGroupName(player, groupConfig.field);
-                  const previousGroup = index > 0 ? publicRegistrationGroupName(orderedPlayers[index - 1], groupConfig.field) : null;
-                  const startsGroup = groupName !== previousGroup;
-                  return (
-                    <tr key={player.registration_id} className={`border-b border-[#ece8df] text-[#526176] transition hover:bg-[#faf8f2] ${startsGroup && index > 0 ? "border-t-2 border-t-[#c9a653]" : ""}`}>
-                      <td className="px-4 py-3 font-bold text-[#263750]">{startsGroup ? groupName : <span className="pl-3 text-[#c0c6cc]">↳</span>}</td>
-                      <td className="px-4 py-3 font-semibold text-[#263750]">{player.player_id ? <Link href={`/players/${player.player_id}`} className="transition hover:text-[#a87517]">{publicRegistrationName(player)}</Link> : publicRegistrationName(player)}</td>
-                      <td className="px-4 py-3 tabular-nums">{player.chess_sa_id ?? "—"}</td>
-                      <td className="px-4 py-3">{player.section_name ?? "—"}</td>
-                      <td className="px-4 py-3">{player.gender ?? "—"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="mt-4 grid max-h-[680px] grid-cols-2 items-start gap-3 overflow-y-auto pr-1 md:grid-cols-3 xl:grid-cols-4">
+            {groupedPlayers
+              .slice()
+              .sort(([first], [second]) => first.localeCompare(second))
+              .map(([groupName, groupEntries]) => (
+                <section key={groupName} className="min-w-0 overflow-hidden border border-[#ded8cb] bg-white">
+                  <div className="flex min-h-12 items-center justify-between gap-2 border-b border-[#ded8cb] bg-[#f5f1e8] px-2.5 py-2 sm:px-3">
+                    <h3 className="min-w-0 truncate text-[11px] font-extrabold text-[#263750] sm:text-xs" title={groupName}>{groupName}</h3>
+                    <span className="shrink-0 text-[9px] font-bold tabular-nums text-[#657286]">{groupEntries.length}</span>
+                  </div>
+                  <table className="w-full table-fixed border-collapse text-left text-[10px] sm:text-xs">
+                    <thead className="bg-[#17283d] text-[8px] uppercase tracking-[0.08em] text-[#f5f1e8] sm:text-[9px]">
+                      <tr><th className="w-[68%] px-2 py-2 sm:px-2.5">Player</th><th className="px-2 py-2 sm:px-2.5">Section</th></tr>
+                    </thead>
+                    <tbody>
+                      {groupEntries
+                        .slice()
+                        .sort((first, second) => (first.section_name ?? "").localeCompare(second.section_name ?? "") || publicRegistrationName(first).localeCompare(publicRegistrationName(second)))
+                        .map((player) => (
+                          <tr key={player.registration_id} className="border-b border-[#ece8df] align-top text-[#526176] last:border-b-0 hover:bg-[#faf8f2]">
+                            <td className="break-words px-2 py-2 sm:px-2.5">
+                              <div className="font-semibold leading-4 text-[#263750]">{player.player_id ? <Link href={`/players/${player.player_id}`} className="transition hover:text-[#a87517]">{publicRegistrationName(player)}</Link> : publicRegistrationName(player)}</div>
+                              <div className="mt-0.5 truncate text-[9px] leading-3 text-[#7a8797]">{player.chess_sa_id || player.pcc_id || "ID pending"}{player.gender ? ` · ${player.gender}` : ""}</div>
+                            </td>
+                            <td className="break-words px-2 py-2 leading-4 sm:px-2.5">{player.section_name ?? "—"}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </section>
+              ))}
           </div>
         )}
       </section>
