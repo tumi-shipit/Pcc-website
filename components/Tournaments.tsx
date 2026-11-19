@@ -1,38 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
-import { connection } from "next/server";
 import {
   formatCalendarDate,
   getCalendarDateKey,
   getSouthAfricaDateKey,
   parseCalendarDate,
 } from "@/lib/dateHelpers";
-
-type Tournament = {
-  id: string;
-  tournament_name: string;
-  organiser_name: string | null;
-  description: string | null;
-  start_date: string;
-  end_date: string | null;
-  venue: string;
-  province: string | null;
-  registration_status:
-    | "Draft"
-    | "Open"
-    | "Closed"
-    | "Postponed"
-    | "Live"
-    | "Completed"
-    | null;
-  entry_fee: number;
-  poster_image_url: string | null;
-};
-
-type TournamentSectionFee = {
-  tournament_id: string;
-  entry_fee_override: number | null;
-};
+import {
+  fetchPublicTournaments,
+  type TournamentDirectoryEntry as Tournament,
+  type TournamentDirectoryFee as TournamentSectionFee,
+} from "@/lib/publicTournamentDirectory";
 
 type TournamentFilters = {
   search?: string;
@@ -49,88 +27,6 @@ const directoryStatuses = [
   { value: "Completed", label: "Completed" },
   { value: "Coming Soon", label: "Coming soon" },
 ];
-
-const TOURNAMENT_COLUMNS =
-  "id,tournament_name,organiser_name,description,start_date,end_date,venue,province,registration_status,entry_fee,poster_image_url";
-
-async function fetchPublicTournaments() {
-  await connection();
-
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-
-  if (!supabaseUrl || !supabaseKey) {
-    console.error("Missing Supabase public environment variables.");
-    return {
-      tournaments: [] as Tournament[],
-      sectionFees: [] as TournamentSectionFee[],
-      error: true,
-    };
-  }
-
-  const baseUrl = `${supabaseUrl}/rest/v1/tournaments?select=${encodeURIComponent(
-    TOURNAMENT_COLUMNS
-  )}`;
-  const headers = {
-    apikey: supabaseKey,
-    Authorization: `Bearer ${supabaseKey}`,
-  };
-
-  async function request(url: string) {
-    return fetch(url, {
-      headers,
-      next: { revalidate: 60 },
-    });
-  }
-
-  try {
-    const primaryResponse = await request(
-      `${baseUrl}&registration_status=neq.Draft&order=start_date.asc`
-    );
-    const response = primaryResponse.ok
-      ? primaryResponse
-      : await request(`${baseUrl}&order=start_date.asc`);
-
-    if (!response.ok) {
-      console.error("Tournament loading error:", {
-        status: response.status,
-        body: await response.text(),
-      });
-      return {
-        tournaments: [] as Tournament[],
-        sectionFees: [] as TournamentSectionFee[],
-        error: true,
-      };
-    }
-
-    const tournaments = ((await response.json()) as Tournament[]).filter(
-      (tournament) => tournament.registration_status !== "Draft"
-    );
-
-    const tournamentIds = tournaments.map((tournament) => tournament.id);
-    let sectionFees: TournamentSectionFee[] = [];
-
-    if (tournamentIds.length > 0) {
-      const sectionFeeUrl = `${supabaseUrl}/rest/v1/tournament_sections?select=${encodeURIComponent(
-        "tournament_id,entry_fee_override"
-      )}&tournament_id=in.(${tournamentIds.join(",")})`;
-      const sectionFeeResponse = await request(sectionFeeUrl);
-
-      if (sectionFeeResponse.ok) {
-        sectionFees = (await sectionFeeResponse.json()) as TournamentSectionFee[];
-      }
-    }
-
-    return { tournaments, sectionFees, error: false };
-  } catch (error) {
-    console.error("Tournament loading error:", error);
-    return {
-      tournaments: [] as Tournament[],
-      sectionFees: [] as TournamentSectionFee[],
-      error: true,
-    };
-  }
-}
 
 function formatTournamentDate(tournament: Tournament) {
   const options: Intl.DateTimeFormatOptions = {
@@ -189,16 +85,17 @@ function isActiveTournament(tournament: Tournament) {
 }
 
 function getStatusLabel(status: Tournament["registration_status"]) {
-  if (status === "Open") return "Open";
+  if (status === "Open") return "Registration Open";
   if (status === "Live") return "Live";
   if (status === "Postponed") return "Postponed";
   if (status === "Completed") return "Completed";
-  if (status === "Closed") return "Not Open";
+  if (status === "Closed") return "Registration Closed";
   return "Coming Soon";
 }
 
 function getStatusClass(status: Tournament["registration_status"]) {
   if (status === "Open") return "bg-green-600";
+  if (status === "Closed") return "bg-red-600";
   if (status === "Live") return "bg-red-600";
   if (status === "Postponed") return "bg-orange-600";
   if (status === "Completed") return "bg-blue-600";
@@ -323,13 +220,13 @@ function TournamentCard({
           {!archive &&
             (isOpen ? (
               <Link
-                href={`/register?tournament=${tournament.id}`}
+                href={`/gambitbase/register?tournament=${tournament.id}`}
                 className="block rounded-lg bg-red-600 px-3 py-2 text-center text-xs font-semibold text-white transition hover:bg-red-700"
               >
                 Register Now
               </Link>
             ) : (
-              <span className="block rounded-lg bg-zinc-800 px-3 py-2 text-center text-xs text-gray-400">
+              <span className={`block rounded-lg px-3 py-2 text-center text-xs ${tournament.registration_status === "Closed" ? "bg-red-600 font-semibold text-white" : "bg-zinc-800 text-gray-400"}`}>
                 {getStatusLabel(tournament.registration_status)}
               </span>
             ))}

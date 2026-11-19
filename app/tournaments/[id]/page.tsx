@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import PlayerAvatar from "@/components/PlayerAvatar";
 import PublicPageShell from "@/components/PublicPageShell";
+import GambitBaseShell from "@/components/gambitbase/GambitBaseShell";
 import { formatCalendarDate } from "@/lib/dateHelpers";
 import { calculateTeamPoints, normalizeTeamPointsGrouping, shouldUseOfficialTeamStandings, type TeamPointsGrouping } from "@/lib/tournamentStandings";
+import type { TournamentType } from "@/lib/tournamentStandings";
 import { publicSupabase as supabase } from "@/lib/publicSupabase";
 
 type Tournament = {
@@ -20,6 +22,7 @@ type Tournament = {
   venue: string;
   province: string | null;
   registration_status: string;
+  tournament_type: TournamentType;
   team_points_grouping?: TeamPointsGrouping;
   entry_fee: number;
   poster_image_url: string | null;
@@ -103,6 +106,19 @@ const provincePalettes: Record<string, { border: string; header: string; headerT
 };
 
 const defaultProvincePalette = { border: "#52525B", header: "linear-gradient(135deg, #27272A, #52525B)", headerText: "#FFFFFF", badge: "rgba(255,255,255,0.12)", row: "rgba(255,255,255,0.03)" };
+
+function normalizePublicTournamentType(value: unknown): TournamentType {
+  return value === "District" || value === "Provincial" || value === "National" || value === "Organisation / School"
+    ? value
+    : "Club";
+}
+
+function registrationGroupForTournament(type: TournamentType) {
+  if (type === "National") return { field: "province" as const, label: "Province", plural: "provinces" };
+  if (type === "Provincial") return { field: "district" as const, label: "District", plural: "districts" };
+  if (type === "District") return { field: "club" as const, label: "Club / school", plural: "clubs and schools" };
+  return { field: "entry" as const, label: "Entry", plural: "individual entries" };
+}
 
 type TournamentTeamResult = {
   id: string;
@@ -195,6 +211,8 @@ type PublicRegistrationRow = {
   chess_sa_id: string | null;
   gender: string | null;
   province: string | null;
+  club: string | null;
+  district?: string | null;
   pcc_id: string | null;
   profile_photo_url: string | null;
   registration_status: string | null;
@@ -288,12 +306,18 @@ function calendarEndDate(value: string) {
   return date.toISOString().slice(0, 10).replace(/-/g, "");
 }
 
-function buildCalendarFile(tournament: Tournament) {
+function buildCalendarFile(tournament: Tournament, isGambitBase: boolean) {
   const eventEndDate = tournament.end_date || tournament.start_date;
+  const eventPath = `${isGambitBase ? "/gambitbase" : ""}/tournaments/${tournament.id}`;
+  const eventUrl = `${window.location.origin}${eventPath}`;
+  const calendarBrand = isGambitBase ? "GambitBase" : "Polokwane Chess Club";
+  const calendarUid = isGambitBase
+    ? `gambitbase-tournament-${tournament.id}@gambitbase`
+    : `pcc-tournament-${tournament.id}@polokwanechessclub.co.za`;
   const description = [
     tournament.description?.trim(),
     tournament.province ? `Province: ${tournament.province}` : null,
-    `Event page: https://polokwanechessclub.co.za/tournaments/${tournament.id}`,
+    `Event page: ${eventUrl}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -301,17 +325,17 @@ function buildCalendarFile(tournament: Tournament) {
   return [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//Polokwane Chess Club//Tournament Hub//EN",
+    `PRODID:-//${calendarBrand}//Tournament Hub//EN`,
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:pcc-tournament-${tournament.id}@polokwanechessclub.co.za`,
+    `UID:${calendarUid}`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`,
     `DTSTART;VALUE=DATE:${calendarDate(tournament.start_date)}`,
     `DTEND;VALUE=DATE:${calendarEndDate(eventEndDate)}`,
     `SUMMARY:${escapeCalendarText(tournament.tournament_name)}`,
     `LOCATION:${escapeCalendarText(tournament.venue)}`,
     `DESCRIPTION:${escapeCalendarText(description)}`,
-    `URL:https://polokwanechessclub.co.za/tournaments/${tournament.id}`,
+    `URL:${eventUrl}`,
     "END:VEVENT",
     "END:VCALENDAR",
     "",
@@ -337,6 +361,8 @@ function tournamentFeeSummary(tournament: Tournament, sections: TournamentSectio
 function statusStyle(status: string) {
   if (status === "Open")
     return "border-green-500/40 bg-green-500/10 text-green-300";
+  if (status === "Closed")
+    return "border-red-500/40 bg-red-500/10 text-red-300";
   if (status === "Completed")
     return "border-blue-500/40 bg-blue-500/10 text-blue-300";
   if (status === "Live")
@@ -346,8 +372,18 @@ function statusStyle(status: string) {
   return "border-zinc-500/40 bg-zinc-500/10 text-zinc-300";
 }
 
+function gambitBaseEventStatusStyle(status: string) {
+  if (status === "Open") return "border-emerald-700/20 bg-emerald-50 text-emerald-800";
+  if (status === "Closed") return "border-red-700/20 bg-red-50 text-red-800";
+  if (status === "Live") return "border-violet-700/20 bg-violet-50 text-violet-800";
+  if (status === "Postponed") return "border-orange-700/20 bg-orange-50 text-orange-800";
+  if (status === "Completed") return "border-slate-500/20 bg-slate-100 text-slate-700";
+  return "border-[#a87517]/25 bg-[#f6f0df] text-[#785711]";
+}
+
 function statusLabel(status: string) {
   if (status === "Open") return "Registration Open";
+  if (status === "Closed") return "Registration Closed";
   if (status === "Completed") return "Completed Tournament";
   if (status === "Live") return "Live Tournament";
   if (status === "Postponed") return "Tournament Postponed";
@@ -373,8 +409,10 @@ function PostponedPosterStamp() {
 }
 
 function AddToCalendarButton({ tournament }: { tournament: Tournament }) {
+  const isGambitBase = usePathname().startsWith("/gambitbase/");
+
   function downloadCalendarFile() {
-    const calendar = buildCalendarFile(tournament);
+    const calendar = buildCalendarFile(tournament, isGambitBase);
     const blob = new Blob([calendar], { type: "text/calendar;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -383,7 +421,7 @@ function AddToCalendarButton({ tournament }: { tournament: Tournament }) {
     link.download = `${tournament.tournament_name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "") || "pcc-tournament"}.ics`;
+      .replace(/^-|-$/g, "") || (isGambitBase ? "gambitbase-tournament" : "pcc-tournament")}.ics`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -669,6 +707,10 @@ function buildPublicTeamCards(
 
 export default function TournamentHubPage() {
   const params = useParams();
+  const pathname = usePathname();
+  const isGambitBase = pathname.startsWith("/gambitbase/");
+  const tournamentBase = isGambitBase ? "/gambitbase/tournaments" : "/tournaments";
+  const PageShell = isGambitBase ? GambitBaseShell : PublicPageShell;
   const tournamentId = String(params.id);
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -703,7 +745,7 @@ export default function TournamentHubPage() {
       const { data: tournamentData, error: tournamentError } = await supabase
         .from("tournaments")
         .select(
-          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id, team_points_grouping, postponement_reason, competition_document_url, competition_document_label, external_gallery_url, external_gallery_label"
+          "id, tournament_name, description, start_date, end_date, venue, province, registration_status, tournament_type, entry_fee, poster_image_url, payment_details, chess_results_url, arbiter_player_id, team_points_grouping, postponement_reason, competition_document_url, competition_document_label, external_gallery_url, external_gallery_label"
         )
         .eq("id", tournamentId)
         .single();
@@ -718,6 +760,7 @@ export default function TournamentHubPage() {
       const loadedTournament = {
         ...tournamentData,
         postponement_reason: tournamentData.postponement_reason ?? null,
+        tournament_type: normalizePublicTournamentType(tournamentData.tournament_type),
         team_points_grouping: normalizeTeamPointsGrouping(tournamentData.team_points_grouping),
         competition_document_url: tournamentData.competition_document_url ?? null,
         competition_document_label: tournamentData.competition_document_label ?? null,
@@ -841,6 +884,19 @@ export default function TournamentHubPage() {
         .order("section_display_order", { ascending: true, nullsFirst: false })
         .order("section_name", { ascending: true, nullsFirst: false })
         .order("full_name", { ascending: true, nullsFirst: false });
+
+      const registrationRows = (registrationListData ?? []) as unknown as PublicRegistrationRow[];
+      const registeredPlayerIds = Array.from(new Set(registrationRows.map((row) => row.player_id).filter(Boolean))) as string[];
+      let registeredPlayerClubs = new Map<string, string | null>();
+      if (registeredPlayerIds.length > 0) {
+        const { data: registeredPlayerData } = await supabase
+          .from("players")
+          .select("id, club")
+          .in("id", registeredPlayerIds);
+        registeredPlayerClubs = new Map(
+          (registeredPlayerData ?? []).map((player) => [player.id, player.club])
+        );
+      }
 
       const { data: tournamentOrganisationData } = await supabase
         .from("tournament_organisations")
@@ -984,7 +1040,10 @@ export default function TournamentHubPage() {
       setAnnouncements((announcementData ?? []) as EventAnnouncement[]);
       setProgrammeItems((programmeData ?? []) as ProgrammeItem[]);
       setRegisteredPlayers(
-        (registrationListData ?? []) as unknown as PublicRegistrationRow[]
+        registrationRows.map((row) => ({
+          ...row,
+          club: row.player_id ? registeredPlayerClubs.get(row.player_id) ?? null : null,
+        }))
       );
       setOrganisations(
         tournamentOrganisationRows.map((row) => ({
@@ -1042,28 +1101,32 @@ export default function TournamentHubPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
-        <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
-          Loading tournament page...
-        </div>
-      </main>
+      <PageShell><main className={isGambitBase ? "gambitbase-event min-h-screen px-4 pt-8 text-[#142239]" : "min-h-screen bg-zinc-950 px-4 pt-28 text-white"}>
+        {isGambitBase ? (
+          <div role="status" aria-label="Loading tournament details" className="mx-auto max-w-7xl pt-10">
+            <div className="relative h-1 overflow-hidden bg-[#e2ddd2]"><span className="gb-loading-line absolute left-0 top-0 block h-full w-1/3 bg-[#c59635]" /></div>
+          </div>
+        ) : (
+          <div className="mx-auto max-w-7xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">Loading tournament page...</div>
+        )}
+      </main></PageShell>
     );
   }
 
   if (message || !tournament) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
+      <PageShell><main className={isGambitBase ? "gambitbase-event min-h-screen px-4 pt-8 text-[#142239]" : "min-h-screen bg-zinc-950 px-4 pt-28 text-white"}>
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-100">
           <h1 className="text-2xl font-bold">Tournament unavailable</h1>
           <p className="mt-3">{message || "Tournament could not be found."}</p>
           <Link
-            href="/tournaments"
+            href={tournamentBase}
             className="mt-5 inline-block rounded-lg bg-red-600 px-4 py-3 text-sm font-semibold text-white"
           >
             Back to tournaments
           </Link>
         </div>
-      </main>
+      </main></PageShell>
     );
   }
 
@@ -1084,6 +1147,9 @@ export default function TournamentHubPage() {
     ...(announcements.length > 0 ? [{ href: "#updates", label: "Updates" }] : []),
     ...(programmeItems.length > 0 ? [{ href: "#programme", label: "Programme" }] : []),
     ...(!isCompleted ? [{ href: "#entries", label: "Entries & sections" }] : []),
+    ...(isGambitBase && registeredPlayers.length > 0
+      ? [{ href: "#entry-check", label: "Entry check" }]
+      : []),
     ...(hasPublicStandings
       ? [{ href: "#standings", label: isCompleted ? "Results" : "Standings" }]
       : []),
@@ -1097,11 +1163,101 @@ export default function TournamentHubPage() {
       }
     : undefined;
 
+  if (isGambitBase) {
+    return (
+      <PageShell>
+        <main className="gambitbase-event gambitbase-event-dashboard min-h-screen overflow-x-hidden bg-[#f6f3eb] px-4 py-6 text-[#142239] sm:px-6 lg:py-10">
+          <div className="mx-auto max-w-[1440px]">
+            <div className="mb-5 flex items-center justify-between gap-4 border-b border-[#d9d3c6] pb-4">
+              <Link href={tournamentBase} className="text-xs font-bold text-[#677488] transition hover:text-[#a87517]">← All events</Link>
+              <span className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9c762b]">GambitBase event file</span>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-12">
+              <aside className="gb-event-sidebar order-2 h-fit lg:sticky lg:top-24 lg:order-1">
+                <div className="overflow-hidden rounded-2xl border border-[#d9d3c6] bg-[#eee9de] text-[#142239] shadow-[0_12px_28px_rgba(20,34,57,0.07)]">
+                  <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-[#eee9de] p-4">
+                    {tournament.poster_image_url ? (
+                      <Image src={tournament.poster_image_url} alt={`${tournament.tournament_name} poster`} fill priority sizes="(max-width: 1024px) 100vw, 260px" className="object-contain" />
+                    ) : (
+                      <div className="px-5 text-center"><span className="text-5xl text-[#a87517]">♞</span><p className="mt-3 text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#58677a]">Event poster coming soon</p></div>
+                    )}
+                    {tournament.registration_status === "Postponed" && <PostponedPosterStamp />}
+                  </div>
+
+                  <div className="p-4">
+                    <span className={`inline-flex rounded-full border px-3 py-1.5 text-[9px] font-extrabold uppercase tracking-[0.13em] ${gambitBaseEventStatusStyle(tournament.registration_status)}`}>{statusLabel(tournament.registration_status)}</span>
+                    <dl className="mt-4 divide-y divide-white/10 text-xs">
+                      <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Date</dt><dd className="mt-1 font-bold">{formatDate(tournament.start_date)}{tournament.end_date && tournament.end_date !== tournament.start_date ? ` – ${formatDate(tournament.end_date)}` : ""}</dd></div>
+                      <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Venue</dt><dd className="mt-1 font-bold">{tournament.venue || "To be announced"}{tournament.province ? ` · ${tournament.province}` : ""}</dd></div>
+                      <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Entry fee</dt><dd className="mt-1 font-bold">{feeSummary}</dd></div>
+                      {tournament.competition_document_url && <div className="py-3"><dt className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#788495]">Event document</dt><dd className="mt-1"><a href={tournament.competition_document_url} target="_blank" rel="noopener noreferrer" className="font-bold text-[#9a6b18] underline underline-offset-2">{competitionDocumentLabel} ↗</a></dd></div>}
+                    </dl>
+
+                    <div className="mt-2 grid gap-2">
+                      {isOpen ? <Link href={`/gambitbase/register?tournament=${tournament.id}`} className="rounded-xl bg-[#e2b85f] px-4 py-3 text-center text-xs font-black text-[#17283d] transition hover:bg-white">Register for this event →</Link> : <span className={`rounded-xl border px-4 py-3 text-center text-[10px] font-extrabold uppercase tracking-[0.1em] ${tournament.registration_status === "Closed" ? "border-red-700/20 bg-red-50 text-red-800" : "border-[#ded8cb] bg-[#ded8cb] text-[#56657a]"}`}>{isCompleted ? "Event completed" : isPostponed ? "Event postponed" : tournament.registration_status === "Closed" ? "Registration closed" : "Registration not open"}</span>}
+                      {isLive && <Link href={`${tournamentBase}/${tournament.id}/live`} className="rounded-xl border border-white/20 px-4 py-3 text-center text-xs font-bold text-white transition hover:border-[#e2b85f]">Open live standings ↗</Link>}
+                      {tournament.chess_results_url && <a href={tournament.chess_results_url} target="_blank" rel="noopener noreferrer" className="rounded-xl border border-white/20 px-4 py-3 text-center text-xs font-bold text-white transition hover:border-[#e2b85f]">Chess-Results ↗</a>}
+                      <div className="grid grid-cols-2 gap-2"><AddToCalendarButton tournament={tournament} /><VenueDirectionsLink tournament={tournament} /></div>
+                      <ShareTournamentButton tournament={tournament} />
+                    </div>
+                    {isPostponed && <p className="mt-4 rounded-xl border border-orange-300 bg-orange-50 p-3 text-[10px] leading-5 text-orange-900">{postponementNotice(tournament.postponement_reason)}</p>}
+                  </div>
+                </div>
+
+                <nav aria-label="Event sections" className="mt-5 border-l-2 border-[#d8c89f] pl-4">
+                  <p className="mb-2 text-[8px] font-extrabold uppercase tracking-[0.2em] text-[#929ba6]">On this page</p>
+                  <div className="flex flex-wrap gap-x-4 gap-y-2 lg:flex-col lg:gap-2">
+                    {eventNavigation.map((item) => <a key={item.href} href={item.href} className="text-[11px] font-bold text-[#58677a] transition hover:text-[#9a6b18]">{item.label}</a>)}
+                  </div>
+                </nav>
+              </aside>
+
+              <div className="order-1 min-w-0 lg:order-2">
+                <header id="event-overview" className="scroll-mt-28 border-b border-[#d9d3c6] pb-7 pt-2">
+                  <div className="flex flex-wrap items-center gap-2 text-[9px] font-extrabold uppercase tracking-[0.17em] text-[#9a6b18]">
+                    <span>{tournament.province || "South Africa"}</span>
+                    <span className="text-[#c2bbaD]">/</span>
+                    <span>{organisations[0]?.organisation?.name || "Tournament details"}</span>
+                    {tournament.competition_document_url && <span className="rounded-full bg-[#e9e1ce] px-2.5 py-1 text-[#73551c]">Document ready</span>}
+                  </div>
+                  <h1 className="mt-4 max-w-5xl font-serif text-4xl font-semibold leading-[1.05] tracking-tight text-[#142239] md:text-6xl">{tournament.tournament_name}</h1>
+                  {tournament.description && <p className="mt-5 max-w-3xl text-sm leading-7 text-[#58677a] md:text-base">{tournament.description}</p>}
+                  <div className="mt-6 flex flex-wrap gap-2 text-[9px] font-extrabold uppercase tracking-[0.12em] text-[#56657a]">
+                    <span className="border border-[#d8d1c2] px-3 py-2"><strong className="mr-1.5 text-[#142239]">{registeredCount}</strong> entries</span>
+                    <span className="border border-[#d8d1c2] px-3 py-2"><strong className="mr-1.5 text-[#142239]">{sections.length}</strong> sections</span>
+                    <span className={`border px-3 py-2 ${gambitBaseEventStatusStyle(tournament.registration_status)}`}>{statusLabel(tournament.registration_status)}</span>
+                  </div>
+                </header>
+
+                <div className="gb-event-content pt-4">
+                  <TournamentCredits organisations={organisations} officials={officials} fallbackArbiter={arbiter} />
+                  <EventUpdatesPanel announcements={announcements} />
+                  <EventProgrammePanel items={programmeItems} />
+
+                  {!isCompleted && <EntryBoard tournament={tournament} sections={sections} registeredPlayers={registeredPlayers} registeredCount={registeredCount} resultsCount={results.length} feeSummary={feeSummary} />}
+                  {(registeredPlayers.length > 0 || !isCompleted) && <RegisteredPlayersPanel players={registeredPlayers} tournamentType={tournament.tournament_type} variant="gambitbase" />}
+                  {!isCompleted && standingUpdates.length > 0 && <TournamentStandingsPanel tournamentId={tournament.id} standingUpdates={standingUpdates} results={results} sections={sections} sectionCombinations={sectionCombinations} chessResultsUrl={tournament.chess_results_url} isCompleted={false} />}
+                  {isCompleted && <ArchiveContent tournament={tournament} sections={sections} sectionCombinations={sectionCombinations} results={results} teamResults={teamResults} standingUpdates={standingUpdates} />}
+
+                  {isCompleted && <section id="gallery" className="scroll-mt-28 mt-8 border-t border-[#d9d3c6] py-7">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9a6b18]">Event archive</p><h2 className="mt-2 font-serif text-3xl font-semibold">Tournament photos</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-[#657286]">Photos are kept in the organiser&apos;s album so the full collection stays together.</p></div>{tournament.external_gallery_url && <a href={tournament.external_gallery_url} target="_blank" rel="noopener noreferrer" className="rounded-xl bg-[#17283d] px-5 py-3 text-center text-xs font-bold text-white transition hover:bg-[#9b7428]">{tournament.external_gallery_label?.trim() || "Open photo album"} ↗</a>}</div>
+                    {!tournament.external_gallery_url && <p className="mt-5 text-sm text-[#657286]">The organiser has not shared a photo album link yet.</p>}
+                  </section>}
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+      </PageShell>
+    );
+  }
+
   return (
-    <PublicPageShell>
+    <PageShell>
       <main
-        className="min-h-screen bg-zinc-950 bg-cover bg-fixed bg-center pt-24 text-white"
-        style={pageBackgroundStyle}
+        className={isGambitBase ? "gambitbase-event min-h-screen bg-[#f6f3eb] bg-cover bg-center pt-8 text-[#142239]" : "min-h-screen bg-zinc-950 bg-cover bg-fixed bg-center pt-24 text-white"}
+        style={isGambitBase ? undefined : pageBackgroundStyle}
       >
       <section
         id="event-overview"
@@ -1133,7 +1289,7 @@ export default function TournamentHubPage() {
           <div className="flex flex-col justify-center rounded-3xl border border-white/10 bg-zinc-950/75 p-5 shadow-2xl shadow-black/40 backdrop-blur md:p-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Link
-                href="/tournaments"
+                href={tournamentBase}
                 className="text-sm font-semibold text-red-300 transition hover:text-red-200"
               >
                  Back to tournaments
@@ -1181,18 +1337,20 @@ export default function TournamentHubPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               {isOpen ? (
                 <Link
-                  href={`/register?tournament=${tournament.id}`}
+                  href={`/gambitbase/register?tournament=${tournament.id}`}
                   className="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700"
                 >
                   Register Now
                 </Link>
               ) : (
-                <span className="rounded-xl bg-zinc-800 px-6 py-3 text-sm font-semibold text-gray-400">
+                <span className={`rounded-xl px-6 py-3 text-sm ${tournament.registration_status === "Closed" ? "bg-red-600 font-bold text-white" : "bg-zinc-800 font-semibold text-gray-400"}`}>
                   {isCompleted
                     ? "Completed Event"
                     : isPostponed
                       ? "Tournament Postponed"
-                      : "Registration Not Open"}
+                      : tournament.registration_status === "Closed"
+                        ? "Registration Closed"
+                        : "Registration Not Open"}
                 </span>
               )}
 
@@ -1207,7 +1365,7 @@ export default function TournamentHubPage() {
 
               {isLive && (
                 <Link
-                  href={`/tournaments/${tournament.id}/live`}
+                  href={`${tournamentBase}/${tournament.id}/live`}
                   className="rounded-xl bg-green-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-green-700"
                 >
                   Standings Screen
@@ -1273,7 +1431,7 @@ export default function TournamentHubPage() {
         )}
 
         {(registeredPlayers.length > 0 || !isCompleted) && (
-          <RegisteredPlayersPanel players={registeredPlayers} />
+          <RegisteredPlayersPanel players={registeredPlayers} tournamentType={tournament.tournament_type} />
         )}
 
         {!isCompleted && standingUpdates.length > 0 && (
@@ -1340,7 +1498,7 @@ export default function TournamentHubPage() {
         )}
       </section>
       </main>
-    </PublicPageShell>
+    </PageShell>
   );
 }
 
@@ -1387,13 +1545,28 @@ function publicRegistrationName(player: PublicRegistrationRow) {
   return player.full_name?.trim() || "Player name pending";
 }
 
+function publicRegistrationGroupName(
+  player: PublicRegistrationRow,
+  field: "province" | "district" | "club" | "entry"
+) {
+  if (field === "province") return player.province?.trim() || "Province pending";
+  if (field === "district") return player.district?.trim() || "District not recorded";
+  if (field === "club") return player.club?.trim() || "Club / school not recorded";
+  return "Entries";
+}
+
 function RegisteredPlayersPanel({
   players,
+  tournamentType,
+  variant = "pcc",
 }: {
   players: PublicRegistrationRow[];
+  tournamentType: TournamentType;
+  variant?: "pcc" | "gambitbase";
 }) {
   const [search, setSearch] = useState("");
   const cleanSearch = search.trim().toLowerCase();
+  const groupConfig = registrationGroupForTournament(tournamentType);
 
   const filteredPlayers = useMemo(() => {
     if (!cleanSearch) return players;
@@ -1405,6 +1578,8 @@ function RegisteredPlayersPanel({
         player.chess_sa_id,
         player.pcc_id,
         player.province,
+        player.district,
+        player.club,
       ]
         .filter(Boolean)
         .join(" ")
@@ -1417,14 +1592,84 @@ function RegisteredPlayersPanel({
     const groups = new Map<string, PublicRegistrationRow[]>();
 
     filteredPlayers.forEach((player) => {
-      const provinceName = player.province ?? "Province pending";
-      const current = groups.get(provinceName) ?? [];
+      const groupName = publicRegistrationGroupName(player, groupConfig.field);
+      const current = groups.get(groupName) ?? [];
       current.push(player);
-      groups.set(provinceName, current);
+      groups.set(groupName, current);
     });
 
     return Array.from(groups.entries());
-  }, [filteredPlayers]);
+  }, [filteredPlayers, groupConfig.field]);
+
+  const orderedPlayers = useMemo(
+    () => [...filteredPlayers].sort((a, b) =>
+      publicRegistrationGroupName(a, groupConfig.field).localeCompare(publicRegistrationGroupName(b, groupConfig.field)) ||
+      (a.section_name ?? "").localeCompare(b.section_name ?? "") ||
+      publicRegistrationName(a).localeCompare(publicRegistrationName(b))
+    ),
+    [filteredPlayers, groupConfig.field]
+  );
+
+  const publicEntryDescription = tournamentType === "National"
+    ? "National entries are grouped by province."
+    : tournamentType === "Provincial"
+      ? "Provincial entries are grouped by district."
+      : tournamentType === "District"
+        ? "District entries are grouped by club and school."
+        : "Club and school event entries are listed without province or district grouping.";
+  const hasMissingDistricts = tournamentType === "Provincial" && players.some((player) => !player.district?.trim());
+
+  if (variant === "gambitbase") {
+    return (
+      <section id="entry-check" className="gb-entry-check mt-10 border-t border-[#d9d3c6] pt-7">
+        <div className="grid gap-5 md:grid-cols-[1fr_300px] md:items-end">
+          <div>
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9a6b18]">Entry check</p>
+            <h2 className="mt-2 font-serif text-3xl font-semibold text-[#142239]">Team roster</h2>
+            <p className="mt-2 text-sm leading-6 text-[#657286]">{publicEntryDescription} Entries remain grouped by playing section in the table.</p>
+          </div>
+          <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={groupConfig.field === "entry" ? "Search player or ID" : `Search ${groupConfig.label.toLowerCase()}, player or ID`} className="w-full border border-[#d9d3c6] bg-white px-4 py-3 text-sm text-[#142239] outline-none transition placeholder:text-[#8993a1] focus:border-[#a87517]" />
+        </div>
+
+        {hasMissingDistricts && <p className="mt-4 border-l-2 border-[#d5ab5d] bg-[#f5efdf] px-4 py-3 text-xs leading-5 text-[#58677a]">Some player profiles do not have a district recorded yet, so those entries appear under “District not recorded”.</p>}
+
+                    <div className="mt-5 flex items-center justify-between border-y border-[#d9d3c6] py-3 text-[9px] font-extrabold uppercase tracking-[0.14em] text-[#798392]">
+          <span>{groupConfig.field === "entry" ? `${players.length} individual entries` : `${players.length} players across ${groupedPlayers.length} ${groupConfig.plural}`}</span>
+          {search.trim() && <span>{filteredPlayers.length} matching</span>}
+        </div>
+
+        {players.length === 0 ? (
+          <p className="py-6 text-sm text-[#657286]">Team entries will appear here once the organiser publishes them.</p>
+        ) : filteredPlayers.length === 0 ? (
+          <p className="py-6 text-sm text-[#657286]">No player or team matches that search.</p>
+        ) : (
+          <div className="mt-4 max-h-[620px] overflow-auto border border-[#ded8cb] bg-white">
+            <table className="min-w-[700px] w-full border-collapse text-left text-xs">
+              <thead className="sticky top-0 z-10 bg-[#17283d] text-[9px] uppercase tracking-[0.14em] text-[#f5f1e8]">
+                <tr><th className="px-4 py-3">{groupConfig.label}</th><th className="px-4 py-3">Player</th><th className="px-4 py-3">Chess SA ID</th><th className="px-4 py-3">Section</th><th className="px-4 py-3">Gender</th></tr>
+              </thead>
+              <tbody>
+                {orderedPlayers.map((player, index) => {
+                  const groupName = publicRegistrationGroupName(player, groupConfig.field);
+                  const previousGroup = index > 0 ? publicRegistrationGroupName(orderedPlayers[index - 1], groupConfig.field) : null;
+                  const startsGroup = groupName !== previousGroup;
+                  return (
+                    <tr key={player.registration_id} className={`border-b border-[#ece8df] text-[#526176] transition hover:bg-[#faf8f2] ${startsGroup && index > 0 ? "border-t-2 border-t-[#c9a653]" : ""}`}>
+                      <td className="px-4 py-3 font-bold text-[#263750]">{startsGroup ? groupName : <span className="pl-3 text-[#c0c6cc]">↳</span>}</td>
+                      <td className="px-4 py-3 font-semibold text-[#263750]">{player.player_id ? <Link href={`/players/${player.player_id}`} className="transition hover:text-[#a87517]">{publicRegistrationName(player)}</Link> : publicRegistrationName(player)}</td>
+                      <td className="px-4 py-3 tabular-nums">{player.chess_sa_id ?? "—"}</td>
+                      <td className="px-4 py-3">{player.section_name ?? "—"}</td>
+                      <td className="px-4 py-3">{player.gender ?? "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section className="mt-6 rounded-2xl border border-white/10 bg-zinc-950/85 p-5 shadow-2xl shadow-black/25 backdrop-blur md:p-6">
@@ -1437,8 +1682,8 @@ function RegisteredPlayersPanel({
             Registered players
           </h2>
       <p className="mt-2 text-sm leading-6 text-gray-400">
-            National entry list by province. Points and rank will appear here
-            when official results are published.
+          {publicEntryDescription} Points and rank will appear here when
+          official results are published.
           </p>
         </div>
 
@@ -1446,10 +1691,12 @@ function RegisteredPlayersPanel({
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search player, province or ID"
+          placeholder={`Search player, ${groupConfig.label.toLowerCase()} or ID`}
           className="w-full rounded-xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-red-500"
         />
       </div>
+
+      {hasMissingDistricts && <p className="mt-4 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">Some player profiles do not have a district recorded yet, so those entries appear under “District not recorded”.</p>}
 
       <div className="mt-5 flex flex-wrap gap-2">
         <span className="rounded-full bg-zinc-950 px-4 py-2 text-sm text-gray-400">
@@ -2284,6 +2531,8 @@ function TournamentStandingsPanel({
   chessResultsUrl: string | null;
   isCompleted: boolean;
 }) {
+  const isGambitBase = usePathname().startsWith("/gambitbase/");
+  const tournamentBase = isGambitBase ? "/gambitbase/tournaments" : "/tournaments";
   const currentStanding = latestStandingsBySection(standingUpdates, sections);
   const latestRound = currentStanding.roundNumber;
   const latestRoundIsFinal =
@@ -2332,7 +2581,7 @@ function TournamentStandingsPanel({
             </span>
           )}
           <Link
-            href={`/tournaments/${tournamentId}/live`}
+            href={`${tournamentBase}/${tournamentId}/live`}
             className="rounded-full border border-white/10 bg-zinc-950 px-4 py-2 text-sm font-bold text-white transition hover:border-red-500"
           >
             Full standings screen

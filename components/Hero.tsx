@@ -100,7 +100,7 @@ export default function Hero() {
 
           <div className="mt-7 grid gap-3 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <Link
-              href="/register"
+              href="/gambitbase/register"
               className="rounded-lg bg-red-600 px-5 py-3 text-center text-sm font-bold text-white shadow-lg shadow-red-950/30 transition hover:bg-red-700"
             >
               Enter a Tournament

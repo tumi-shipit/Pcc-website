@@ -52,4 +52,6 @@ comment on column public.tournaments.team_standings_basis is
 comment on column public.tournaments.tournament_type is
   'The event identifier. Only National uses province team standings; every other type uses registered Club/City team standings.';
 
+grant select (tournament_type) on public.tournaments to anon, authenticated;
+
 notify pgrst, 'reload schema';

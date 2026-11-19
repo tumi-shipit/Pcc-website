@@ -30,6 +30,7 @@ begin
       'venue',
       'province',
       'registration_status',
+      'tournament_type',
       'entry_fee',
       'poster_image_url',
       'payment_details',

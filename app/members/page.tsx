@@ -792,7 +792,7 @@ function MemberDashboard({
                 </div>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <QuickAction href="/register" title="Enter Tournament" text="Register for an open PCC event." />
+                <QuickAction href="/gambitbase/register" title="Enter Tournament" text="Register for an open chess event." />
                 <QuickAction href="/players" title="Player Centre" text="Browse public player profiles." />
                 <QuickAction href="/players/rankings" title="LCA Rankings" text="View partner ranking information." />
                 <QuickAction href="/contact" title="Member Support" text="Ask about renewal or profile details." />

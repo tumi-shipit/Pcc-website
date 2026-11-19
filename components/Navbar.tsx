@@ -48,7 +48,7 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-2 xl:flex">
           <Link
-            href="/register"
+            href="/gambitbase/register"
             className="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-700"
           >
             Register
@@ -89,7 +89,7 @@ export default function Navbar() {
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <Link
-              href="/register"
+              href="/gambitbase/register"
               onClick={() => setOpen(false)}
               className="rounded-lg bg-red-600 px-4 py-3 text-center text-sm font-bold"
             >

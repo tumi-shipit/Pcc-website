@@ -53,7 +53,7 @@ export default function PlatformPage() {
               <Link href="/tournaments" className="rounded-xl bg-red-600 px-6 py-3 text-sm font-black transition hover:bg-red-700">
                 View tournaments
               </Link>
-              <Link href="/register" className="rounded-xl border border-white/15 px-6 py-3 text-sm font-black transition hover:border-red-400">
+              <Link href="/gambitbase/register" className="rounded-xl border border-white/15 px-6 py-3 text-sm font-black transition hover:border-red-400">
                 Register for an event
               </Link>
             </div>

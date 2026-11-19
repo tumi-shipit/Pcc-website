@@ -15,7 +15,8 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
   const [onlineOnly, setOnlineOnly] = useState(true);
 
   useEffect(() => {
-    setLink(`${window.location.origin}/register#entry=${receipt.registrationId}&recovery=${receipt.recoveryToken}`);
+    const path = "/gambitbase/register";
+    setLink(`${window.location.origin}${path}#entry=${receipt.registrationId}&recovery=${receipt.recoveryToken}`);
     setStatus("");
     setOnlineOnly(true);
     setEntryStatus("");
@@ -44,7 +45,7 @@ export default function RegistrationRecovery({ receipt }: { receipt: RecoveryRec
         if (!file) throw new Error("Choose your proof of payment first.");
         form.set("file", file);
       }
-      const response = await fetch(action === "pay" ? "/api/registration/checkout" : "/api/registration/recovery", action === "pay" ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(receipt) } : { method: "POST", body: form });
+      const response = await fetch(action === "pay" ? "/api/registration/checkout" : "/api/registration/recovery", action === "pay" ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...receipt, brand: "gambitbase" }) } : { method: "POST", body: form });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || "Could not complete this request. Your entry is still saved.");
       if (action === "pay" && result.redirectUrl) { window.location.assign(result.redirectUrl); return; }

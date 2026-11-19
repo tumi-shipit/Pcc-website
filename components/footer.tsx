@@ -56,7 +56,7 @@ export default function Footer() {
             </p>
             <div className="mt-4 grid gap-3">
               <Link
-                href="/register"
+                href="/gambitbase/register"
                 className="rounded-lg bg-red-600 px-4 py-3 text-center text-sm font-bold transition hover:bg-red-700"
               >
                 Register for a Tournament

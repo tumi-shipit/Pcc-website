@@ -13,13 +13,13 @@ export type BulkSection = {
 const text = (value: unknown) => String(value ?? "").trim();
 const key = (value: string) => value.trim().toLowerCase().replace(/\s+/g, " ");
 
-export function createBulkWorkbook(sections: BulkSection[] = [], eventName = "PCC tournament") {
+export function createBulkWorkbook(sections: BulkSection[] = [], eventName = "PCC tournament", brand = "PCC") {
   const book = XLSX.utils.book_new();
   const players = XLSX.utils.aoa_to_sheet([["First names", "Surname", "Date of birth", "Gender", "Rating", "Club/City", "Section"]]);
   players["!cols"] = [24,24,20,14,12,28,28].map(wch => ({wch}));
   XLSX.utils.book_append_sheet(book, players, "Players");
   const instructions = XLSX.utils.aoa_to_sheet([
-    ["PCC bulk entry", eventName],
+    [`${brand} bulk entry`, eventName],
     ["Names", "Separate First names and Surname; no commas. Do not guess missing details."],
     ["Date of birth", "YYYY-MM-DD or DD/MM/YYYY"],
     ["Section", "Enter the exact event section name. Blank uses the importer's default or eligibility."],
@@ -35,8 +35,11 @@ export function createBulkWorkbook(sections: BulkSection[] = [], eventName = "PC
   return book;
 }
 
-export function downloadBulkWorkbook(sections: BulkSection[] = [], eventName = "PCC tournament") {
-  XLSX.writeFile(createBulkWorkbook(sections, eventName), "pcc-bulk-registration-v2.xlsx");
+export function downloadBulkWorkbook(sections: BulkSection[] = [], eventName = "PCC tournament", brand = "PCC") {
+  const fileName = brand.toLowerCase() === "gambitbase"
+    ? "gambitbase-bulk-registration.xlsx"
+    : "pcc-bulk-registration-v2.xlsx";
+  XLSX.writeFile(createBulkWorkbook(sections, eventName, brand), fileName);
 }
 
 export function bulkDate(value: unknown): string {

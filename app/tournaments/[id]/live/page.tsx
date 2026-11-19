@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
+import GambitBaseShell from "@/components/gambitbase/GambitBaseShell";
 import {
   formatCalendarDate,
   formatSouthAfricaDateTime,
@@ -99,6 +100,9 @@ function valueOrDash(value: string | number | null | undefined) {
 
 export default function TournamentLiveBoardPage() {
   const params = useParams<{ id: string }>();
+  const isGambitBase = usePathname().startsWith("/gambitbase/");
+  const tournamentBase = isGambitBase ? "/gambitbase/tournaments" : "/tournaments";
+  const PageShell = isGambitBase ? GambitBaseShell : Fragment;
   const tournamentId = params.id;
 
   const [tournament, setTournament] = useState<Tournament | null>(null);
@@ -168,30 +172,30 @@ export default function TournamentLiveBoardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
+      <PageShell><main className={isGambitBase ? "gambitbase-live min-h-screen px-4 pt-8 text-[#142239]" : "min-h-screen bg-zinc-950 px-4 pt-28 text-white"}>
         <div className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-zinc-900 p-6 text-gray-400">
           Loading live board...
         </div>
-      </main>
+      </main></PageShell>
     );
   }
 
   if (!tournament) {
     return (
-      <main className="min-h-screen bg-zinc-950 px-4 pt-28 text-white">
+      <PageShell><main className={isGambitBase ? "gambitbase-live min-h-screen px-4 pt-8 text-[#142239]" : "min-h-screen bg-zinc-950 px-4 pt-28 text-white"}>
         <div className="mx-auto max-w-3xl rounded-2xl border border-red-500/30 bg-red-500/10 p-6 text-red-100">
           {message || "Tournament could not be found."}
         </div>
-      </main>
+      </main></PageShell>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 pt-24 text-white">
+    <PageShell><main className={isGambitBase ? "gambitbase-live min-h-screen bg-[#f6f3eb] pt-8 text-[#142239]" : "min-h-screen bg-zinc-950 pt-24 text-white"}>
       <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(34,197,94,0.18),_transparent_36%),radial-gradient(circle_at_bottom_left,_rgba(220,38,38,0.18),_transparent_34%)]">
         <div className="mx-auto max-w-7xl px-4 py-8 md:px-6 md:py-12">
           <Link
-            href={`/tournaments/${tournamentId}`}
+            href={`${tournamentBase}/${tournamentId}`}
             className="text-sm font-semibold text-red-300 transition hover:text-red-200"
           >
             Back to tournament
@@ -354,6 +358,6 @@ export default function TournamentLiveBoardPage() {
           </div>
         )}
       </section>
-    </main>
+    </main></PageShell>
   );
 }

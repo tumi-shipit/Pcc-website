@@ -2,8 +2,10 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { downloadBulkWorkbook } from "@/lib/bulkRegistration";
 import PublicPageShell from "@/components/PublicPageShell";
+import GambitBaseShell from "@/components/gambitbase/GambitBaseShell";
 import RegistrationRecovery, { recoveryStorageKey, type RecoveryReceipt } from "@/components/RegistrationRecovery";
 import {
   formatCalendarDate,
@@ -386,7 +388,12 @@ const maxProofFileSizeMb = 8;
 const maxProofFileSizeBytes = maxProofFileSizeMb * 1024 * 1024;
 
 export default function RegisterPage() {
+  const pathname = usePathname();
+  const isGambitBase = pathname.startsWith("/gambitbase/");
+  const PageShell = isGambitBase ? GambitBaseShell : PublicPageShell;
   const [searchMethod, setSearchMethod] = useState<SearchMethod>("chesssa");
+  const [gambitMethodChosen, setGambitMethodChosen] = useState(false);
+  const [gambitEntryStep, setGambitEntryStep] = useState<"player" | "section" | "payment">("player");
   const [searchValue, setSearchValue] = useState("");
   const [searchBirthDate, setSearchBirthDate] = useState("");
   const [searching, setSearching] = useState(false);
@@ -652,7 +659,7 @@ export default function RegisterPage() {
           openTournaments.some((tournament) => tournament.id === requestedTournamentId)
         ) {
           setSelectedTournamentId(requestedTournamentId);
-          setSearchMessage("Tournament selected. Find your player profile to continue.");
+          setSearchMessage(isGambitBase ? "Choose a search method to find the player." : "Tournament selected. Find your player profile to continue.");
         } else if (requestedTournamentId) {
           setSearchMessage(
             "That tournament is not currently open for registration. Please choose another open tournament below."
@@ -660,7 +667,7 @@ export default function RegisterPage() {
         } else if (openTournaments.length === 1) {
           setSelectedTournamentId(openTournaments[0].id);
           setSearchMessage(
-            "Tournament selected. Find your player profile to continue."
+            isGambitBase ? "Choose a search method to find the player." : "Tournament selected. Find your player profile to continue."
           );
         }
       }
@@ -938,7 +945,7 @@ export default function RegisterPage() {
 
     setMatches(results);
 
-    if (results.length === 1) {
+    if (results.length === 1 && !isGambitBase) {
       setSelectedChessSaPlayer(results[0]);
       setSelectedPlayerGender(normalizeGender(results[0].gender));
       const filledDetails = await fillContactDetailsFromPlayerCentre(results[0]);
@@ -951,9 +958,11 @@ export default function RegisterPage() {
       );
     } else {
       setSearchMessage(
-        searchMethod === "surname"
-          ? `${results.length} surname matches found. If you cannot find the correct player, try Chess SA ID or surname + date of birth.`
-          : `${results.length} possible profiles found. Some players may share the same name or surname, so please check the date of birth, FED and Chess SA ID before selecting.`
+        isGambitBase && results.length === 1
+          ? "Player found. Select the profile to continue."
+          : searchMethod === "surname"
+            ? `${results.length} surname matches found. If you cannot find the correct player, try Chess SA ID or surname + date of birth.`
+            : `${results.length} possible profiles found. Some players may share the same name or surname, so please check the date of birth, FED and Chess SA ID before selecting.`
       );
     }
 
@@ -1032,7 +1041,9 @@ export default function RegisterPage() {
     setSelectedChessSaPlayer(player);
     setSelectedPlayerGender(normalizeGender(player.gender));
     setNewPlayerMode(false);
+    setGambitMethodChosen(false);
     setRegistrationSubmitted(false);
+    setGambitEntryStep("section");
     const filledDetails = await fillContactDetailsFromPlayerCentre(player);
     setSearchMessage(
       filledDetails
@@ -1046,7 +1057,9 @@ export default function RegisterPage() {
     setSelectedChessSaPlayer(null);
     setSelectedPlayerGender("");
     setNewPlayerMode(true);
+    setGambitMethodChosen(false);
     setRegistrationSubmitted(false);
+    setGambitEntryStep("section");
     setSearchMessage(
       "New player registration selected. Complete the details below."
     );
@@ -1287,7 +1300,7 @@ export default function RegisterPage() {
       setRegistrationSubmitted(true);
       try { localStorage.setItem(recoveryStorageKey, JSON.stringify(savedReceipt)); } catch { /* The recovery panel still provides a copyable link. */ }
       if (paymentChoice === "online") {
-        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(savedReceipt) });
+        const response = await fetch("/api/registration/checkout", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...savedReceipt, brand: isGambitBase ? "gambitbase" : "pcc" }) });
         const checkout = await response.json().catch(() => null) as { redirectUrl?: string; error?: string } | null;
         if (!response.ok || !checkout?.redirectUrl) throw new Error(checkout?.error || "Secure payment could not be started. Your entry remains pending.");
         window.location.assign(checkout.redirectUrl);
@@ -1295,7 +1308,9 @@ export default function RegisterPage() {
       }
 
       setRegistrationMessage(
-        "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
+        isGambitBase
+          ? "Your entry is in. The event organiser will review your registration and payment."
+          : "Registration submitted successfully. PCC Tournament Services will review your entry and payment."
       );
       setRegistrationReceipt({
         playerName: selectedChessSaPlayer
@@ -1320,13 +1335,45 @@ export default function RegisterPage() {
   }
 
   return (
-    <PublicPageShell>
-      <main className="min-h-screen bg-zinc-950 pt-24 text-white">
-      <section className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.22),_transparent_38%)]">
+    <PageShell>
+      <main className={`min-h-screen ${isGambitBase ? "gambitbase-registration bg-[#f6f3eb] text-[#142239] pt-8" : "bg-zinc-950 pt-24 text-white"}`}>
+      <section className={isGambitBase ? "gb-registration-intro" : "border-b border-white/10 bg-[radial-gradient(circle_at_top_right,_rgba(220,38,38,0.22),_transparent_38%)]"}>
+        {isGambitBase ? (
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 sm:px-6 md:py-12 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:px-8">
+            <div>
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.25em] text-[#9a6b18]">GambitBase / Entry desk</p>
+              <h1 className="mt-4 max-w-3xl font-serif text-4xl font-semibold leading-[1.04] tracking-tight text-[#142239] md:text-6xl">Make your next move.</h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-[#58677a] md:text-base">Submit your tournament entry in a few clear steps.</p>
+              <div className="mt-7 grid max-w-2xl grid-cols-3 border-y border-[#d9d3c6] py-4">
+                {[["01", "Player"], ["02", "Event & section"], ["03", "Payment"]].map(([number, label]) => <div key={number} className="flex items-center gap-2 pr-2"><span className="font-serif text-lg font-bold text-[#a87517]">{number}</span><span className="text-[9px] font-bold uppercase tracking-[0.1em] text-[#657286]">{label}</span></div>)}
+              </div>
+            </div>
+
+            <aside className="gb-registration-event">
+              <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9a6b18]">Your event</p>
+              {selectedTournament ? (
+                <>
+                  <h2 className="mt-3 font-serif text-2xl font-semibold leading-tight text-[#142239]">{selectedTournament.tournament_name}</h2>
+                  <p className="mt-3 text-xs leading-5 text-[#657286]">{formatDate(selectedTournament.start_date)}{selectedTournament.venue ? ` · ${selectedTournament.venue}` : ""}{selectedTournament.province ? ` · ${selectedTournament.province}` : ""}</p>
+                  <div className="mt-5 flex items-center justify-between border-t border-[#dfd8c8] pt-4"><span className="text-[9px] font-extrabold uppercase tracking-[0.15em] text-[#8791a0]">Entry from</span><strong className="text-sm text-[#142239]">{selectedFeeText}</strong></div>
+                </>
+              ) : (
+                <>
+                  <h2 className="mt-3 font-serif text-2xl font-semibold leading-tight text-[#142239]">Choose an event to get started.</h2>
+                  <p className="mt-3 text-xs leading-5 text-[#657286]">You can select a tournament from the event list or continue below to choose one.</p>
+                </>
+              )}
+              <div className="mt-5 flex flex-wrap gap-3">
+                {selectedTournament && <a href="#single-player" className="rounded-full bg-[#dcb354] px-4 py-2.5 text-xs font-extrabold text-[#252525] transition hover:bg-[#c99a3d]">Continue entry ↓</a>}
+                <Link href="/gambitbase/tournaments" className="px-2 py-2.5 text-xs font-bold text-[#745719] underline decoration-[#c6a251] underline-offset-4">Browse events</Link>
+              </div>
+            </aside>
+          </div>
+        ) : (
         <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-12">
           <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-zinc-900 via-black to-zinc-900 p-5 shadow-xl md:p-8">
             <p className="text-[11px] font-semibold uppercase tracking-[0.25em] text-red-500 md:text-sm">
-              Tournament Entry
+              {isGambitBase ? "GambitBase Registration" : "Tournament Entry"}
             </p>
 
             <h1 className="mt-3 text-xl font-bold md:text-2xl leading-tight md:text-5xl">
@@ -1334,9 +1381,11 @@ export default function RegisterPage() {
             </h1>
 
             <p className="mt-4 max-w-4xl text-sm leading-6 text-gray-300 md:text-base md:leading-7">
-              Register for events run by PCC or approved organisers. The service
+              {isGambitBase ? "Choose an event, review its entry details, and submit your place through GambitBase." : "Register for events run by PCC or approved organisers. The service"}
+              {!isGambitBase && <>
               supports individuals, schools, organisations, districts, provinces
               and national federations.
+              </>}
             </p>
 
             <p className="mt-3 hidden max-w-4xl text-sm leading-6 text-gray-400 md:block md:text-base md:leading-7">
@@ -1345,7 +1394,7 @@ export default function RegisterPage() {
             </p>
 
             <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.2em] text-gray-500">
-              Powered by Polokwane Chess Club
+              {isGambitBase ? "ONE ACCOUNT OF YOUR ENTRY · ONE PLACE FOR EVENT DETAILS" : "Powered by Polokwane Chess Club"}
             </p>
 
             <div className="mt-5 flex flex-wrap gap-2">
@@ -1377,31 +1426,33 @@ export default function RegisterPage() {
             <a href="#bulk-registration" className="group rounded-2xl border border-white/15 bg-zinc-900 p-5 transition hover:border-white/30">
               <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-300">Schools and organisations</p>
               <h2 className="mt-2 text-xl font-black">Register multiple players</h2>
-              <p className="mt-2 text-sm leading-6 text-gray-400">Use the PCC Excel template when entering a team, school or larger group.</p>
+              <p className="mt-2 text-sm leading-6 text-gray-400">{isGambitBase ? "Use the GambitBase entry sheet when sending a team, school or larger group." : "Use the PCC Excel template when entering a team, school or larger group."}</p>
               <span className="mt-4 inline-flex font-bold text-white group-hover:underline">Open bulk registration →</span>
             </a>
           </div>
         </div>
+        )}
       </section>
 
-      <section id="single-player" className="mx-auto max-w-5xl scroll-mt-24 px-4 py-8 md:px-6 md:py-12">
+      <section id="single-player" className={`mx-auto scroll-mt-24 px-4 py-8 md:px-6 md:py-12 ${isGambitBase ? "gb-registration-layout grid max-w-7xl gap-8 lg:grid-cols-[minmax(0,1fr)_290px] lg:items-start lg:px-8" : "max-w-5xl"}`}>
+        <div className={isGambitBase ? "gb-registration-main order-1 min-w-0" : ""}>
         {paymentReturnStatus && <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm text-amber-100">You have returned from checkout. Check your saved entry’s payment status below; returning here does not confirm payment.</div>}
         {recoveryReceipt && <RegistrationRecovery receipt={recoveryReceipt} />}
-        <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
+        {(!isGambitBase || matches.length === 0) && !newPlayerMode && !searching && <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 shadow-xl md:p-8">
           <h2 className="text-xl font-bold md:text-2xl">
-            1. Find the player profile
+            {isGambitBase ? "Find or add a player" : "1. Find the player profile"}
           </h2>
 
-          <p className="mt-3 text-sm leading-6 text-gray-400">
+          {!isGambitBase && <p className="mt-3 text-sm leading-6 text-gray-400">
             Search before adding a new player. This helps us keep Chess SA IDs,
             PCC IDs and tournament history on the correct profile.
-          </p>
+          </p>}
 
-          <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
+          {!isGambitBase && <div className="mt-4 rounded-xl border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
             <p>1. Search by Chess SA ID if you know it.</p>
             <p>2. Search by surname + date of birth if you do not know your Chess SA ID.</p>
             <p>3. Search by surname only if the first two options do not work.</p>
-          </div>
+          </div>}
 
           <div className="mt-5 grid gap-2 sm:grid-cols-3">
             {(
@@ -1428,6 +1479,8 @@ export default function RegisterPage() {
                 type="button"
                 onClick={() => {
                   setSearchMethod(method);
+                  setGambitMethodChosen(true);
+                  setGambitEntryStep("player");
                   setSearchValue("");
                   setSearchBirthDate("");
                   setMatches([]);
@@ -1452,7 +1505,9 @@ export default function RegisterPage() {
             ))}
           </div>
 
-          <form
+          {isGambitBase && !gambitMethodChosen && <p className="mt-5 rounded-lg bg-[#f5efdf] px-4 py-3 text-sm text-[#58677a]">Choose how you want to find the player. The matching search fields will appear next.</p>}
+
+          {(!isGambitBase || gambitMethodChosen) && <form
             onSubmit={handleSearch}
             className="mt-5 grid gap-4 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-end"
           >
@@ -1506,7 +1561,7 @@ export default function RegisterPage() {
                 {searching ? "Searching..." : "Find profile"}
               </button>
             </div>
-          </form>
+          </form>}
 
           {searchMessage && (
             <p className="mt-5 rounded-lg border border-white/10 bg-zinc-950 p-4 text-sm leading-6 text-gray-300">
@@ -1514,7 +1569,12 @@ export default function RegisterPage() {
             </p>
           )}
 
-          <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
+          {isGambitBase && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d9c99c] bg-[#f5efdf] p-4">
+            <div><p className="font-semibold text-[#142239]">New to chess or not listed?</p><p className="mt-1 text-sm text-[#58677a]">Create a new player profile for organiser review.</p></div>
+            <button type="button" onClick={startNewPlayerRegistration} className="rounded-full bg-[#d5ab5d] px-4 py-2.5 text-sm font-bold text-[#142239] transition hover:bg-[#c59635]">Register a new player</button>
+          </div>}
+
+          {!isGambitBase && <div className="mt-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-5">
             <p className="text-sm font-semibold text-amber-100">
               New to chess or not listed on Chess SA?
             </p>
@@ -1529,12 +1589,16 @@ export default function RegisterPage() {
             >
               Register as a New Player
             </button>
-          </div>
-        </div>
+          </div>}
+        </div>}
 
-        {matches.length > 1 && !selectedChessSaPlayer && (
+        {isGambitBase && searching && <div className="rounded-2xl border border-[#d9c99c] bg-white p-6 text-center text-sm font-semibold text-[#58677a]">Searching player profiles…</div>}
+
+        {(isGambitBase ? matches.length > 0 : matches.length > 1) && !selectedChessSaPlayer && (
           <div className="mt-6 rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
-            <h2 className="text-xl font-bold md:text-2xl">Select your profile</h2>
+            <h2 className="text-xl font-bold md:text-2xl">{isGambitBase ? "Choose the player" : "Select your profile"}</h2>
+            {isGambitBase && <p className="mt-2 text-sm text-gray-400">{matches.length} matching player{matches.length === 1 ? "" : "s"} found. Select the correct profile to continue.</p>}
+            {isGambitBase && <button type="button" onClick={() => { setMatches([]); setGambitMethodChosen(false); setGambitEntryStep("player"); setSearchValue(""); setSearchBirthDate(""); setSearchMessage(""); }} className="mt-4 text-sm font-bold text-[#745719] underline underline-offset-4">Change search method</button>}
             <p className="mt-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-4 text-sm leading-6 text-blue-100/90">
               More than one player can have the same surname or similar names.
               Choose the profile that matches the player&apos;s date of birth, FED
@@ -1597,13 +1661,14 @@ export default function RegisterPage() {
           </div>
         )}
 
-        {newPlayerMode && (
+        {newPlayerMode && (!isGambitBase || gambitEntryStep === "section") && (
           <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 md:p-6">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-amber-300">
               New / Unverified Player
             </p>
 
             <h2 className="mt-3 text-xl font-bold md:text-2xl">New player details</h2>
+            {isGambitBase && <button type="button" onClick={() => { setNewPlayerMode(false); setGambitMethodChosen(false); setGambitEntryStep("player"); setSearchMessage(""); }} className="mt-3 text-sm font-bold text-[#745719] underline underline-offset-4">Back to player search</button>}
 
             <p className="mt-3 text-sm leading-6 text-gray-300">
               This is for players who are new to chess or do not yet appear in
@@ -1702,9 +1767,18 @@ export default function RegisterPage() {
               {selectedChessSaPlayer.full_name}
             </h2>
 
-            <div className="mt-6 grid gap-4 text-sm text-gray-200 sm:grid-cols-2">
+            {isGambitBase && <button type="button" onClick={() => { setSelectedChessSaPlayer(null); setMatches([]); setGambitMethodChosen(false); setGambitEntryStep("player"); setSearchMessage(""); }} className="mt-3 text-sm font-bold text-[#745719] underline underline-offset-4">Choose a different player</button>}
+
+            {isGambitBase && <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-xs text-[#58677a] sm:grid-cols-4">
+              <p><span className="block text-[9px] font-bold uppercase tracking-wider text-[#9a6b18]">Chess SA ID</span>{selectedChessSaPlayer.chess_sa_id ?? "Not recorded"}</p>
+              <p><span className="block text-[9px] font-bold uppercase tracking-wider text-[#9a6b18]">Date of birth</span>{selectedChessSaPlayer.date_of_birth ?? "Not supplied"}</p>
+              <p><span className="block text-[9px] font-bold uppercase tracking-wider text-[#9a6b18]">Federation</span>{selectedChessSaPlayer.federation ?? selectedChessSaPlayer.province ?? "Not supplied"}</p>
+              <p><span className="block text-[9px] font-bold uppercase tracking-wider text-[#9a6b18]">Rating</span>{selectedPlayerRating ?? "Not rated"}</p>
+            </div>}
+
+            {!isGambitBase && <div className="mt-6 grid gap-4 text-sm text-gray-200 sm:grid-cols-2">
               <p>
-                <span className="font-semibold text-white">PCC ID:</span>{" "}
+                <span className="font-semibold text-white">{isGambitBase ? "Player ID:" : "PCC ID:"}</span>{" "}
                 {selectedChessSaPlayer.pcc_id ?? "Not assigned"}
               </p>
 
@@ -1757,7 +1831,7 @@ export default function RegisterPage() {
                 <span className="font-semibold text-white">Federation:</span>{" "}
                 {selectedChessSaPlayer.federation ?? "Not supplied"}
               </p>
-            </div>
+            </div>}
 
             {!normalizeGender(selectedChessSaPlayer.gender) && (
               <div className="mt-5 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
@@ -1785,9 +1859,9 @@ export default function RegisterPage() {
         )}
 
         {(selectedChessSaPlayer || newPlayerMode) && (
-          <form onSubmit={handleRegistration} className="mt-6 space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
-              <h2 className="text-xl font-bold md:text-2xl">2. Contact details</h2>
+          <form onSubmit={handleRegistration} className={`mt-6 ${isGambitBase ? "gb-entry-form grid gap-6" : "space-y-6"}`}>
+            {(!isGambitBase || gambitEntryStep === "payment") && <div className={`rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6 ${isGambitBase ? "order-2" : ""}`}>
+              <h2 className="text-xl font-bold md:text-2xl">{isGambitBase ? "Who should receive event updates?" : "2. Contact details"}</h2>
               <p className="mt-2 text-sm leading-6 text-gray-400">
                 These can belong to the player or the person helping with the
                 registration. We use them for entry updates, payment checks and
@@ -1855,25 +1929,30 @@ export default function RegisterPage() {
                   </select>
                 </div>
               </div>
-            </div>
+            </div>}
 
-            <div className="rounded-2xl border border-red-500/30 bg-zinc-900 p-4 md:p-6">
+            {(!isGambitBase || gambitEntryStep === "section") && <div className={`rounded-2xl border border-red-500/30 bg-zinc-900 p-4 md:p-6 ${isGambitBase ? "order-1" : ""}`}>
               <div className="mb-4 border-l-4 border-red-500 pl-4">
                 <p className="text-xs font-semibold uppercase tracking-[0.25em] text-red-400">
-                  Step 3
+                  {isGambitBase ? "Step 2 · Event & section" : "Step 3"}
                 </p>
 
                 <h2 className="mt-2 text-xl font-bold md:text-2xl">
-                  Tournament Selection
+                  {isGambitBase ? "Choose your section" : "Tournament Selection"}
                 </h2>
 
                 <p className="mt-1.5 text-xs leading-5 text-gray-400">
-                  Choose the tournament you are entering and select your section.
+                  {isGambitBase ? "Select an eligible section for this event." : "Choose the tournament you are entering and select your section."}
                 </p>
               </div>
 
-              <div className="grid gap-5 md:grid-cols-2">
-                <div>
+              {isGambitBase && selectedTournament && <div className="mt-4 rounded-xl border border-[#d9c99c] bg-white p-4 text-sm text-[#58677a]">
+                <p className="font-semibold text-[#142239]">{selectedTournament.tournament_name}</p>
+                <p className="mt-1">{formatDate(selectedTournament.start_date)}{selectedTournament.venue ? ` · ${selectedTournament.venue}` : ""}{selectedTournament.province ? ` · ${selectedTournament.province}` : ""}</p>
+              </div>}
+
+              <div className={isGambitBase ? "mt-5 grid gap-5" : "mt-5 grid gap-5 md:grid-cols-2"}>
+                {(!isGambitBase || !selectedTournament) && <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
                     Open tournament
                   </label>
@@ -1972,7 +2051,7 @@ export default function RegisterPage() {
                       </p>
                     )}
                   </div>
-                </div>
+                </div>}
 
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-gray-200">
@@ -2032,7 +2111,7 @@ export default function RegisterPage() {
                     </p>
                   )}
 
-                  {sections.length > 0 && (
+                  {sections.length > 0 && !isGambitBase && (
                     <div className="mt-4 space-y-2">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">
                         Section guide
@@ -2090,7 +2169,7 @@ export default function RegisterPage() {
                     </div>
                   )}
 
-                  {selectedTournament && (
+                  {selectedTournament && !isGambitBase && (
                     <div className="mt-5 rounded-xl border border-white/10 bg-zinc-950 p-5 text-sm leading-6 text-gray-300">
                       <p>
                         <span className="font-semibold text-white">Venue:</span>{" "}
@@ -2116,12 +2195,15 @@ export default function RegisterPage() {
                       )}
                     </div>
                   )}
+                  {isGambitBase && <button type="button" disabled={!selectedSectionId || Boolean(selectedSectionEligibilityMessage)} onClick={() => setGambitEntryStep("payment")} className="mt-5 w-full rounded-full bg-[#d5ab5d] px-5 py-3 text-sm font-bold text-[#142239] transition hover:bg-[#c59635] disabled:cursor-not-allowed disabled:opacity-50">Continue to payment</button>}
                 </div>
               </div>
-            </div>
+            </div>}
 
-            <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6">
-              <h3 className="text-xl font-bold md:text-2xl">4. Payment option</h3>
+            {(!isGambitBase || gambitEntryStep === "payment") && <div className={`rounded-2xl border border-white/10 bg-zinc-900 p-4 md:p-6 ${isGambitBase ? "order-1" : ""}`}>
+              {isGambitBase && <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#9a6b18]">Step 3 · Payment</p>}
+              <h3 className="mt-1 text-xl font-bold md:text-2xl">{isGambitBase ? "Choose how to pay" : "4. Payment option"}</h3>
+              {isGambitBase && <button type="button" onClick={() => setGambitEntryStep("section")} className="mt-2 text-sm font-bold text-[#745719] underline underline-offset-4">Back to section</button>}
               {selectedTournament?.online_payment_enabled && entryFee <= 0 && <p className="mt-3 text-sm text-amber-200">Secure online payment is enabled for this event. {selectedSection ? "This section has a R0 entry fee, so no online payment is required. If a fee is expected, contact the organiser to correct it." : "Choose a section with an entry fee to pay online."}</p>}
               <p className="mt-2 text-sm leading-6 text-gray-400">Choose how you want the organiser to handle this entry&apos;s payment.</p>
 
@@ -2269,7 +2351,7 @@ export default function RegisterPage() {
                   {registrationMessage}
                 </p>
               )}
-            </div>
+            </div>}
           </form>
         )}
 
@@ -2282,11 +2364,36 @@ export default function RegisterPage() {
                 Schools, coaches, clubs and organisations can complete one Excel template for multiple players and send it to the tournament organiser.
               </p>
             </div>
-            <button type="button" onClick={() => downloadBulkWorkbook(sections, selectedTournament?.tournament_name)} className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200">
+            <button type="button" onClick={() => downloadBulkWorkbook(sections, selectedTournament?.tournament_name, isGambitBase ? "GambitBase" : "PCC")} className="inline-flex justify-center rounded-xl bg-white px-5 py-3 text-sm font-black text-black transition hover:bg-gray-200">
               Download Excel template
             </button>
           </div>
         </div>
+        </div>
+        {isGambitBase && (
+          <aside className="gb-registration-checklist order-2 h-fit lg:sticky lg:top-24 lg:order-2">
+            <p className="text-[9px] font-extrabold uppercase tracking-[0.2em] text-[#9a6b18]">Entry route</p>
+            <h2 className="mt-2 font-serif text-2xl font-semibold text-[#142239]">Three steps to your entry.</h2>
+            <ol className="mt-5 space-y-4">
+              {[
+                ["01", "Find the player", "Search an existing player or add a new profile."],
+                ["02", "Choose a section", "Pick the event section that fits the player."],
+                ["03", "Send the entry", "Choose the payment option and submit to the organiser."],
+              ].map(([number, title, description]) => (
+                <li key={number} className="grid grid-cols-[32px_1fr] gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#e8dfc9] font-serif text-sm font-bold text-[#8a6419]">{number}</span>
+                  <div><h3 className="text-xs font-extrabold text-[#293a50]">{title}</h3><p className="mt-1 text-[11px] leading-5 text-[#718092]">{description}</p></div>
+                </li>
+              ))}
+            </ol>
+            <div className="mt-6 border-t border-[#ded8cb] pt-4">
+              <p className="text-[8px] font-extrabold uppercase tracking-[0.17em] text-[#8993a1]">Selected section</p>
+              <p className="mt-1 text-sm font-bold text-[#293a50]">{selectedSection?.section_name ?? "Choose a section in the form"}</p>
+              {selectedSection && <p className="mt-1 text-xs text-[#718092]">{selectedFeeText}</p>}
+            </div>
+            <a href="#bulk-registration" className="mt-5 inline-flex text-xs font-bold text-[#765a20] underline decoration-[#c6a251] underline-offset-4">Entering a team or school? →</a>
+          </aside>
+        )}
       </section>
 
       {openPoster && (
@@ -2340,7 +2447,7 @@ export default function RegisterPage() {
             </h2>
 
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              Your entry has been sent for review. PCC will confirm your
+              Your entry has been sent for review. {isGambitBase ? "The event organiser" : "PCC"} will confirm your
               registration and payment status.
             </p>
 
@@ -2364,7 +2471,7 @@ export default function RegisterPage() {
 
             {registrationReceipt && (
               <Link
-                href={"/tournaments/" + registrationReceipt.tournamentId}
+                href={(isGambitBase ? "/gambitbase/tournaments/" : "/tournaments/") + registrationReceipt.tournamentId}
                 className="mt-4 block rounded-lg border border-green-500/40 bg-green-500/10 px-4 py-3 text-sm font-bold text-green-100 transition hover:bg-green-500/20"
               >
                 Open official event page
@@ -2392,7 +2499,7 @@ export default function RegisterPage() {
         </div>
       )}
       </main>
-    </PublicPageShell>
+    </PageShell>
   );
 }
 
